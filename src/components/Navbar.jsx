@@ -15,12 +15,12 @@ export default function Navbar({ activePage, setActivePage, isAuth, user, onOpen
             N
           </div>
           <div>
-            <span className="text-2xl font-extrabold tracking-wide text-white font-heading group-hover:text-cyan-400 transition-colors">
-              Nexinfra
-            </span>
-            <span className="text-xs text-cyan-400/90 block font-mono-tech -mt-0.5 tracking-widest uppercase">
-              AI Command & CitySync Portal
-            </span>
+           <span
+  className="text-2xl font-bold tracking-[0.02em] text-white group-hover:text-cyan-400 transition-all duration-300"
+  style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+>
+  NEX<span className="text-cyan-400">infra</span>
+</span>
           </div>
         </div>
 
