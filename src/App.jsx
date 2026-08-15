@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Navbar from './components/Navbar';
 import Sidebar from './components/Sidebar';
 import LandingView from './views/LandingView';
@@ -19,7 +19,16 @@ import SettingsModal from './components/SettingsModal';
 export default function App() {
   const [activePage, setActivePage] = useState('landing');
   const [user, setUser] = useState(null);
-  const [viewMode, setViewMode] = useState('auto'); // 'auto' | 'phone' | 'desktop'
+  const [viewMode, setViewMode] = useState('auto');
+
+const [theme, setTheme] = useState(() => {
+  return localStorage.getItem('nexinfra-theme') || 'dark';
+});
+
+useEffect(() => {
+  document.documentElement.setAttribute('data-theme', theme);
+  localStorage.setItem('nexinfra-theme', theme);
+}, [theme]);
 
   // Modals state
   const [isDispatchModalOpen, setIsDispatchModalOpen] = useState(false);
@@ -145,11 +154,13 @@ export default function App() {
       />
 
       <SettingsModal
-        isOpen={isSettingsOpen}
-        onClose={() => setIsSettingsOpen(false)}
-        viewMode={viewMode}
-        setViewMode={setViewMode}
-      />
+  isOpen={isSettingsOpen}
+  onClose={() => setIsSettingsOpen(false)}
+  viewMode={viewMode}
+  setViewMode={setViewMode}
+  theme={theme}
+  setTheme={setTheme}
+/>
 
     </div>
   );

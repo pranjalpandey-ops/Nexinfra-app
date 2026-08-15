@@ -1,7 +1,24 @@
 import React from 'react';
-import { X, Settings, Smartphone, Monitor, Zap, Eye, Check } from 'lucide-react';
+import {
+  X,
+  Settings,
+  Smartphone,
+  Monitor,
+  Zap,
+  Eye,
+  Check,
+  Sun,
+  Moon
+} from 'lucide-react';
 
-export default function SettingsModal({ isOpen, onClose, viewMode, setViewMode }) {
+export default function SettingsModal({
+  isOpen,
+  onClose,
+  viewMode,
+  setViewMode,
+  theme,
+  setTheme
+}) {
   if (!isOpen) return null;
 
   return (
@@ -30,6 +47,56 @@ export default function SettingsModal({ isOpen, onClose, viewMode, setViewMode }
             </p>
           </div>
         </div>
+        {/* Theme Selection */}
+<div className="space-y-3 font-mono-tech text-xs">
+  <label className="block text-slate-300 font-bold uppercase tracking-wider">
+    Appearance
+  </label>
+
+  <div className="grid grid-cols-2 gap-3">
+
+    {/* Light Mode */}
+    <button
+      onClick={() => setTheme('light')}
+      className={`p-4 rounded-xl border flex flex-col items-center gap-2 transition-all cursor-pointer ${
+        theme === 'light'
+          ? 'border-cyan-400 bg-cyan-950/40 text-cyan-300 cyan-glow-sm'
+          : 'border-slate-800 bg-[#070A10] text-slate-400 hover:text-slate-200'
+      }`}
+    >
+      <Sun className="w-6 h-6" />
+
+      <span className="font-bold text-sm">
+        Light
+      </span>
+
+      {theme === 'light' && (
+        <Check className="w-4 h-4 text-cyan-400" />
+      )}
+    </button>
+
+    {/* Dark Mode */}
+    <button
+      onClick={() => setTheme('dark')}
+      className={`p-4 rounded-xl border flex flex-col items-center gap-2 transition-all cursor-pointer ${
+        theme === 'dark'
+          ? 'border-cyan-400 bg-cyan-950/40 text-cyan-300 cyan-glow-sm'
+          : 'border-slate-800 bg-[#070A10] text-slate-400 hover:text-slate-200'
+      }`}
+    >
+      <Moon className="w-6 h-6" />
+
+      <span className="font-bold text-sm">
+        Dark
+      </span>
+
+      {theme === 'dark' && (
+        <Check className="w-4 h-4 text-cyan-400" />
+      )}
+    </button>
+
+  </div>
+</div>
 
         {/* Device View Mode Selection Section */}
         <div className="space-y-3 font-mono-tech text-xs">
