@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { MapPin, Navigation, Activity, ShieldAlert, Zap, Layers } from 'lucide-react';
+import LeafletMap from '../components/LeafletMap';
 
 export default function LiveMapView({ onOpenDispatchModal }) {
   const [activeLayer, setActiveLayer] = useState('ALL');
@@ -32,67 +33,9 @@ export default function LiveMapView({ onOpenDispatchModal }) {
         </div>
       </div>
 
-      {/* Map Interactive Canvas Frame */}
+      {/* Map Interactive Canvas Frame (Leaflet) */}
       <div className="relative w-full h-[520px] bg-[#0A0E1A] border border-slate-800 rounded-xl overflow-hidden bg-cyber-grid-dense shadow-2xl flex items-center justify-center">
-        
-        {/* Map Grid Radar Circles */}
-        <div className="absolute w-[600px] h-[600px] border border-cyan-500/10 rounded-full animate-ping pointer-events-none" />
-        <div className="absolute w-[400px] h-[400px] border border-cyan-500/20 rounded-full pointer-events-none" />
-        <div className="absolute w-[200px] h-[200px] border border-cyan-500/30 rounded-full pointer-events-none" />
-
-        {/* Radar Sweep Line */}
-        <div className="absolute inset-0 bg-gradient-to-tr from-cyan-500/5 via-transparent to-transparent animate-spin duration-10000 pointer-events-none origin-center" />
-
-        {/* Overlay Pins */}
-        {pins.map((pin) => (
-          <div
-            key={pin.id}
-            onClick={() => setSelectedPin(pin)}
-            style={{ top: pin.top, left: pin.left }}
-            className="absolute transform -translate-x-1/2 -translate-y-1/2 group cursor-pointer"
-          >
-            <div className={`relative flex items-center justify-center ${
-              pin.type === 'CRITICAL' ? 'text-rose-500' :
-              pin.type === 'WARNING' ? 'text-amber-400' :
-              pin.type === 'DRONE' ? 'text-cyan-400' : 'text-emerald-400'
-            }`}>
-              <span className={`absolute w-8 h-8 rounded-full opacity-75 animate-ping ${
-                pin.type === 'CRITICAL' ? 'bg-rose-500' :
-                pin.type === 'WARNING' ? 'bg-amber-400' :
-                pin.type === 'DRONE' ? 'bg-cyan-400' : 'bg-emerald-400'
-              }`} />
-              <div className="w-8 h-8 rounded-full bg-[#070A10] border-2 border-current flex items-center justify-center font-mono-tech text-xs font-bold cyan-glow-sm z-10">
-                <MapPin className="w-4 h-4" />
-              </div>
-            </div>
-
-            {/* Hover Tooltip */}
-            <div className="absolute left-1/2 -translate-x-1/2 top-10 hidden group-hover:block bg-[#070A10] border border-cyan-500/40 p-2.5 rounded shadow-xl font-mono-tech text-[10px] w-48 z-30">
-              <p className="font-bold text-white">{pin.title}</p>
-              <p className="text-cyan-400">{pin.coords}</p>
-              <p className="text-slate-400 mt-1">{pin.note}</p>
-            </div>
-          </div>
-        ))}
-
-        {/* Selected Pin Details Box */}
-        {selectedPin && (
-          <div className="absolute bottom-4 left-4 bg-[#070A10]/95 border border-cyan-400 p-4 rounded-lg font-mono-tech text-xs z-40 max-w-sm space-y-2 cyan-glow-sm">
-            <div className="flex justify-between items-center text-cyan-400 font-bold">
-              <span>{selectedPin.title}</span>
-              <button onClick={() => setSelectedPin(null)} className="text-slate-400 hover:text-white">✕</button>
-            </div>
-            <p className="text-slate-300">Coordinates: {selectedPin.coords}</p>
-            <p className="text-slate-400 text-[11px]">{selectedPin.note}</p>
-            <button 
-              onClick={onOpenDispatchModal}
-              className="w-full py-1.5 rounded bg-cyan-400 text-black font-bold uppercase text-[10px] mt-2"
-            >
-              Direct Telemetry Stream ↗
-            </button>
-          </div>
-        )}
-
+        <LeafletMap />
       </div>
 
     </div>
