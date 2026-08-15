@@ -1,14 +1,26 @@
 import React from 'react';
-import { LayoutDashboard, MapPin, FileText, Plane, BarChart3, Settings, HelpCircle, Sparkles, AlertCircle } from 'lucide-react';
+import {
+  LayoutDashboard,
+  MapPin,
+  FileText,
+  Plane,
+  BarChart3,
+  Settings,
+  HelpCircle,
+  Sparkles,
+  AlertCircle,
+  Camera
+} from 'lucide-react';
 
 export default function Sidebar({ activePage, setActivePage, onOpenDispatchModal, onOpenSettings }) {
   const menuItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'live-map', label: 'Live Map', icon: MapPin },
-    { id: 'maintenance', label: 'Incident Logs', icon: FileText },
-    { id: 'drone-fleet', label: 'Drone Fleet', icon: Plane },
-    { id: 'analytics', label: 'Analytics', icon: BarChart3 },
-  ];
+  { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { id: 'live-map', label: 'Live Map', icon: MapPin },
+  { id: 'maintenance', label: 'Incident Logs', icon: FileText },
+  { id: 'drone-fleet', label: 'Drone Fleet', icon: Plane },
+  { id: 'analytics', label: 'Analytics', icon: BarChart3 },
+  { id: 'cctv', label: 'CCTV Monitor', icon: Camera },
+];
 
   const citySyncItems = [
     { id: 'report-issue', label: 'Report an Issue', icon: Sparkles },
@@ -74,7 +86,7 @@ export default function Sidebar({ activePage, setActivePage, onOpenDispatchModal
         {/* CitySync AI Section */}
         <nav className="px-3 py-2 space-y-1 border-t border-slate-800/60 mt-2 pt-3">
           <div className="px-3 py-1.5 text-xs text-cyan-400 font-bold uppercase tracking-widest flex items-center justify-between">
-            <span>CitySync AI Portal</span>
+            <span>NEXINFRA AI SYSTEMS</span>
             <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
           </div>
 

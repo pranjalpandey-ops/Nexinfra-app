@@ -9,6 +9,7 @@ import MaintenanceView from './views/MaintenanceView';
 import LiveMapView from './views/LiveMapView';
 import DroneFleetView from './views/DroneFleetView';
 import AnalyticsView from './views/AnalyticsView';
+import CCTVMonitor from './components/CCTVMonitor';
 import CitySyncReportView from './views/CitySyncReportView';
 import CitySyncMapView from './views/CitySyncMapView';
 import IncidentDetailView from './views/IncidentDetailView';
@@ -137,6 +138,7 @@ useEffect(() => {
                 />
               )}
               {activePage === 'analytics' && <AnalyticsView />}
+              {activePage === 'cctv' && <CCTVMonitor />}
             </div>
           </main>
         </div>
