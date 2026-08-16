@@ -1,178 +1,464 @@
-import React, { useState } from 'react';
-import { ArrowLeft, Video, RefreshCw, Bot, CheckCircle2, Plane, AlertTriangle, Layers, Clock } from 'lucide-react';
+import React, { useState, useEffect } from "react";
+import {
+  ArrowLeft,
+  Video,
+  RefreshCw,
+  Bot,
+  Plane,
+  MapPin,
+  Clock,
+  Calendar,
+} from "lucide-react";
 
-export default function IncidentDetailView({ setActivePage, viewMode = 'auto' }) {
+import { updateComplaintStatus } from "../services/updateComplaintStatus";
+
+export default function IncidentDetailView({
+  setActivePage,
+  viewMode = "auto",
+}) {
   const [isScanning, setIsScanning] = useState(false);
+
+  const [complaint, setComplaint] = useState({
+    id: "DEMO-001",
+    title: "Large pothole near school",
+    category: "Road Damage/Pothole",
+    description: "Large pothole causing traffic slowdowns.",
+    priority: "High",
+    status: "Submitted",
+    address: "Sector 62, Noida",
+    imageUrl: null,
+    createdBy: "demo@nexinfra.com",
+    createdAt: null,
+    latitude: null,
+    longitude: null,
+  });
+
+  useEffect(() => {
+    const saved = localStorage.getItem("selectedComplaint");
+
+    if (saved) {
+      try {
+        setComplaint(JSON.parse(saved));
+      } catch (err) {
+        console.error(err);
+      }
+    }
+  }, []);
 
   const handleRescan = () => {
     setIsScanning(true);
+
     setTimeout(() => {
       setIsScanning(false);
-      alert('Re-scan complete. Telemetry updated.');
+      alert("AI Drone Re-Scan Completed");
     }, 2000);
   };
 
-  const isPhoneFrame = viewMode === 'phone';
+  const changeStatus = async (newStatus) => {
+    if (!complaint.id) return;
+
+    const result = await updateComplaintStatus(complaint.id, newStatus);
+
+    if (result.success) {
+      const updated = {
+        ...complaint,
+        status: newStatus,
+      };
+
+      setComplaint(updated);
+      localStorage.setItem("selectedComplaint", JSON.stringify(updated));
+
+      alert(`Status updated to "${newStatus}"`);
+    } else {
+      alert(result.error);
+    }
+  };
+
+  const isPhoneFrame = viewMode === "phone";
 
   return (
-    <div className="min-h-screen bg-[#070A10] text-slate-100 font-sans flex flex-col items-center py-8 px-4 w-full">
-      
-      <div className={`w-full transition-all duration-300 ${
-        isPhoneFrame 
-          ? 'max-w-lg bg-[#0C101A] border border-slate-800 rounded-2xl overflow-hidden shadow-2xl p-6 space-y-6' 
-          : 'max-w-6xl mx-auto bg-[#0C101A]/90 border border-slate-800/90 rounded-2xl p-6 lg:p-8 shadow-2xl space-y-6'
-      }`}>
-        
-        <div className="flex items-center justify-between border-b border-slate-800/80 pb-4">
+    <div className="min-h-screen bg-[#070A10] text-slate-100 flex justify-center py-8 px-4">
+
+      <div
+        className={`w-full ${
+          isPhoneFrame
+            ? "max-w-lg bg-[#0C101A] border border-slate-800 rounded-2xl overflow-hidden p-6"
+            : "max-w-6xl bg-[#0C101A] border border-slate-800 rounded-2xl p-8"
+        }`}
+      >
+
+        {/* Header */}
+
+        <div className="flex justify-between items-center border-b border-slate-800 pb-4 mb-6">
+
           <div className="flex items-center gap-3">
+
             <button
-              onClick={() => setActivePage('citysync-map')}
-              className="p-2.5 rounded-xl bg-[#070A12] border border-slate-800 text-slate-300 hover:text-cyan-400 transition-colors cursor-pointer"
+              onClick={() => setActivePage("citysync-map")}
+              className="p-2 rounded-xl bg-[#070A12] border border-slate-700 hover:text-cyan-400 transition"
             >
               <ArrowLeft className="w-5 h-5" />
             </button>
-            
+
             <div>
-              <h1 className="text-2xl sm:text-3xl font-bold text-white font-heading">
-                Incident #8842
+
+              <h1 className="text-2xl font-bold">
+                Incident #{complaint.id}
               </h1>
-              <p className="text-xs sm:text-sm font-mono-tech text-slate-300 mt-0.5 font-bold">
-                Water Leakage / Flood Risk Inspection
+
+              <p className="text-cyan-400 text-sm">
+                {complaint.category}
               </p>
+
             </div>
+
           </div>
 
-          <div className="px-3.5 py-1.5 rounded-full bg-rose-950/80 border border-rose-500/40 text-rose-300 text-xs font-mono-tech font-extrabold flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-rose-400 animate-ping" />
-            <span>● Verified</span>
-          </div>
+          <span className="px-3 py-1 rounded-full bg-cyan-950 border border-cyan-500 text-cyan-300 text-xs font-bold">
+            {complaint.status}
+          </span>
+
         </div>
 
-        <div className={`space-y-6 ${!isPhoneFrame ? 'grid grid-cols-1 lg:grid-cols-12 gap-8 space-y-0' : ''}`}>
-          
-          <div className={`${!isPhoneFrame ? 'lg:col-span-6 space-y-6' : 'space-y-6'}`}>
-            
-            <div className="space-y-3">
-              <div className="flex items-center justify-between font-mono-tech text-xs sm:text-sm">
-                <span className="font-extrabold text-white uppercase tracking-wider">Visual Evidence</span>
-                <span className="text-slate-300 font-bold">🖼 3 Media Assets</span>
+        <div className="grid lg:grid-cols-2 gap-8">
+
+          {/* LEFT */}
+
+          <div className="space-y-6">
+
+            <div>
+
+              <div className="flex justify-between items-center mb-3">
+
+                <h3 className="font-bold text-white">
+                  Visual Evidence
+                </h3>
+
+                <span className="text-sm text-slate-400">
+                  Uploaded Image
+                </span>
+
               </div>
 
-              <div className="h-72 rounded-2xl bg-[#05070D] border border-slate-800 relative overflow-hidden flex items-center justify-center bg-cyber-grid-dense group">
-                <div className="absolute inset-0 bg-gradient-to-t from-blue-950/90 via-slate-900/60 to-transparent" />
-                <svg className="w-full h-full absolute inset-0 text-cyan-400/40" viewBox="0 0 100 100">
-                  <path d="M 10 40 Q 50 20 90 60" stroke="#00F0FF" strokeWidth="3" fill="none" opacity="0.6" />
-                  <rect x="20" y="30" width="60" height="40" fill="#00F0FF" fillOpacity="0.15" stroke="#00F0FF" strokeWidth="1" strokeDasharray="2,2" />
-                </svg>
-
-                <div className="absolute bottom-4 left-4 px-3.5 py-1.5 rounded-lg bg-black/80 border border-cyan-500/40 text-xs font-mono-tech text-cyan-300 font-bold">
-                  Drone Aerial Shot • 10:42 AM
+              {complaint.imageUrl ? (
+                <img
+                  src={complaint.imageUrl}
+                  alt="Complaint"
+                  className="w-full h-80 object-cover rounded-2xl border border-slate-700"
+                />
+              ) : (
+                <div className="w-full h-80 rounded-2xl border border-slate-700 bg-[#05070D] flex items-center justify-center text-slate-500">
+                  No image uploaded
                 </div>
+              )}
 
-                <div className="absolute bottom-4 right-4 flex items-center gap-2">
-                  <span className="w-4 h-1.5 rounded-full bg-cyan-400" />
-                  <span className="w-2 h-2 rounded-full bg-slate-600" />
-                  <span className="w-2 h-2 rounded-full bg-slate-600" />
-                </div>
-              </div>
             </div>
 
-            <div className="bg-[#070A10] border border-slate-800 rounded-2xl p-6 space-y-4 font-mono-tech text-xs sm:text-sm">
-              <div className="flex items-center gap-2 text-cyan-400 font-bold text-sm sm:text-base">
+            {/* Drone Controls */}
+
+            <div className="bg-[#070A12] border border-slate-700 rounded-2xl p-6 space-y-4">
+
+              <div className="flex items-center gap-2 text-cyan-400 font-semibold">
+
                 <Plane className="w-5 h-5" />
-                <span>Drone Asset Controls</span>
+
+                Drone Controls
+
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-3">
+
                 <button
                   onClick={handleRescan}
                   disabled={isScanning}
-                  className="py-3.5 rounded-xl bg-gradient-to-r from-cyan-400 via-teal-300 to-cyan-400 hover:from-cyan-300 hover:to-cyan-200 text-black font-extrabold flex items-center justify-center gap-2 uppercase cyan-glow-sm cursor-pointer shadow-lg active:scale-95 text-xs sm:text-sm"
+                  className="py-3 rounded-xl bg-cyan-400 text-black font-bold flex items-center justify-center gap-2 hover:bg-cyan-300 transition"
                 >
-                  <RefreshCw className={`w-4 h-4 ${isScanning ? 'animate-spin' : ''}`} />
-                  <span>{isScanning ? 'Scanning...' : '⚡ RE-SCAN AREA'}</span>
+                  <RefreshCw
+                    className={`w-4 h-4 ${
+                      isScanning ? "animate-spin" : ""
+                    }`}
+                  />
+
+                  {isScanning ? "Scanning..." : "Re-Scan"}
+
                 </button>
 
                 <button
-                  onClick={() => setActivePage('drone-fleet')}
-                  className="py-3.5 rounded-xl border border-cyan-500/40 bg-cyan-950/30 hover:bg-cyan-900/50 text-cyan-300 font-extrabold flex items-center justify-center gap-2 uppercase cursor-pointer text-xs sm:text-sm"
+                  onClick={() => setActivePage("drone-fleet")}
+                  className="py-3 rounded-xl border border-cyan-500 text-cyan-300 flex items-center justify-center gap-2 hover:bg-cyan-950 transition"
                 >
                   <Video className="w-4 h-4" />
-                  <span>📹 LIVE STREAM</span>
+                  Live Feed
                 </button>
+
               </div>
+
             </div>
 
           </div>
 
-          <div className={`${!isPhoneFrame ? 'lg:col-span-6 space-y-6 flex flex-col justify-between' : 'space-y-6'}`}>
-            
-            <div className="bg-[#070A10] border border-slate-800 rounded-2xl p-6 space-y-5 font-mono-tech text-xs sm:text-sm">
-              <div className="flex items-center justify-between">
-                <h3 className="text-base sm:text-lg font-bold text-white font-heading">AI Assessment</h3>
-                <Bot className="w-6 h-6 text-cyan-400" />
+          {/* RIGHT */}
+
+          <div className="space-y-6">
+
+            {/* AI Assessment */}
+
+            <div className="bg-[#070A12] border border-slate-700 rounded-2xl p-6 space-y-5">
+
+              <div className="flex justify-between items-center">
+
+                <h3 className="font-bold text-lg">
+                  AI Assessment
+                </h3>
+
+                <Bot className="text-cyan-400" />
+
               </div>
 
               <div className="grid grid-cols-2 gap-4">
+
                 <div>
-                  <span className="text-xs text-slate-400 uppercase font-bold block">Estimated Damage Area</span>
-                  <span className="text-3xl font-extrabold text-white font-mono-tech">45 <span className="text-sm text-slate-400 font-normal">sqm</span></span>
+
+                  <p className="text-xs text-slate-400 uppercase">
+                    Priority
+                  </p>
+
+                  <p className="text-2xl font-bold text-amber-400">
+                    {complaint.priority}
+                  </p>
+
                 </div>
 
                 <div>
-                  <span className="text-xs text-slate-400 uppercase font-bold block">Impact Score</span>
-                  <span className="text-3xl font-extrabold text-amber-400 font-mono-tech">8.5/10</span>
+
+                  <p className="text-xs text-slate-400 uppercase">
+                    Status
+                  </p>
+
+                  <p className="text-2xl font-bold text-cyan-400">
+                    {complaint.status}
+                  </p>
+
                 </div>
+
               </div>
 
-              <div className="p-4 rounded-xl bg-rose-950/40 border border-rose-500/40 flex items-center justify-between text-rose-300">
-                <span className="text-slate-300 text-xs sm:text-sm font-bold">Risk Level</span>
-                <span className="font-extrabold text-rose-400 text-sm sm:text-base">High Flood Potential</span>
+              <div className="bg-rose-950/40 border border-rose-500 rounded-xl p-4 flex justify-between">
+
+                <span className="text-slate-300">
+                  Estimated Risk
+                </span>
+
+                <span className="text-rose-400 font-bold">
+                  {complaint.priority === "High"
+                    ? "High"
+                    : complaint.priority === "Medium"
+                    ? "Moderate"
+                    : "Low"}
+                </span>
+
               </div>
+
             </div>
 
-            <div className="bg-[#070A10] border border-slate-800 rounded-2xl p-6 space-y-5 font-mono-tech text-xs sm:text-sm">
-              <h3 className="font-bold text-white uppercase tracking-wider text-sm sm:text-base">Action Timeline</h3>
+            {/* Status Management */}
 
-              <div className="space-y-4 relative pl-7 border-l-2 border-slate-800">
-                <div className="relative">
-                  <span className="w-3.5 h-3.5 rounded-full bg-slate-700 absolute -left-[35px] top-0.5" />
-                  <div className="flex justify-between items-center text-slate-200 font-bold">
-                    <span>Detected</span>
-                    <span className="text-xs text-slate-400 font-normal">10:35 AM</span>
-                  </div>
-                  <p className="text-xs text-slate-400 font-sans mt-0.5">Anomaly flagged by CAM-42</p>
-                </div>
+            <div className="bg-[#070A12] border border-slate-700 rounded-2xl p-6 space-y-4">
 
-                <div className="relative">
-                  <span className="w-3.5 h-3.5 rounded-full bg-slate-700 absolute -left-[35px] top-0.5" />
-                  <div className="flex justify-between items-center text-slate-200 font-bold">
-                    <span>Drone Verified</span>
-                    <span className="text-xs text-slate-400 font-normal">10:42 AM</span>
-                  </div>
-                  <p className="text-xs text-slate-400 font-sans mt-0.5">Aerial unit deployed and confirmed</p>
-                </div>
+              <h3 className="font-bold text-white uppercase">
+                Update Complaint Status
+              </h3>
 
-                <div className="relative">
-                  <span className="w-3.5 h-3.5 rounded-full bg-slate-700 absolute -left-[35px] top-0.5" />
-                  <div className="flex justify-between items-center text-slate-200 font-bold">
-                    <span>Work Order Created</span>
-                    <span className="text-xs text-slate-400 font-normal">10:45 AM</span>
-                  </div>
-                  <p className="text-xs text-slate-400 font-sans mt-0.5">Automated ticket generated</p>
-                </div>
+              <div className="grid grid-cols-3 gap-3">
 
-                <div className="relative">
-                  <span className="w-4 h-4 rounded-full bg-cyan-400 absolute -left-[36px] top-1 cyan-glow-sm" />
-                  <div className="p-4 rounded-xl bg-cyan-950/50 border border-cyan-400 text-cyan-300 space-y-1 cyan-glow-sm">
-                    <div className="flex justify-between items-center font-bold">
-                      <span className="text-white text-sm sm:text-base">Team Assigned</span>
-                      <span className="text-xs text-cyan-300 font-bold">10:48 AM</span>
-                    </div>
-                    <p className="text-xs sm:text-sm text-cyan-200 font-sans">Routed to: Water & Sanitation</p>
-                  </div>
-                </div>
+                <button
+                  onClick={() => changeStatus("Pending")}
+                  className={`py-3 rounded-xl font-bold transition ${
+                    complaint.status === "Pending"
+                      ? "bg-amber-500 text-black"
+                      : "bg-slate-800 text-white hover:bg-amber-900"
+                  }`}
+                >
+                  Pending
+                </button>
+
+                <button
+                  onClick={() => changeStatus("In Progress")}
+                  className={`py-3 rounded-xl font-bold transition ${
+                    complaint.status === "In Progress"
+                      ? "bg-cyan-400 text-black"
+                      : "bg-slate-800 text-white hover:bg-cyan-900"
+                  }`}
+                >
+                  In Progress
+                </button>
+
+                <button
+                  onClick={() => changeStatus("Resolved")}
+                  className={`py-3 rounded-xl font-bold transition ${
+                    complaint.status === "Resolved"
+                      ? "bg-emerald-400 text-black"
+                      : "bg-slate-800 text-white hover:bg-emerald-900"
+                  }`}
+                >
+                  Resolved
+                </button>
+
               </div>
+
+            </div>
+
+            {/* Complaint Details */}
+
+            <div className="bg-[#070A12] border border-slate-700 rounded-2xl p-6 space-y-5">
+
+              <h3 className="font-bold uppercase text-white">
+                Complaint Details
+              </h3>
+
+              <div className="space-y-4">
+
+                <div>
+
+                  <p className="text-xs text-slate-400 uppercase">
+                    Title
+                  </p>
+
+                  <p>{complaint.title}</p>
+
+                </div>
+
+                <div>
+
+                  <p className="text-xs text-slate-400 uppercase">
+                    Description
+                  </p>
+
+                  <p className="text-slate-300">
+                    {complaint.description}
+                  </p>
+
+                </div>
+
+                <div className="flex gap-3 items-start">
+
+                  <MapPin className="w-5 h-5 text-cyan-400 mt-1" />
+
+                  <div>
+
+                    <p className="text-xs text-slate-400 uppercase">
+                      Location
+                    </p>
+
+                    <p>{complaint.address}</p>
+
+                    {complaint.latitude && complaint.longitude && (
+                      <p className="text-xs text-slate-500 mt-1">
+                        {complaint.latitude.toFixed(6)},{" "}
+                        {complaint.longitude.toFixed(6)}
+                      </p>
+                    )}
+
+                  </div>
+
+                </div>
+
+                <div className="flex gap-3 items-center">
+
+                  <Clock className="w-5 h-5 text-cyan-400" />
+
+                  <div>
+
+                    <p className="text-xs text-slate-400 uppercase">
+                      Submitted By
+                    </p>
+
+                    <p>{complaint.createdBy}</p>
+
+                  </div>
+
+                </div>
+
+                <div className="flex gap-3 items-center">
+
+                  <Calendar className="w-5 h-5 text-cyan-400" />
+
+                  <div>
+
+                    <p className="text-xs text-slate-400 uppercase">
+                      Submitted On
+                    </p>
+
+                    <p>
+                      {complaint.createdAt?.seconds
+                        ? new Date(
+                            complaint.createdAt.seconds * 1000
+                          ).toLocaleString()
+                        : "Recently"}
+                    </p>
+
+                  </div>
+
+                </div>
+
+              </div>
+
+            </div>
+
+            {/* Timeline */}
+
+            <div className="bg-[#070A12] border border-slate-700 rounded-2xl p-6 space-y-5">
+
+              <h3 className="font-bold uppercase text-white">
+                Action Timeline
+              </h3>
+
+              <div className="space-y-4 border-l-2 border-slate-700 pl-5">
+
+                <div className="relative">
+
+                  <span className="absolute -left-[28px] top-1 w-3 h-3 rounded-full bg-cyan-400"></span>
+
+                  <p className="font-semibold">
+                    Complaint Submitted
+                  </p>
+
+                  <p className="text-xs text-slate-400">
+                    Citizen report received.
+                  </p>
+
+                </div>
+
+                <div className="relative">
+
+                  <span className="absolute -left-[28px] top-1 w-3 h-3 rounded-full bg-cyan-400"></span>
+
+                  <p className="font-semibold">
+                    AI Analysis Completed
+                  </p>
+
+                  <p className="text-xs text-slate-400">
+                    Category identified automatically.
+                  </p>
+
+                </div>
+
+                <div className="relative">
+
+                  <span className="absolute -left-[28px] top-1 w-3 h-3 rounded-full bg-cyan-400"></span>
+
+                  <p className="font-semibold">
+                    Current Status: {complaint.status}
+                  </p>
+
+                  <p className="text-xs text-slate-400">
+                    Live status from Firestore.
+                  </p>
+
+                </div>
+
+              </div>
+
             </div>
 
           </div>
