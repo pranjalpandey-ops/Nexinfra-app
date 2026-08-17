@@ -104,6 +104,7 @@ export default function CitySyncMapView({ setActivePage, viewMode = "auto" }) {
             ? "#fbbf24"
             : "#22c55e",
       popup: `<div style="font-family:sans-serif; min-width:160px;"><strong>${report.title}</strong><br /><span>${report.id || report.category}</span></div>`,
+      data: report,
     }));
 
   const openIncident = () => {
@@ -147,7 +148,7 @@ export default function CitySyncMapView({ setActivePage, viewMode = "auto" }) {
 
         <div className="flex-1 relative rounded-2xl overflow-hidden border border-slate-800 bg-[#090D17] mx-6 mb-6">
           <div className="absolute inset-0 z-0">
-            <LeafletMap center={mapCenter} zoom={13} markers={reportMarkers} />
+            <LeafletMap center={mapCenter} zoom={13} markers={reportMarkers} onMarkerClick={setSelectedComplaint} />
           </div>
 
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
@@ -167,7 +168,7 @@ export default function CitySyncMapView({ setActivePage, viewMode = "auto" }) {
             </div>
           </div>
 
-          <div className="absolute bottom-6 right-6 w-[350px] bg-[#0C101A]/92 border border-rose-500/30 rounded-2xl p-4 shadow-2xl z-30 backdrop-blur-sm">
+          <div className="absolute bottom-6 right-6 w-[350px] bg-[#0C101A]/92 border border-rose-500/30 rounded-2xl p-4 shadow-2xl z-30 backdrop-blur-sm max-h-[70vh] overflow-y-auto">
             {activeReport ? (
               <>
                 <div className="flex items-center justify-between pb-3 border-b border-slate-800 mb-3">
@@ -185,6 +186,12 @@ export default function CitySyncMapView({ setActivePage, viewMode = "auto" }) {
                     LIVE
                   </div>
                 </div>
+
+                {activeReport.imageUrl && (
+                  <div className="mb-3 rounded-xl overflow-hidden border border-slate-700">
+                    <img src={activeReport.imageUrl} alt={activeReport.title} className="w-full h-auto object-cover" />
+                  </div>
+                )}
 
                 <div className="grid grid-cols-2 gap-4 py-2 border-b border-slate-800 mb-3">
                   <div>
@@ -217,6 +224,47 @@ export default function CitySyncMapView({ setActivePage, viewMode = "auto" }) {
               </>
             ) : (
               <p className="text-slate-300">No active reports.</p>
+            )}
+          </div>
+        </div>
+
+        <div className="px-6 pb-6">
+          <h2 className="text-lg font-bold text-cyan-400 mb-4">All Incidents on Map ({filteredReports.length})</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 max-h-[200px] overflow-y-auto">
+            {filteredReports.length > 0 ? (
+              filteredReports.map((report) => (
+                <div
+                  key={report.id}
+                  onClick={() => setSelectedComplaint(report)}
+                  className={`p-4 rounded-lg border cursor-pointer transition-all ${
+                    selectedComplaint?.id === report.id
+                      ? "bg-cyan-500/20 border-cyan-400"
+                      : "bg-[#070A12] border-slate-800 hover:border-slate-700"
+                  }`}
+                >
+                  {report.imageUrl && (
+                    <img src={report.imageUrl} alt={report.title} className="w-full h-24 object-cover rounded-lg mb-2" />
+                  )}
+                  <h3 className="font-bold text-white text-sm mb-1">{report.title}</h3>
+                  <p className="text-[10px] text-slate-400 mb-2">{report.id}</p>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] text-slate-400">{report.category}</span>
+                    <span
+                      className={`text-[10px] font-bold px-2 py-1 rounded ${
+                        report.priority === "High"
+                          ? "bg-red-950 text-red-300"
+                          : report.priority === "Medium"
+                            ? "bg-amber-950 text-amber-300"
+                            : "bg-green-950 text-green-300"
+                      }`}
+                    >
+                      {report.priority}
+                    </span>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <p className="text-slate-400 col-span-full text-center py-4">No incidents to display</p>
             )}
           </div>
         </div>

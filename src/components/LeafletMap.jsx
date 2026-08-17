@@ -64,6 +64,7 @@ export default function LeafletMap({
   containerStyle = { height: "100%", width: "100%" },
   tileUrl = "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
   attribution = "&copy; OpenStreetMap contributors &copy; CARTO",
+  onMarkerClick = null,
 }) {
   return (
     <div style={containerStyle}>
@@ -82,6 +83,13 @@ export default function LeafletMap({
               key={i}
               position={m.position}
               icon={getWarningIcon(m.color || "#fbbf24")}
+              eventHandlers={{
+                click: () => {
+                  if (onMarkerClick && m.data) {
+                    onMarkerClick(m.data);
+                  }
+                },
+              }}
             >
               {m.popup && <Popup dangerouslySetInnerHTML={{ __html: m.popup }} />}
             </Marker>
