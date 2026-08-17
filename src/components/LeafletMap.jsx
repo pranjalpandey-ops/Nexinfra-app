@@ -1,20 +1,21 @@
-import React from 'react'
-import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet'
-import L from 'leaflet'
-import 'leaflet/dist/leaflet.css'
-import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png'
-import markerIcon from 'leaflet/dist/images/marker-icon.png'
-import markerShadow from 'leaflet/dist/images/marker-shadow.png'
+import React from "react";
+import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
+import L from "leaflet";
+import "leaflet/dist/leaflet.css";
+
+import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
+import markerIcon from "leaflet/dist/images/marker-icon.png";
+import markerShadow from "leaflet/dist/images/marker-shadow.png";
 
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: markerIcon2x,
   iconUrl: markerIcon,
   shadowUrl: markerShadow,
-})
+});
 
-const getWarningIcon = (color = '#fbbf24') =>
+const getWarningIcon = (color = "#fbbf24") =>
   L.divIcon({
-    className: 'custom-warning-icon',
+    className: "custom-warning-icon",
     html: `
       <div style="
         width: 22px;
@@ -48,28 +49,41 @@ const getWarningIcon = (color = '#fbbf24') =>
     iconSize: [22, 22],
     iconAnchor: [11, 11],
     popupAnchor: [0, -12],
-  })
+  });
 
-export default function LeafletMap({ center = [28.6139, 77.2090], zoom = 13, markers = [], containerStyle = { height: '100%', width: '100%' }, tileUrl = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', attribution = '&copy; OpenStreetMap contributors' }) {
+function ChangeView({ center, zoom }) {
+  const map = useMap();
+  map.setView(center, zoom);
+  return null;
+}
+
+export default function LeafletMap({
+  center = [28.6139, 77.209],
+  zoom = 13,
+  markers = [],
+  containerStyle = { height: "100%", width: "100%" },
+  tileUrl = "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
+  attribution = "&copy; OpenStreetMap contributors &copy; CARTO",
+}) {
   return (
     <div style={containerStyle}>
-      <MapContainer center={center} zoom={zoom} style={{ height: '100%', width: '100%' }}>
-        <TileLayer
-          url={tileUrl}
-          attribution={attribution}
-        />
+      <MapContainer
+        center={center}
+        zoom={zoom}
+        style={{ height: "100%", width: "100%", borderRadius: "16px" }}
+      >
+        <ChangeView center={center} zoom={zoom} />
+
+        <TileLayer url={tileUrl} attribution={attribution} />
+
         {markers && markers.length > 0 ? (
           markers.map((m, i) => (
             <Marker
               key={i}
               position={m.position}
-              icon={m.color ? getWarningIcon(m.color) : undefined}
+              icon={getWarningIcon(m.color || "#fbbf24")}
             >
-              {m.popup && (
-                <Popup>
-                  {m.popup}
-                </Popup>
-              )}
+              {m.popup && <Popup dangerouslySetInnerHTML={{ __html: m.popup }} />}
             </Marker>
           ))
         ) : (
@@ -83,5 +97,5 @@ export default function LeafletMap({ center = [28.6139, 77.2090], zoom = 13, mar
         )}
       </MapContainer>
     </div>
-  )
+  );
 }
