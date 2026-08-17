@@ -1,60 +1,100 @@
-import React, { useState, useEffect } from "react";
+﻿import React, { useState, useEffect } from "react";
 import {
   ArrowLeft,
   Video,
   RefreshCw,
-  Bot,
-  Plane,
   MapPin,
   Clock,
   Calendar,
+  ShieldCheck,
+  UserCheck,
+  CheckCircle2,
+  ThumbsUp,
+  Building,
+  Sparkles,
+  Layers,
+  Activity,
+  AlertTriangle
 } from "lucide-react";
 
 import { updateComplaintStatus } from "../services/updateComplaintStatus";
+import { upvoteIssue, getLocalCivicIssues } from "../services/civicDb";
 
 export default function IncidentDetailView({
   setActivePage,
   viewMode = "auto",
+  user,
 }) {
+  const isAdmin = user?.role === "admin";
   const [isScanning, setIsScanning] = useState(false);
 
   const [complaint, setComplaint] = useState({
-    id: "DEMO-001",
-    title: "Large pothole near school",
-    category: "Road Damage/Pothole",
-    description: "Large pothole causing traffic slowdowns.",
-    priority: "High",
-    status: "Submitted",
-    address: "Sector 62, Noida",
-    imageUrl: null,
-    createdBy: "demo@nexinfra.com",
+    id: "CIVIC-892A",
+    title: "Critical Pothole & Road Cave-in",
+    category: "Road Damage / Pothole",
+    description: "Deep structural road crater exceeding 15cm depth near school crosswalk causing severe vehicle damage and traffic bottleneck.",
+    priority: "P1",
+    priorityLabel: "P1 - Critical Hazard",
+    severity: "Critical",
+    status: "AI Verified",
+    address: "Intersection Sector 62 & Ring Road Expressway",
+    ward: "Central District - Ward 4",
+    imageUrl: "https://images.unsplash.com/photo-1515162816999-a0c47dc192f7?auto=format&fit=crop&w=800&q=80",
+    createdBy: "citizen.demo@nexinfra.org",
     createdAt: null,
-    latitude: null,
-    longitude: null,
+    latitude: 28.6139,
+    longitude: 77.2090,
+    aiVerified: true,
+    aiConfidence: 0.964,
+    defectTags: ["Structural Pothole", "Asphalt Rupture", "Tire Hazard"],
+    boundingBoxes: [
+      { label: "Pothole Breach (0.96)", x: 22, y: 30, w: 56, h: 48, severity: "Critical" }
+    ],
+    estimatedDimensions: "1.9m x 1.3m (Depth: 16cm)",
+    assignedDepartment: "Road Maintenance & Pavement Division",
+    slaHours: 4,
+    upvotes: 24,
+    reportCount: 5,
   });
 
   useEffect(() => {
     const saved = localStorage.getItem("selectedComplaint");
-
     if (saved) {
       try {
-        setComplaint(JSON.parse(saved));
+        const parsed = JSON.parse(saved);
+        setComplaint((prev) => ({ ...prev, ...parsed }));
       } catch (err) {
         console.error(err);
       }
     }
   }, []);
 
-  const handleRescan = () => {
-    setIsScanning(true);
+  const handleUpvote = () => {
+    const updated = upvoteIssue(complaint.id, user?.email || "citizen.demo@nexinfra.org");
+    const current = updated.find((i) => i.id === complaint.id);
+    if (current) {
+      setComplaint(current);
+      localStorage.setItem("selectedComplaint", JSON.stringify(current));
+    }
+  };
 
+  const handleRescan = () => {
+    if (!isAdmin) {
+      alert("Drone re-scan is reserved for Tactical Administrators.");
+      return;
+    }
+    setIsScanning(true);
     setTimeout(() => {
       setIsScanning(false);
-      alert("AI Drone Re-Scan Completed");
+      alert("AI Drone Re-Scan Completed: Telemetry & Spatial Mesh updated with 98.2% confidence.");
     }, 2000);
   };
 
   const changeStatus = async (newStatus) => {
+    if (!isAdmin) {
+      alert("Only Command Administrators can change incident resolution states.");
+      return;
+    }
     if (!complaint.id) return;
 
     const result = await updateComplaintStatus(complaint.id, newStatus);
@@ -67,406 +107,277 @@ export default function IncidentDetailView({
 
       setComplaint(updated);
       localStorage.setItem("selectedComplaint", JSON.stringify(updated));
-
-      alert(`Status updated to "${newStatus}"`);
+      alert(`Status successfully updated to: ${newStatus}`);
     } else {
-      alert(result.error);
+      alert(`Failed to update status: ${result.error}`);
     }
   };
 
   const isPhoneFrame = viewMode === "phone";
 
-  return (
-    <div className="min-h-screen bg-[#070A10] text-slate-100 flex justify-center py-8 px-4">
+  const statusSteps = ["Reported", "AI Verified", "In Progress", "Resolved"];
+  const currentStepIndex = statusSteps.indexOf(complaint.status) >= 0
+    ? statusSteps.indexOf(complaint.status)
+    : 0;
 
+  return (
+    <div className="min-h-screen bg-[#07090E] text-slate-100 flex justify-center py-8 px-4 w-full">
       <div
         className={`w-full ${
           isPhoneFrame
-            ? "max-w-lg bg-[#0C101A] border border-slate-800 rounded-2xl overflow-hidden p-6"
-            : "max-w-6xl bg-[#0C101A] border border-slate-800 rounded-2xl p-8"
+            ? "max-w-md bg-[#0D121D] border border-slate-800 rounded-2xl p-6"
+            : "max-w-5xl bg-[#0D121D] border border-slate-800 rounded-2xl p-8 shadow-2xl"
         }`}
       >
+        {/* Navigation / Header */}
+        <div className="flex items-center justify-between border-b border-slate-800 pb-5 mb-6">
+          <button
+            onClick={() => setActivePage("citysync-map")}
+            className="flex items-center gap-2 text-slate-400 hover:text-cyan-400 font-mono-tech text-xs uppercase cursor-pointer transition"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span>Back to City Radar Map</span>
+          </button>
 
-        {/* Header */}
-
-        <div className="flex justify-between items-center border-b border-slate-800 pb-4 mb-6">
-
-          <div className="flex items-center gap-3">
-
-            <button
-              onClick={() => setActivePage("citysync-map")}
-              className="p-2 rounded-xl bg-[#070A12] border border-slate-700 hover:text-cyan-400 transition"
+          <div className="flex items-center gap-2">
+            <span
+              className={`px-3 py-1 rounded-full text-xs font-bold font-mono-tech uppercase flex items-center gap-1.5 ${
+                isAdmin
+                  ? "bg-cyan-950 border border-cyan-500 text-cyan-300"
+                  : "bg-emerald-950 border border-emerald-500 text-emerald-300"
+              }`}
             >
-              <ArrowLeft className="w-5 h-5" />
-            </button>
-
-            <div>
-
-              <h1 className="text-2xl font-bold">
-                Incident #{complaint.id}
-              </h1>
-
-              <p className="text-cyan-400 text-sm">
-                {complaint.category}
-              </p>
-
-            </div>
-
+              {isAdmin ? <ShieldCheck className="w-3.5 h-3.5" /> : <UserCheck className="w-3.5 h-3.5" />}
+              <span>{isAdmin ? "Executive Inspector" : "Citizen Tracking View"}</span>
+            </span>
           </div>
-
-          <span className="px-3 py-1 rounded-full bg-cyan-950 border border-cyan-500 text-cyan-300 text-xs font-bold">
-            {complaint.status}
-          </span>
-
         </div>
 
-        <div className="grid lg:grid-cols-2 gap-8">
-
-          {/* LEFT */}
-
-          <div className="space-y-6">
-
+        {/* Title & Metadata */}
+        <div className="space-y-4 mb-8">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-
-              <div className="flex justify-between items-center mb-3">
-
-                <h3 className="font-bold text-white">
-                  Visual Evidence
-                </h3>
-
-                <span className="text-sm text-slate-400">
-                  Uploaded Image
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="px-2.5 py-0.5 rounded bg-cyan-950 text-cyan-400 border border-cyan-500 text-xs font-mono-tech font-bold">
+                  {complaint.id || "CIVIC-TICKET"}
                 </span>
 
+                <span
+                  className={`text-xs px-2.5 py-0.5 rounded font-bold font-mono-tech ${
+                    complaint.priority === "P1" || complaint.priority === "High"
+                      ? "bg-red-950 text-red-300 border border-red-800"
+                      : complaint.priority === "P2" || complaint.priority === "Medium"
+                      ? "bg-orange-950 text-orange-300 border border-orange-800"
+                      : "bg-yellow-950 text-yellow-300 border border-yellow-800"
+                  }`}
+                >
+                  {complaint.priorityLabel || complaint.priority || "P1 - Critical"}
+                </span>
+
+                {complaint.aiVerified && (
+                  <span className="px-2.5 py-0.5 rounded bg-emerald-950 border border-emerald-500 text-emerald-300 font-mono-tech text-xs font-bold flex items-center gap-1">
+                    <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>AI Verified ({(complaint.aiConfidence ? complaint.aiConfidence * 100 : 96.4).toFixed(1)}%)</span>
+                  </span>
+                )}
               </div>
 
-              {complaint.imageUrl ? (
-                <img
-                  src={complaint.imageUrl}
-                  alt="Complaint"
-                  className="w-full h-80 object-cover rounded-2xl border border-slate-700"
-                />
-              ) : (
-                <div className="w-full h-80 rounded-2xl border border-slate-700 bg-[#05070D] flex items-center justify-center text-slate-500">
-                  No image uploaded
-                </div>
-              )}
-
+              <h1 className="text-2xl sm:text-3xl font-extrabold text-white mt-2 font-heading">
+                {complaint.title || complaint.category}
+              </h1>
             </div>
 
-            {/* Drone Controls */}
+            <div className="flex items-center gap-2">
+              {/* Upvote Button */}
+              <button
+                onClick={handleUpvote}
+                className="px-4 py-2.5 rounded-xl bg-slate-900 border border-cyan-500/50 hover:bg-cyan-950/60 text-cyan-300 font-bold text-xs uppercase flex items-center gap-1.5 cursor-pointer transition font-mono-tech"
+              >
+                <ThumbsUp className="w-4 h-4 text-cyan-400" />
+                <span>Upvote ({complaint.upvotes || 0})</span>
+              </button>
 
-            <div className="bg-[#070A12] border border-slate-700 rounded-2xl p-6 space-y-4">
-
-              <div className="flex items-center gap-2 text-cyan-400 font-semibold">
-
-                <Plane className="w-5 h-5" />
-
-                Drone Controls
-
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-
+              {isAdmin && (
                 <button
                   onClick={handleRescan}
                   disabled={isScanning}
-                  className="py-3 rounded-xl bg-cyan-400 text-black font-bold flex items-center justify-center gap-2 hover:bg-cyan-300 transition"
+                  className="px-4 py-2.5 rounded-xl bg-cyan-950/80 border border-cyan-500 text-cyan-300 hover:bg-cyan-900/60 font-bold text-xs uppercase cursor-pointer flex items-center gap-2 disabled:opacity-50 font-mono-tech"
                 >
-                  <RefreshCw
-                    className={`w-4 h-4 ${
-                      isScanning ? "animate-spin" : ""
-                    }`}
-                  />
-
-                  {isScanning ? "Scanning..." : "Re-Scan"}
-
+                  <RefreshCw className={`w-4 h-4 ${isScanning ? "animate-spin" : ""}`} />
+                  <span>{isScanning ? "Scanning..." : "AI Drone Re-Scan"}</span>
                 </button>
-
-                <button
-                  onClick={() => setActivePage("drone-fleet")}
-                  className="py-3 rounded-xl border border-cyan-500 text-cyan-300 flex items-center justify-center gap-2 hover:bg-cyan-950 transition"
-                >
-                  <Video className="w-4 h-4" />
-                  Live Feed
-                </button>
-
-              </div>
-
+              )}
             </div>
-
           </div>
 
-          {/* RIGHT */}
+          <div className="flex flex-wrap gap-4 text-xs text-slate-400 font-mono-tech">
+            <span className="flex items-center gap-1 text-slate-300">
+              <MapPin className="w-3.5 h-3.5 text-cyan-400" />
+              <span>{complaint.address || "Street Coordinates Recorded"}</span>
+            </span>
+            {complaint.ward && (
+              <span className="text-cyan-300 font-bold">
+                [{complaint.ward}]
+              </span>
+            )}
+            <span className="flex items-center gap-1">
+              <Clock className="w-3.5 h-3.5 text-slate-500" />
+              <span>Target SLA: <strong className="text-cyan-300">{complaint.slaHours || 4} Hours</strong></span>
+            </span>
+            <span className="flex items-center gap-1 text-slate-300">
+              <Building className="w-3.5 h-3.5 text-slate-500" />
+              <span>Dept: {complaint.assignedDepartment || "Road Maintenance"}</span>
+            </span>
+          </div>
+        </div>
 
-          <div className="space-y-6">
+        {/* Live Status Stepper Timeline */}
+        <div className="bg-[#070A12] border border-slate-800 rounded-2xl p-6 mb-8 font-mono-tech">
+          <h3 className="font-bold text-white text-xs mb-4 uppercase tracking-wider text-slate-400">
+            Resolution Workflow Timeline
+          </h3>
 
-            {/* AI Assessment */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            {statusSteps.map((step, idx) => {
+              const isPastOrCurrent = idx <= currentStepIndex;
+              const isCurrent = idx === currentStepIndex;
 
-            <div className="bg-[#070A12] border border-slate-700 rounded-2xl p-6 space-y-5">
+              return (
+                <div
+                  key={step}
+                  className={`p-3.5 rounded-xl border flex flex-col gap-1 transition ${
+                    isCurrent
+                      ? "bg-cyan-950/60 border-cyan-400 text-cyan-300 cyan-glow-sm"
+                      : isPastOrCurrent
+                      ? "bg-emerald-950/30 border-emerald-600/50 text-emerald-400"
+                      : "bg-[#0B0F19] border-slate-800 text-slate-500"
+                  }`}
+                >
+                  <div className="flex items-center justify-between text-xs">
+                    <span>STEP 0{idx + 1}</span>
+                    {isPastOrCurrent && <CheckCircle2 className="w-3.5 h-3.5" />}
+                  </div>
+                  <span className="font-bold text-sm text-white">{step}</span>
+                  <span className="text-[11px] text-slate-400">
+                    {isCurrent ? "Active Stage" : isPastOrCurrent ? "Completed" : "Pending"}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
 
-              <div className="flex justify-between items-center">
+        {/* Content & Visual Bounding Box Details */}
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-6 font-mono-tech text-xs">
+          
+          {/* Left Details */}
+          <div className="md:col-span-7 space-y-5">
+            <div className="bg-[#070A12] border border-slate-800 rounded-2xl p-6 space-y-4 font-sans">
+              <h3 className="font-bold text-white text-base">Defect Description</h3>
+              <p className="text-slate-300 text-sm leading-relaxed whitespace-pre-wrap">
+                {complaint.description || "No detailed description supplied."}
+              </p>
+            </div>
 
-                <h3 className="font-bold text-lg">
-                  AI Assessment
+            {/* Neural Geometric Telemetry */}
+            {complaint.estimatedDimensions && (
+              <div className="bg-[#070A12] border border-cyan-500/30 rounded-2xl p-5 space-y-2">
+                <div className="flex items-center gap-2 text-cyan-400 font-bold">
+                  <Activity className="w-4 h-4" />
+                  <span>AI Structural Dimensions & Geometry</span>
+                </div>
+                <div className="text-slate-200 font-mono-tech text-xs">
+                  {complaint.estimatedDimensions}
+                </div>
+              </div>
+            )}
+
+            {/* Admin Status Mutation Control */}
+            {isAdmin ? (
+              <div className="bg-[#070A12] border border-cyan-500/40 rounded-2xl p-6 space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-bold text-white text-sm uppercase">
+                    Admin Workflow Override
+                  </h3>
+                  <span className="text-xs text-cyan-400 font-bold">EXECUTIVE AUTHORITY</span>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {statusSteps.map((statusOption) => (
+                    <button
+                      key={statusOption}
+                      onClick={() => changeStatus(statusOption)}
+                      className={`py-2.5 px-3 rounded-lg border font-bold transition cursor-pointer ${
+                        complaint.status === statusOption
+                          ? "bg-cyan-400 text-black border-cyan-400 font-extrabold"
+                          : "bg-slate-900 border-slate-800 text-slate-300 hover:border-cyan-500"
+                      }`}
+                    >
+                      {statusOption}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="bg-[#070A12] border border-slate-800 rounded-2xl p-4 text-xs text-slate-400">
+                ℹ Citizen Notice: Updates made by the municipal repair unit will synchronize with this timeline in real-time.
+              </div>
+            )}
+          </div>
+
+          {/* Right Visual Image Box with Bounding Box Overlay */}
+          <div className="md:col-span-5 space-y-5">
+            <div className="bg-[#070A12] border border-slate-800 rounded-2xl p-5 space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="font-bold text-white text-sm font-sans">
+                  Optical Site Visual Telemetry
                 </h3>
-
-                <Bot className="text-cyan-400" />
-
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-
-                <div>
-
-                  <p className="text-xs text-slate-400 uppercase">
-                    Priority
-                  </p>
-
-                  <p className="text-2xl font-bold text-amber-400">
-                    {complaint.priority}
-                  </p>
-
-                </div>
-
-                <div>
-
-                  <p className="text-xs text-slate-400 uppercase">
-                    Status
-                  </p>
-
-                  <p className="text-2xl font-bold text-cyan-400">
-                    {complaint.status}
-                  </p>
-
-                </div>
-
-              </div>
-
-              <div className="bg-rose-950/40 border border-rose-500 rounded-xl p-4 flex justify-between">
-
-                <span className="text-slate-300">
-                  Estimated Risk
+                <span className="text-[10px] px-2 py-0.5 rounded bg-cyan-950 text-cyan-300 border border-cyan-500/50">
+                  AI Bounding Active
                 </span>
-
-                <span className="text-rose-400 font-bold">
-                  {complaint.priority === "High"
-                    ? "High"
-                    : complaint.priority === "Medium"
-                    ? "Moderate"
-                    : "Low"}
-                </span>
-
               </div>
 
-            </div>
+              {complaint.imageUrl ? (
+                <div className="relative rounded-xl overflow-hidden border border-slate-800 group aspect-4/3">
+                  <img
+                    src={complaint.imageUrl}
+                    alt="Incident Site"
+                    className="w-full h-full object-cover"
+                  />
 
-            {/* Status Management */}
+                  {/* SVG Bounding Box Preview */}
+                  <svg className="absolute inset-0 w-full h-full pointer-events-none">
+                    <rect
+                      x="22%"
+                      y="28%"
+                      width="56%"
+                      height="48%"
+                      fill="rgba(0, 240, 255, 0.12)"
+                      stroke="#00F0FF"
+                      strokeWidth="2.5"
+                    />
+                    <circle cx="22%" cy="28%" r="4" fill="#00F0FF" />
+                    <circle cx="78%" cy="28%" r="4" fill="#00F0FF" />
+                    <circle cx="22%" cy="76%" r="4" fill="#00F0FF" />
+                    <circle cx="78%" cy="76%" r="4" fill="#00F0FF" />
+                  </svg>
 
-            <div className="bg-[#070A12] border border-slate-700 rounded-2xl p-6 space-y-4">
-
-              <h3 className="font-bold text-white uppercase">
-                Update Complaint Status
-              </h3>
-
-              <div className="grid grid-cols-3 gap-3">
-
-                <button
-                  onClick={() => changeStatus("Pending")}
-                  className={`py-3 rounded-xl font-bold transition ${
-                    complaint.status === "Pending"
-                      ? "bg-amber-500 text-black"
-                      : "bg-slate-800 text-white hover:bg-amber-900"
-                  }`}
-                >
-                  Pending
-                </button>
-
-                <button
-                  onClick={() => changeStatus("In Progress")}
-                  className={`py-3 rounded-xl font-bold transition ${
-                    complaint.status === "In Progress"
-                      ? "bg-cyan-400 text-black"
-                      : "bg-slate-800 text-white hover:bg-cyan-900"
-                  }`}
-                >
-                  In Progress
-                </button>
-
-                <button
-                  onClick={() => changeStatus("Resolved")}
-                  className={`py-3 rounded-xl font-bold transition ${
-                    complaint.status === "Resolved"
-                      ? "bg-emerald-400 text-black"
-                      : "bg-slate-800 text-white hover:bg-emerald-900"
-                  }`}
-                >
-                  Resolved
-                </button>
-
-              </div>
-
-            </div>
-
-            {/* Complaint Details */}
-
-            <div className="bg-[#070A12] border border-slate-700 rounded-2xl p-6 space-y-5">
-
-              <h3 className="font-bold uppercase text-white">
-                Complaint Details
-              </h3>
-
-              <div className="space-y-4">
-
-                <div>
-
-                  <p className="text-xs text-slate-400 uppercase">
-                    Title
-                  </p>
-
-                  <p>{complaint.title}</p>
-
-                </div>
-
-                <div>
-
-                  <p className="text-xs text-slate-400 uppercase">
-                    Description
-                  </p>
-
-                  <p className="text-slate-300">
-                    {complaint.description}
-                  </p>
-
-                </div>
-
-                <div className="flex gap-3 items-start">
-
-                  <MapPin className="w-5 h-5 text-cyan-400 mt-1" />
-
-                  <div>
-
-                    <p className="text-xs text-slate-400 uppercase">
-                      Location
-                    </p>
-
-                    <p>{complaint.address}</p>
-
-                    {complaint.latitude && complaint.longitude && (
-                      <p className="text-xs text-slate-500 mt-1">
-                        {complaint.latitude.toFixed(6)},{" "}
-                        {complaint.longitude.toFixed(6)}
-                      </p>
-                    )}
-
+                  <div className="absolute top-2 left-2 px-2 py-1 rounded bg-black/80 backdrop-blur-sm border border-cyan-400 text-cyan-300 text-[10px] font-bold">
+                    [AI DETECTION]: {complaint.category} (96.4%)
                   </div>
-
                 </div>
-
-                <div className="flex gap-3 items-center">
-
-                  <Clock className="w-5 h-5 text-cyan-400" />
-
-                  <div>
-
-                    <p className="text-xs text-slate-400 uppercase">
-                      Submitted By
-                    </p>
-
-                    <p>{complaint.createdBy}</p>
-
-                  </div>
-
+              ) : (
+                <div className="w-full h-52 rounded-xl bg-slate-900 border border-slate-800 flex flex-col items-center justify-center text-slate-500 text-xs gap-2">
+                  <Video className="w-6 h-6 text-slate-600" />
+                  <span>No Optical Telemetry Uploaded</span>
                 </div>
-
-                <div className="flex gap-3 items-center">
-
-                  <Calendar className="w-5 h-5 text-cyan-400" />
-
-                  <div>
-
-                    <p className="text-xs text-slate-400 uppercase">
-                      Submitted On
-                    </p>
-
-                    <p>
-                      {complaint.createdAt?.seconds
-                        ? new Date(
-                            complaint.createdAt.seconds * 1000
-                          ).toLocaleString()
-                        : "Recently"}
-                    </p>
-
-                  </div>
-
-                </div>
-
-              </div>
-
+              )}
             </div>
-
-            {/* Timeline */}
-
-            <div className="bg-[#070A12] border border-slate-700 rounded-2xl p-6 space-y-5">
-
-              <h3 className="font-bold uppercase text-white">
-                Action Timeline
-              </h3>
-
-              <div className="space-y-4 border-l-2 border-slate-700 pl-5">
-
-                <div className="relative">
-
-                  <span className="absolute -left-[28px] top-1 w-3 h-3 rounded-full bg-cyan-400"></span>
-
-                  <p className="font-semibold">
-                    Complaint Submitted
-                  </p>
-
-                  <p className="text-xs text-slate-400">
-                    Citizen report received.
-                  </p>
-
-                </div>
-
-                <div className="relative">
-
-                  <span className="absolute -left-[28px] top-1 w-3 h-3 rounded-full bg-cyan-400"></span>
-
-                  <p className="font-semibold">
-                    AI Analysis Completed
-                  </p>
-
-                  <p className="text-xs text-slate-400">
-                    Category identified automatically.
-                  </p>
-
-                </div>
-
-                <div className="relative">
-
-                  <span className="absolute -left-[28px] top-1 w-3 h-3 rounded-full bg-cyan-400"></span>
-
-                  <p className="font-semibold">
-                    Current Status: {complaint.status}
-                  </p>
-
-                  <p className="text-xs text-slate-400">
-                    Live status from Firestore.
-                  </p>
-
-                </div>
-
-              </div>
-
-            </div>
-
           </div>
 
         </div>
 
       </div>
-
     </div>
   );
 }

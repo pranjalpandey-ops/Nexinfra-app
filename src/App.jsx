@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { auth } from "./firebase";
+import { resolveUserWithRole } from "./services/userService";
+import { subscribeToLiveAlerts } from "./services/alertService";
 
 import Navbar from "./components/Navbar";
 import Sidebar from "./components/Sidebar";
@@ -22,11 +24,21 @@ import IncidentDetailView from "./views/IncidentDetailView";
 import DispatchDroneModal from "./components/DispatchDroneModal";
 import WorkOrderModal from "./components/WorkOrderModal";
 import SettingsModal from "./components/SettingsModal";
+import AdminApprovalModal from "./components/AdminApprovalModal";
+import AlertsDrawerModal from "./components/AlertsDrawerModal";
+import LiveAlertToast from "./components/LiveAlertToast";
+
+const ADMIN_ONLY_PAGES = ["live-map", "maintenance", "drone-fleet", "analytics", "cctv"];
 
 export default function App() {
   const [activePage, setActivePage] = useState("landing");
   const [user, setUser] = useState(null);
   const [viewMode, setViewMode] = useState("auto");
+
+  // Alert System States
+  const [alerts, setAlerts] = useState([]);
+  const [isAlertsOpen, setIsAlertsOpen] = useState(false);
+  const [activeAlertToast, setActiveAlertToast] = useState(null);
 
   const [theme, setTheme] = useState(() => {
     return localStorage.getItem("nexinfra-theme") || "dark";
@@ -37,15 +49,12 @@ export default function App() {
     localStorage.setItem("nexinfra-theme", theme);
   }, [theme]);
 
-  // Firebase Authentication State
+  // Firebase Authentication State & Role Synchronization
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
-        setUser({
-          name: firebaseUser.displayName || "Operator",
-          email: firebaseUser.email,
-          clearance: "Level 3 Executive Command",
-        });
+        const resolvedProfile = await resolveUserWithRole(firebaseUser);
+        setUser(resolvedProfile);
 
         if (
           activePage === "landing" ||
@@ -63,6 +72,36 @@ export default function App() {
     return unsubscribe;
   }, []);
 
+  // Live Database Alert Ingestion
+  useEffect(() => {
+    const unsubscribe = subscribeToLiveAlerts((liveAlerts) => {
+      setAlerts(liveAlerts);
+
+      // Trigger toast for most recent unacknowledged critical alert
+      const latestCritical = liveAlerts.find(
+        (a) => (a.level === "CRITICAL" || a.priority === "P1") && !a.acknowledged
+      );
+
+      if (latestCritical && !activeAlertToast) {
+        setActiveAlertToast(latestCritical);
+      }
+    });
+
+    return unsubscribe;
+  }, []);
+
+  // Protected Route Handler with Role Based Access Control
+  const handleNavigate = (targetPage) => {
+    if (ADMIN_ONLY_PAGES.includes(targetPage)) {
+      if (!user || user.role !== "admin") {
+        alert("Access Restricted: This module requires Command Administrator clearance.");
+        setActivePage("dashboard");
+        return;
+      }
+    }
+    setActivePage(targetPage);
+  };
+
   const handleLoginSuccess = (userData) => {
     setUser(userData);
     setActivePage("dashboard");
@@ -76,10 +115,51 @@ export default function App() {
     }
   };
 
-  // Theme / View Settings
+  // Inspect Incident directly from Alert
+  const handleInspectAlert = (alertItem) => {
+    setActiveAlertToast(null);
+    if (alertItem.incidentId) {
+      localStorage.setItem("selectedComplaint", JSON.stringify({
+        id: alertItem.incidentId,
+        title: alertItem.title,
+        description: alertItem.message,
+        ward: alertItem.location,
+        priority: "P1",
+        status: "AI Verified"
+      }));
+    }
+    setActivePage("incident-detail");
+  };
+
+  // Modals & Controls
   const [isDispatchModalOpen, setIsDispatchModalOpen] = useState(false);
   const [isWorkOrderModalOpen, setIsWorkOrderModalOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isApprovalModalOpen, setIsApprovalModalOpen] = useState(false);
+
+  const handleOpenDispatch = () => {
+    if (user?.role !== "admin") {
+      alert("Administrator Clearance required to dispatch Tactical UAVs.");
+      return;
+    }
+    setIsDispatchModalOpen(true);
+  };
+
+  const handleOpenWorkOrder = () => {
+    if (user?.role !== "admin") {
+      alert("Administrator Clearance required to generate official work orders.");
+      return;
+    }
+    setIsWorkOrderModalOpen(true);
+  };
+
+  const handleOpenApproval = () => {
+    if (user?.role !== "admin") {
+      alert("Only Predefined Administrators can review personnel clearance applications.");
+      return;
+    }
+    setIsApprovalModalOpen(true);
+  };
 
   const isPublicPage =
     activePage === "landing" ||
@@ -88,90 +168,87 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#07090E] text-slate-100 flex flex-col font-sans selection:bg-cyan-500 selection:text-black">
-
       {/* Navbar */}
       <Navbar
         activePage={activePage}
-        setActivePage={setActivePage}
+        setActivePage={handleNavigate}
         isAuth={!!user}
         user={user}
+        theme={theme}
+        setTheme={setTheme}
         onOpenSettings={() => setIsSettingsOpen(true)}
+        onOpenAlerts={() => setIsAlertsOpen(true)}
       />
 
-      {/* Public Pages */}
+      {/* Public Unauthenticated Views */}
       {isPublicPage ? (
         <div className="flex-1">
-
           {activePage === "landing" && (
-            <LandingView setActivePage={setActivePage} />
+            <LandingView setActivePage={handleNavigate} />
           )}
 
           {activePage === "signup" && (
             <SignUpView
-              setActivePage={setActivePage}
+              setActivePage={handleNavigate}
               onLoginSuccess={handleLoginSuccess}
             />
           )}
 
           {activePage === "login" && (
             <LoginView
-              setActivePage={setActivePage}
+              setActivePage={handleNavigate}
               onLoginSuccess={handleLoginSuccess}
             />
           )}
-
         </div>
-
       ) : activePage === "report-issue" ||
         activePage === "citysync-map" ||
         activePage === "incident-detail" ? (
-
         <div className="flex-1 bg-[#07090E] flex flex-col justify-center items-center py-4">
-
           {activePage === "report-issue" && (
             <CitySyncReportView
-              setActivePage={setActivePage}
+              setActivePage={handleNavigate}
               viewMode={viewMode}
+              user={user}
             />
           )}
 
           {activePage === "citysync-map" && (
             <CitySyncMapView
-              setActivePage={setActivePage}
+              setActivePage={handleNavigate}
               viewMode={viewMode}
+              user={user}
             />
           )}
 
           {activePage === "incident-detail" && (
             <IncidentDetailView
-              setActivePage={setActivePage}
+              setActivePage={handleNavigate}
               viewMode={viewMode}
+              user={user}
             />
           )}
-
         </div>
-
       ) : (
-
         <div className="flex min-h-screen w-full overflow-hidden">
-
           {/* Sidebar */}
           <Sidebar
             activePage={activePage}
-            setActivePage={setActivePage}
-            onOpenDispatchModal={() => setIsDispatchModalOpen(true)}
+            setActivePage={handleNavigate}
+            user={user}
+            theme={theme}
+            onOpenDispatchModal={handleOpenDispatch}
             onOpenSettings={() => setIsSettingsOpen(true)}
+            onOpenApprovalModal={handleOpenApproval}
           />
 
           {/* Main Console */}
           <main className="flex-1 flex flex-col min-w-0 bg-[#070A10] h-screen overflow-hidden">
-
             {/* Console Header */}
             <div className="h-14 bg-[#090D16] border-b border-slate-800/80 px-6 flex items-center justify-between font-mono-tech text-xs shrink-0">
-
               <div className="flex items-center gap-3">
                 <span className="text-cyan-400 font-bold uppercase tracking-wider text-sm">
-                  NEXINFRA COMMAND CONSOLE
+                  NEXINFRA {user?.role === "admin" ? "COMMAND CONSOLE" : "CITIZEN PORTAL"}
                 </span>
 
                 <span className="text-slate-600">/</span>
@@ -179,9 +256,46 @@ export default function App() {
                 <span className="text-white capitalize text-sm font-bold">
                   {activePage.replace("-", " ")}
                 </span>
+
+                {user?.role && (
+                  <span
+                    className={`ml-2 px-2.5 py-0.5 rounded text-[11px] font-bold uppercase tracking-wider ${
+                      user.role === "admin"
+                        ? "bg-cyan-950 border border-cyan-500 text-cyan-300"
+                        : user.role === "pending_admin"
+                        ? "bg-amber-950 border border-amber-500 text-amber-300"
+                        : "bg-emerald-950 border border-emerald-500 text-emerald-300"
+                    }`}
+                  >
+                    {user.role === "admin"
+                      ? "ADMIN"
+                      : user.role === "pending_admin"
+                      ? "PENDING VERIFICATION"
+                      : "PUBLIC"}
+                  </span>
+                )}
               </div>
 
               <div className="flex items-center space-x-4">
+                {/* Emergency Alert Indicator */}
+                <button
+                  onClick={() => setIsAlertsOpen(true)}
+                  className="text-red-400 hover:text-red-300 transition-colors cursor-pointer text-xs font-bold font-mono-tech flex items-center gap-1.5"
+                  title="Open Live Alert Center"
+                >
+                  <span className="w-2 h-2 rounded-full bg-red-500 animate-ping" />
+                  <span>🚨 Live Alerts ({alerts.filter(a => a.level === "CRITICAL").length})</span>
+                </button>
+
+                {user?.role === "admin" && (
+                  <button
+                    onClick={handleOpenApproval}
+                    className="text-cyan-400 hover:text-cyan-300 transition-colors cursor-pointer text-xs font-bold font-mono-tech flex items-center gap-1"
+                    title="Review Admin Applications"
+                  >
+                    <span>🛡️ Approvals</span>
+                  </button>
+                )}
 
                 <button
                   onClick={() => setIsSettingsOpen(true)}
@@ -197,63 +311,86 @@ export default function App() {
                   Logout
                 </button>
 
-                <div className="w-8 h-8 rounded-full bg-cyan-950 border border-cyan-500/40 flex items-center justify-center text-cyan-400 font-bold text-sm">
-                  {user?.name ? user.name[0] : "O"}
+                <div
+                  className="w-8 h-8 rounded-full bg-cyan-950 border border-cyan-500/40 flex items-center justify-center text-cyan-400 font-bold text-sm"
+                  title={`${user?.name || "User"} (${user?.role || "public"})`}
+                >
+                  {user?.name ? user.name[0].toUpperCase() : "U"}
                 </div>
-
               </div>
             </div>
 
             {/* Active Console Views */}
             <div className="flex-1 overflow-y-auto flex flex-col">
-
               {activePage === "dashboard" && (
                 <DashboardView
-                  setActivePage={setActivePage}
-                  onOpenDispatchModal={() => setIsDispatchModalOpen(true)}
+                  setActivePage={handleNavigate}
+                  user={user}
+                  onOpenDispatchModal={handleOpenDispatch}
                 />
               )}
 
-              {activePage === "maintenance" && (
+              {activePage === "maintenance" && user?.role === "admin" && (
                 <MaintenanceView
-                  onOpenWorkOrderModal={() => setIsWorkOrderModalOpen(true)}
+                  onOpenWorkOrderModal={handleOpenWorkOrder}
+                  onOpenDispatchModal={handleOpenDispatch}
                 />
               )}
 
-              {activePage === "live-map" && (
+              {activePage === "live-map" && user?.role === "admin" && (
                 <LiveMapView
-                  onOpenDispatchModal={() => setIsDispatchModalOpen(true)}
+                  onOpenDispatchModal={handleOpenDispatch}
                 />
               )}
 
-              {activePage === "drone-fleet" && (
+              {activePage === "drone-fleet" && user?.role === "admin" && (
                 <DroneFleetView
-                  onOpenDispatchModal={() => setIsDispatchModalOpen(true)}
+                  onOpenDispatchModal={handleOpenDispatch}
                 />
               )}
 
-              {activePage === "analytics" && <AnalyticsView />}
+              {activePage === "analytics" && user?.role === "admin" && <AnalyticsView />}
 
-              {activePage === "cctv" && <CCTVMonitor />}
-
+              {activePage === "cctv" && user?.role === "admin" && <CCTVMonitor />}
             </div>
-
           </main>
-
         </div>
-
       )}
 
-      {/* Global Modals */}
+      {/* Global Modals & Live Alerts */}
+      {user?.role === "admin" && (
+        <>
+          <DispatchDroneModal
+            isOpen={isDispatchModalOpen}
+            onClose={() => setIsDispatchModalOpen(false)}
+          />
 
-      <DispatchDroneModal
-        isOpen={isDispatchModalOpen}
-        onClose={() => setIsDispatchModalOpen(false)}
+          <WorkOrderModal
+            isOpen={isWorkOrderModalOpen}
+            onClose={() => setIsWorkOrderModalOpen(false)}
+          />
+
+          <AdminApprovalModal
+            isOpen={isApprovalModalOpen}
+            onClose={() => setIsApprovalModalOpen(false)}
+            user={user}
+          />
+        </>
+      )}
+
+      <AlertsDrawerModal
+        isOpen={isAlertsOpen}
+        onClose={() => setIsAlertsOpen(false)}
+        alerts={alerts}
+        onSelectIncident={(incId) => {
+          handleInspectAlert({ incidentId: incId });
+        }}
       />
 
-      <WorkOrderModal
-        isOpen={isWorkOrderModalOpen}
-        onClose={() => setIsWorkOrderModalOpen(false)}
+      <LiveAlertToast
+        alert={activeAlertToast}
+        onInspect={handleInspectAlert}
+        onDismiss={() => setActiveAlertToast(null)}
       />
 
       <SettingsModal
@@ -263,8 +400,9 @@ export default function App() {
         setViewMode={setViewMode}
         theme={theme}
         setTheme={setTheme}
+        user={user}
+        onOpenApprovalModal={handleOpenApproval}
       />
-
     </div>
   );
 }

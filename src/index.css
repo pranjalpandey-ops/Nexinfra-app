@@ -1,36 +1,46 @@
-@import "tailwindcss";
+﻿@import "tailwindcss";
 
 /* =========================================================
-   NEXINFRA THEME VARIABLES
+   NEXINFRA DESIGN TOKENS & CSS VARIABLES
    ========================================================= */
 
 @layer base {
   :root {
-    /* Dark theme */
-    --bg-dark: #07090E;
-    --card-bg: #0E131F;
-    --card-border: #1E293B;
-    --cyan-glow: #00F0FF;
-
-    --nx-bg: #07090E;
+    /* Dark Theme Default */
+    --nx-bg-canvas: #07090E;
     --nx-bg-main: #070A10;
     --nx-surface: #0E131F;
-    --nx-surface-2: #0B0F19;
+    --nx-surface-secondary: #0B0F19;
+    --nx-surface-glass: rgba(13, 18, 31, 0.85);
     --nx-border: #1E293B;
+    --nx-border-subtle: #151C2C;
 
-    --nx-text: #F1F5F9;
+    --nx-text-primary: #F8FAFC;
     --nx-text-secondary: #CBD5E1;
     --nx-text-muted: #94A3B8;
 
-    --nx-accent: #00F0FF;
-    --nx-accent-soft: rgba(0, 240, 255, 0.12);
+    --nx-accent-primary: #00F0FF;
+    --nx-accent-secondary: #14B8A6;
+    --nx-accent-glow: rgba(0, 240, 255, 0.35);
+
+    --nx-badge-admin-bg: rgba(6, 78, 99, 0.4);
+    --nx-badge-admin-text: #67E8F9;
+    --nx-badge-admin-border: rgba(6, 182, 212, 0.5);
+
+    --nx-badge-public-bg: rgba(6, 78, 59, 0.4);
+    --nx-badge-public-text: #6EE7B7;
+    --nx-badge-public-border: rgba(16, 185, 129, 0.5);
+
+    --nx-grid-color: rgba(0, 240, 255, 0.04);
+    --nx-grid-dot: rgba(255, 255, 255, 0.06);
   }
 
   body {
-    background-color: var(--nx-bg);
-    color: var(--nx-text);
+    background-color: var(--nx-bg-canvas);
+    color: var(--nx-text-primary);
     font-family: 'Inter', sans-serif;
     overflow-x: hidden;
+    transition: background-color 0.25s ease, color 0.25s ease;
   }
 
   .font-mono-tech {
@@ -42,271 +52,157 @@
   }
 }
 
-
 /* =========================================================
-   LIGHT THEME VARIABLES
+   LIGHT THEME DESIGN TOKENS
    ========================================================= */
 
 [data-theme="light"] {
   color-scheme: light;
 
-  --bg-dark: #F8FAFC;
-  --card-bg: #FFFFFF;
-  --card-border: #CBD5E1;
-  --cyan-glow: #0891B2;
-
-  --nx-bg: #F8FAFC;
-  --nx-bg-main: #F1F5F9;
+  --nx-bg-canvas: #F4F7FB;
+  --nx-bg-main: #FFFFFF;
   --nx-surface: #FFFFFF;
-  --nx-surface-2: #F8FAFC;
-  --nx-border: #CBD5E1;
+  --nx-surface-secondary: #F8FAFC;
+  --nx-surface-glass: rgba(255, 255, 255, 0.90);
+  --nx-border: #E2E8F0;
+  --nx-border-subtle: #CBD5E1;
 
-  --nx-text: #0F172A;
+  --nx-text-primary: #0F172A;
   --nx-text-secondary: #334155;
   --nx-text-muted: #64748B;
 
-  --nx-accent: #0891B2;
-  --nx-accent-soft: rgba(8, 145, 178, 0.10);
-}
+  --nx-accent-primary: #0284C7;
+  --nx-accent-secondary: #0D9488;
+  --nx-accent-glow: rgba(2, 132, 199, 0.22);
 
+  --nx-badge-admin-bg: #E0F2FE;
+  --nx-badge-admin-text: #0369A1;
+  --nx-badge-admin-border: #BAE6FD;
+
+  --nx-badge-public-bg: #ECFDF5;
+  --nx-badge-public-text: #047857;
+  --nx-badge-public-border: #A7F3D0;
+
+  --nx-grid-color: rgba(15, 23, 42, 0.04);
+  --nx-grid-dot: rgba(2, 132, 199, 0.12);
+}
 
 /* =========================================================
-   BODY / ROOT
+   WALLPAPER BACKGROUNDS & GRID DESIGNS
    ========================================================= */
 
-body,
-#root {
-  background-color: var(--nx-bg);
-  color: var(--nx-text);
-}
-
-[data-theme="light"] body,
-[data-theme="light"] #root {
-  background-color: #F8FAFC !important;
-  color: #0F172A !important;
-}
-
-
-/* =========================================================
-   CUSTOM GRID SCANLINES
-   ========================================================= */
-
+/* Dark Mode Wallpaper Pattern */
 .bg-cyber-grid {
-  background-size: 40px 40px;
-  background-image:
-    linear-gradient(
-      to right,
-      rgba(255, 255, 255, 0.03) 1px,
-      transparent 1px
-    ),
-    linear-gradient(
-      to bottom,
-      rgba(255, 255, 255, 0.03) 1px,
-      transparent 1px
-    );
+  background-color: #07090E;
+  background-image: 
+    radial-gradient(circle at 50% 0%, rgba(0, 240, 255, 0.08) 0%, transparent 60%),
+    radial-gradient(circle at 100% 100%, rgba(20, 184, 166, 0.06) 0%, transparent 50%),
+    linear-gradient(to right, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+  background-size: 100% 100%, 100% 100%, 36px 36px, 36px 36px;
 }
 
-.bg-cyber-grid-dense {
-  background-size: 20px 20px;
-  background-image:
-    linear-gradient(
-      to right,
-      rgba(0, 240, 255, 0.04) 1px,
-      transparent 1px
-    ),
-    linear-gradient(
-      to bottom,
-      rgba(0, 240, 255, 0.04) 1px,
-      transparent 1px
-    );
+/* Light Mode Wallpaper Pattern */
+[data-theme="light"] .bg-cyber-grid,
+[data-theme="light"] body {
+  background-color: #F4F7FB !important;
+  background-image: 
+    radial-gradient(circle at 20% 0%, rgba(2, 132, 199, 0.08) 0%, transparent 45%),
+    radial-gradient(circle at 90% 10%, rgba(13, 148, 136, 0.06) 0%, transparent 40%),
+    radial-gradient(circle at 50% 100%, rgba(99, 102, 241, 0.05) 0%, transparent 50%),
+    radial-gradient(rgba(2, 132, 199, 0.12) 1px, transparent 1px),
+    linear-gradient(to right, rgba(15, 23, 42, 0.035) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(15, 23, 42, 0.035) 1px, transparent 1px);
+  background-size: 100% 100%, 100% 100%, 100% 100%, 24px 24px, 48px 48px, 48px 48px;
+  background-attachment: fixed;
 }
 
-
-/* Light grid */
-
-[data-theme="light"] .bg-cyber-grid {
-  background-image:
-    linear-gradient(
-      to right,
-      rgba(15, 23, 42, 0.06) 1px,
-      transparent 1px
-    ),
-    linear-gradient(
-      to bottom,
-      rgba(15, 23, 42, 0.06) 1px,
-      transparent 1px
-    );
-}
-
-[data-theme="light"] .bg-cyber-grid-dense {
-  background-image:
-    linear-gradient(
-      to right,
-      rgba(8, 145, 178, 0.08) 1px,
-      transparent 1px
-    ),
-    linear-gradient(
-      to bottom,
-      rgba(8, 145, 178, 0.08) 1px,
-      transparent 1px
-    );
-}
-
-
-/* =========================================================
-   GLOW EFFECTS
-   ========================================================= */
-
+/* High-tech glow classes */
 .cyan-glow-sm {
-  box-shadow: 0 0 12px rgba(0, 240, 255, 0.35);
+  box-shadow: 0 0 14px var(--nx-accent-glow);
 }
 
 .cyan-glow-lg {
-  box-shadow: 0 0 25px rgba(0, 240, 255, 0.45);
+  box-shadow: 0 0 28px var(--nx-accent-glow);
 }
-
-.text-cyan-glow {
-  text-shadow: 0 0 15px rgba(0, 240, 255, 0.6);
-}
-
-.border-cyan-glow {
-  box-shadow:
-    inset 0 0 10px rgba(0, 240, 255, 0.2),
-    0 0 12px rgba(0, 240, 255, 0.3);
-}
-
-
-/* Softer glow in light mode */
-
-[data-theme="light"] .cyan-glow-sm {
-  box-shadow: 0 0 12px rgba(8, 145, 178, 0.18);
-}
-
-[data-theme="light"] .cyan-glow-lg {
-  box-shadow: 0 0 25px rgba(8, 145, 178, 0.20);
-}
-
-[data-theme="light"] .text-cyan-glow {
-  text-shadow: 0 0 10px rgba(8, 145, 178, 0.25);
-}
-
-[data-theme="light"] .border-cyan-glow {
-  box-shadow:
-    inset 0 0 8px rgba(8, 145, 178, 0.08),
-    0 0 10px rgba(8, 145, 178, 0.12);
-}
-
 
 /* =========================================================
-   DARK BACKGROUNDS → LIGHT
+   LIGHT THEME OVERRIDES FOR EXISTING TAILWIND HARDCODED STYLES
    ========================================================= */
 
+/* Dark Containers -> Light Cards */
 [data-theme="light"] .bg-\[\#07090E\] {
-  background-color: #F8FAFC !important;
+  background-color: #F4F7FB !important;
 }
 
 [data-theme="light"] .bg-\[\#070A10\] {
-  background-color: #F1F5F9 !important;
-}
-
-[data-theme="light"] .bg-\[\#070A12\] {
   background-color: #F8FAFC !important;
 }
 
-[data-theme="light"] .bg-\[\#070A16\] {
+[data-theme="light"] .bg-\[\#070A12\] {
   background-color: #FFFFFF !important;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
 }
 
 [data-theme="light"] .bg-\[\#090D16\] {
   background-color: #FFFFFF !important;
+  border-color: #E2E8F0 !important;
 }
 
-[data-theme="light"] .bg-\[\#090C13\] {
-  background-color: #FFFFFF !important;
-}
-
-[data-theme="light"] .bg-\[\#0A0D16\] {
-  background-color: #FFFFFF !important;
-}
-
-[data-theme="light"] .bg-\[\#0A0E1A\] {
-  background-color: #FFFFFF !important;
+[data-theme="light"] .bg-\[\#090C13\],
+[data-theme="light"] .bg-\[\#090D17\] {
+  background-color: #F8FAFC !important;
 }
 
 [data-theme="light"] .bg-\[\#0B0F19\] {
-  background-color: #F8FAFC !important;
+  background-color: #FFFFFF !important;
+  border-color: #E2E8F0 !important;
+  box-shadow: 2px 0 8px rgba(15, 23, 42, 0.03);
 }
 
 [data-theme="light"] .bg-\[\#0C101A\] {
   background-color: #FFFFFF !important;
+  box-shadow: 0 4px 16px -2px rgba(15, 23, 42, 0.05), 0 2px 4px -1px rgba(15, 23, 42, 0.03);
+  border-color: #E2E8F0 !important;
 }
 
+[data-theme="light"] .bg-\[\#0D121D\],
 [data-theme="light"] .bg-\[\#0D121F\] {
   background-color: #FFFFFF !important;
+  box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.08), 0 8px 10px -6px rgba(15, 23, 42, 0.04);
+  border-color: #E2E8F0 !important;
 }
 
 [data-theme="light"] .bg-\[\#0E131F\] {
-  background-color: #FFFFFF !important;
+  background-color: #F8FAFC !important;
+  border-color: #E2E8F0 !important;
 }
 
-[data-theme="light"] .bg-\[\#111217\] {
+/* Header & Glassmorphic Navigation */
+[data-theme="light"] header {
+  background-color: rgba(255, 255, 255, 0.92) !important;
+  border-color: #E2E8F0 !important;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.05);
+}
+
+/* Slate surfaces in Light Mode */
+[data-theme="light"] .bg-slate-900 {
+  background-color: #F1F5F9 !important;
+  border-color: #E2E8F0 !important;
+  color: #334155 !important;
+}
+
+[data-theme="light"] .bg-slate-800 {
   background-color: #E2E8F0 !important;
+  border-color: #CBD5E1 !important;
+  color: #1E293B !important;
 }
-
-[data-theme="light"] .bg-\[\#05070B\] {
-  background-color: #F1F5F9 !important;
-}
-
-[data-theme="light"] .bg-\[\#05070D\] {
-  background-color: #F1F5F9 !important;
-}
-
-
-/* =========================================================
-   SLATE BACKGROUNDS
-   ========================================================= */
 
 [data-theme="light"] .bg-slate-950 {
   background-color: #F8FAFC !important;
 }
 
-[data-theme="light"] .bg-slate-900 {
-  background-color: #FFFFFF !important;
-}
-
-[data-theme="light"] .bg-slate-800 {
-  background-color: #E2E8F0 !important;
-}
-
-[data-theme="light"] .bg-slate-700 {
-  background-color: #CBD5E1 !important;
-}
-
-[data-theme="light"] .bg-slate-900\/50 {
-  background-color: rgba(255, 255, 255, 0.80) !important;
-}
-
-[data-theme="light"] .bg-slate-900\/90 {
-  background-color: rgba(255, 255, 255, 0.95) !important;
-}
-
-[data-theme="light"] .bg-slate-950\/90 {
-  background-color: rgba(248, 250, 252, 0.95) !important;
-}
-
-[data-theme="light"] .bg-slate-800\/50 {
-  background-color: rgba(226, 232, 240, 0.65) !important;
-}
-
-[data-theme="light"] .bg-slate-800\/80 {
-  background-color: rgba(226, 232, 240, 0.85) !important;
-}
-
-
-/* =========================================================
-   TEXT COLORS
-   ========================================================= */
-
+/* Typography Hierarchy in Light Mode */
 [data-theme="light"] .text-white {
   color: #0F172A !important;
 }
@@ -328,47 +224,58 @@ body,
 }
 
 [data-theme="light"] .text-slate-500 {
-  color: #64748B !important;
-}
-
-[data-theme="light"] .text-slate-600 {
   color: #94A3B8 !important;
 }
 
-
-/* =========================================================
-   BORDER COLORS
-   ========================================================= */
+/* Borders in Light Mode */
+[data-theme="light"] .border-slate-800,
+[data-theme="light"] .border-slate-800\/80,
+[data-theme="light"] .border-slate-800\/60,
+[data-theme="light"] .border-slate-800\/40 {
+  border-color: #E2E8F0 !important;
+}
 
 [data-theme="light"] .border-slate-700 {
   border-color: #CBD5E1 !important;
 }
 
-[data-theme="light"] .border-slate-800 {
-  border-color: #CBD5E1 !important;
+/* Cyan Accents & Active states */
+[data-theme="light"] .text-cyan-400 {
+  color: #0284C7 !important;
 }
 
-[data-theme="light"] .border-slate-800\/40 {
-  border-color: rgba(148, 163, 184, 0.35) !important;
+[data-theme="light"] .text-cyan-300 {
+  color: #0369A1 !important;
 }
 
-[data-theme="light"] .border-slate-800\/60 {
-  border-color: rgba(148, 163, 184, 0.45) !important;
+[data-theme="light"] .bg-cyan-950,
+[data-theme="light"] .bg-cyan-950\/40,
+[data-theme="light"] .bg-cyan-950\/70,
+[data-theme="light"] .bg-cyan-950\/80,
+[data-theme="light"] .bg-cyan-950\/20,
+[data-theme="light"] .bg-cyan-950\/30 {
+  background-color: #F0F9FF !important;
+  border-color: #BAE6FD !important;
 }
 
-[data-theme="light"] .border-slate-800\/80 {
-  border-color: rgba(148, 163, 184, 0.55) !important;
+[data-theme="light"] .border-cyan-400,
+[data-theme="light"] .border-cyan-500,
+[data-theme="light"] .border-cyan-500\/40,
+[data-theme="light"] .border-cyan-500\/50,
+[data-theme="light"] .border-cyan-500\/60 {
+  border-color: #0284C7 !important;
 }
 
-[data-theme="light"] .border-slate-800\/90 {
-  border-color: rgba(148, 163, 184, 0.65) !important;
+[data-theme="light"] .bg-cyan-400 {
+  background-color: #0284C7 !important;
+  color: #FFFFFF !important;
 }
 
+[data-theme="light"] .hover\:bg-cyan-300:hover {
+  background-color: #0369A1 !important;
+}
 
-/* =========================================================
-   INPUTS / TEXTAREAS / SELECTS
-   ========================================================= */
-
+/* Inputs, Textareas, Selects */
 [data-theme="light"] input,
 [data-theme="light"] textarea,
 [data-theme="light"] select {
@@ -377,155 +284,70 @@ body,
   border-color: #CBD5E1 !important;
 }
 
+[data-theme="light"] input:focus,
+[data-theme="light"] textarea:focus,
+[data-theme="light"] select:focus {
+  border-color: #0284C7 !important;
+  outline: 2px solid rgba(2, 132, 199, 0.15) !important;
+}
+
 [data-theme="light"] input::placeholder,
 [data-theme="light"] textarea::placeholder {
   color: #94A3B8 !important;
 }
 
-[data-theme="light"] option {
-  background-color: #FFFFFF;
-  color: #0F172A;
-}
-
-
-/* =========================================================
-   CYAN ACCENTS
-   ========================================================= */
-
-[data-theme="light"] .text-cyan-300 {
-  color: #0E7490 !important;
-}
-
-[data-theme="light"] .text-cyan-400 {
-  color: #0891B2 !important;
-}
-
-[data-theme="light"] .text-cyan-500 {
-  color: #0891B2 !important;
-}
-
-[data-theme="light"] .text-cyan-600 {
-  color: #0E7490 !important;
-}
-
-[data-theme="light"] .border-cyan-400 {
-  border-color: #06B6D4 !important;
-}
-
-[data-theme="light"] .border-cyan-500 {
-  border-color: #0891B2 !important;
-}
-
-[data-theme="light"] .bg-cyan-950 {
-  background-color: #ECFEFF !important;
-}
-
-[data-theme="light"] .bg-cyan-900 {
-  background-color: #CFFAFE !important;
-}
-
-
-/* =========================================================
-   BLACK OVERLAYS
-   ========================================================= */
-
-[data-theme="light"] .bg-black\/50 {
-  background-color: rgba(15, 23, 42, 0.30) !important;
-}
-
+/* Backdrop Blur Modals */
+[data-theme="light"] .bg-black\/80,
+[data-theme="light"] .bg-black\/70,
 [data-theme="light"] .bg-black\/60 {
-  background-color: rgba(15, 23, 42, 0.38) !important;
+  background-color: rgba(15, 23, 42, 0.40) !important;
 }
-
-[data-theme="light"] .bg-black\/70 {
-  background-color: rgba(15, 23, 42, 0.45) !important;
-}
-
-[data-theme="light"] .bg-black\/80 {
-  background-color: rgba(15, 23, 42, 0.55) !important;
-}
-
-[data-theme="light"] .bg-black\/90 {
-  background-color: rgba(15, 23, 42, 0.65) !important;
-}
-
-
 /* =========================================================
-   SCROLLBAR
+   LEAFLET CUSTOM HIGH-TECH POPUP STYLES
    ========================================================= */
 
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+.leaflet-popup-content-wrapper {
+  background: #0B0F19 !important;
+  color: #F8FAFC !important;
+  border: 1px solid rgba(0, 240, 255, 0.45) !important;
+  border-radius: 14px !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.8), 0 0 18px rgba(0, 240, 255, 0.25) !important;
+  padding: 0 !important;
+  overflow: hidden !important;
 }
 
-::-webkit-scrollbar-track {
-  background: #0B0E17;
+.leaflet-popup-content {
+  margin: 0 !important;
+  line-height: 1.4 !important;
 }
 
-::-webkit-scrollbar-thumb {
-  background: #1E293B;
-  border-radius: 3px;
+.leaflet-popup-tip {
+  background: #0B0F19 !important;
+  border: 1px solid rgba(0, 240, 255, 0.45) !important;
 }
 
-::-webkit-scrollbar-thumb:hover {
-  background: #00F0FF;
+.leaflet-container a.leaflet-popup-close-button {
+  color: #94A3B8 !important;
+  padding: 6px 8px !important;
+  font-size: 16px !important;
+  top: 4px !important;
+  right: 4px !important;
+  z-index: 10 !important;
 }
 
-[data-theme="light"] ::-webkit-scrollbar-track {
-  background: #E2E8F0;
+.leaflet-container a.leaflet-popup-close-button:hover {
+  color: #00F0FF !important;
 }
 
-[data-theme="light"] ::-webkit-scrollbar-thumb {
-  background: #94A3B8;
+/* Light Mode Popup */
+[data-theme="light"] .leaflet-popup-content-wrapper {
+  background: #FFFFFF !important;
+  color: #0F172A !important;
+  border: 1px solid #0284C7 !important;
+  box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.15) !important;
 }
 
-[data-theme="light"] ::-webkit-scrollbar-thumb:hover {
-  background: #0891B2;
-}
-
-
-/* =========================================================
-   PULSE ANIMATION
-   ========================================================= */
-
-@keyframes pulseGlow {
-  0%,
-  100% {
-    opacity: 1;
-    transform: scale(1);
-  }
-
-  50% {
-    opacity: 0.6;
-    transform: scale(1.05);
-  }
-}
-
-.animate-pulse-glow {
-  animation: pulseGlow 2.5s infinite ease-in-out;
-}
-
-
-/* =========================================================
-   THEME TRANSITION
-   ========================================================= */
-
-body,
-#root,
-nav,
-aside,
-main,
-section,
-header,
-footer,
-button,
-input,
-textarea,
-select,
-div {
-  transition:
-    background-color 0.2s ease,
-    border-color 0.2s ease,
-    color 0.2s ease;
+[data-theme="light"] .leaflet-popup-tip {
+  background: #FFFFFF !important;
+  border: 1px solid #0284C7 !important;
 }
