@@ -113,29 +113,29 @@ export default function CitySyncMapView({ setActivePage, viewMode = "auto" }) {
   };
 
   return (
-    <div className="min-h-screen bg-[#090C13] text-slate-100 flex justify-center py-6 px-4">
+    <div className="h-screen w-screen bg-[#090C13] text-slate-100 flex justify-center overflow-hidden">
       <div
         className={`w-full ${
           isPhoneFrame
             ? "max-w-md bg-[#0D121D] border border-slate-800 rounded-2xl overflow-hidden min-h-[780px]"
-            : "max-w-7xl bg-[#0D121D] border border-slate-800 rounded-2xl p-6 min-h-[780px]"
+            : "w-full h-full bg-[#0D121D] flex flex-col"
         }`}
       >
-        <div className="flex justify-between items-center border-b border-slate-800 pb-4 mb-4">
-          <div>
+        <div className="relative flex justify-center items-center border-b border-slate-800 pb-4 mb-4 px-6 pt-6">
+          <div className="text-center">
             <h1 className="text-xl font-bold text-cyan-400">CitySync AI GIS Radar</h1>
             <p className="text-xs text-slate-400">Live Firestore Incident Map</p>
           </div>
 
           <button
             onClick={() => setActivePage("report-issue")}
-            className="px-4 py-2 bg-cyan-400 text-black rounded-xl font-bold"
+            className="absolute right-6 px-4 py-2 bg-cyan-400 text-black rounded-xl font-bold"
           >
             + REPORT
           </button>
         </div>
 
-        <div className="mb-4 flex items-center gap-2 bg-[#070A12] border border-slate-800 rounded-xl px-3 py-2">
+        <div className="mb-4 flex items-center gap-2 bg-[#070A12] border border-slate-800 rounded-xl px-3 py-2 mx-6">
           <Search className="w-4 h-4 text-slate-400" />
           <input
             value={searchQuery}
@@ -145,7 +145,7 @@ export default function CitySyncMapView({ setActivePage, viewMode = "auto" }) {
           />
         </div>
 
-        <div className="relative h-[620px] rounded-2xl overflow-hidden border border-slate-800 bg-[#090D17]">
+        <div className="flex-1 relative rounded-2xl overflow-hidden border border-slate-800 bg-[#090D17] mx-6 mb-6">
           <div className="absolute inset-0 z-0">
             <LeafletMap center={mapCenter} zoom={13} markers={reportMarkers} />
           </div>
