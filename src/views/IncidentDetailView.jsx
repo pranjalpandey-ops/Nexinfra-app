@@ -14,11 +14,13 @@ import {
   Sparkles,
   Layers,
   Activity,
-  AlertTriangle
+  AlertTriangle,
+  Flame
 } from "lucide-react";
 
 import { updateComplaintStatus } from "../services/updateComplaintStatus";
 import { upvoteIssue, getLocalCivicIssues } from "../services/civicDb";
+import DisasterBroadcastModal from "../components/DisasterBroadcastModal";
 
 export default function IncidentDetailView({
   setActivePage,
@@ -27,6 +29,7 @@ export default function IncidentDetailView({
 }) {
   const isAdmin = user?.role === "admin";
   const [isScanning, setIsScanning] = useState(false);
+  const [isDisasterModalOpen, setIsDisasterModalOpen] = useState(false);
 
   const [complaint, setComplaint] = useState({
     id: "CIVIC-892A",
@@ -187,7 +190,7 @@ export default function IncidentDetailView({
               </h1>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               {/* Upvote Button */}
               <button
                 onClick={handleUpvote}
@@ -196,6 +199,17 @@ export default function IncidentDetailView({
                 <ThumbsUp className="w-4 h-4 text-cyan-400" />
                 <span>Upvote ({complaint.upvotes || 0})</span>
               </button>
+
+              {/* Admin Level 5 Disaster Early Warning Button */}
+              {isAdmin && (
+                <button
+                  onClick={() => setIsDisasterModalOpen(true)}
+                  className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 text-white font-extrabold text-xs uppercase cursor-pointer flex items-center gap-1.5 shadow-[0_0_15px_rgba(239,68,68,0.5)] font-mono-tech active:scale-95 transition"
+                >
+                  <Flame className="w-4 h-4 animate-pulse" />
+                  <span>🚨 Level 5 Warning</span>
+                </button>
+              )}
 
               {isAdmin && (
                 <button
@@ -378,6 +392,14 @@ export default function IncidentDetailView({
         </div>
 
       </div>
+
+      {/* Disaster Early Warning Broadcast Modal */}
+      <DisasterBroadcastModal
+        isOpen={isDisasterModalOpen}
+        onClose={() => setIsDisasterModalOpen(false)}
+        initialIncident={complaint}
+        user={user}
+      />
     </div>
   );
 }
