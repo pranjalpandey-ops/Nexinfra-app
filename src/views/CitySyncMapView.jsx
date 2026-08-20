@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Search,
   AlertTriangle,
@@ -13,11 +13,24 @@ import {
   Layers,
   Activity,
   MapPin,
-  Maximize2
+  Maximize2,
+  Minimize2,
+  Radio,
+  Plane,
+  ShieldAlert,
+  Send,
+  Sliders,
+  ChevronLeft,
+  ChevronRight,
+  Eye,
+  Check,
+  RefreshCw,
+  Volume2
 } from "lucide-react";
 
 import LeafletMap from "../components/LeafletMap";
-import { getLocalCivicIssues, upvoteIssue } from "../services/civicDb";
+import DisasterBroadcastModal from "../components/DisasterBroadcastModal";
+import { getLocalCivicIssues, upvoteIssue, updateCivicIssueStatus } from "../services/civicDb";
 import { subscribeToComplaints } from "../services/getComplaints";
 
 export default function CitySyncMapView({ setActivePage, viewMode = "auto", user }) {
@@ -26,13 +39,20 @@ export default function CitySyncMapView({ setActivePage, viewMode = "auto", user
   const [issues, setIssues] = useState([]);
   const [selectedIssue, setSelectedIssue] = useState(null);
 
-  // Filter States
+  // Filter & Layer States
   const [selectedCategory, setSelectedCategory] = useState("ALL");
   const [selectedWard, setSelectedWard] = useState("ALL");
   const [selectedPriority, setSelectedPriority] = useState("ALL");
   const [selectedStatus, setSelectedStatus] = useState("ALL");
   const [showHeatmap, setShowHeatmap] = useState(false);
+  const [showUavTrails, setShowUavTrails] = useState(true);
   const [showFilterPanel, setShowFilterPanel] = useState(false);
+  const [tileMode, setTileMode] = useState("dark"); // dark | light | satellite
+  const [isDisasterModalOpen, setIsDisasterModalOpen] = useState(false);
+
+  // Panel View Controls
+  const [isLeftPanelOpen, setIsLeftPanelOpen] = useState(true);
+  const [isRightPanelOpen, setIsRightPanelOpen] = useState(true);
 
   const isPhoneFrame = viewMode === "phone";
 
@@ -47,8 +67,7 @@ export default function CitySyncMapView({ setActivePage, viewMode = "auto", user
     // 2. Synchronize with Firestore real-time listener if available
     const unsubscribe = subscribeToComplaints((firestoreData) => {
       if (Array.isArray(firestoreData) && firestoreData.length > 0) {
-        // Merge firestore with local seed
-        const merged = [...firestoreData, ...localData.filter(l => !firestoreData.some(f => f.id === l.id))];
+        const merged = [...firestoreData, ...localData.filter((l) => !firestoreData.some((f) => f.id === l.id))];
         setIssues(merged);
       }
     });
@@ -58,7 +77,17 @@ export default function CitySyncMapView({ setActivePage, viewMode = "auto", user
 
   const handleUpvote = (issueId, e) => {
     if (e) e.stopPropagation();
-    const updated = upvoteIssue(issueId, user?.email || "citizen.demo@nexinfra.org");
+    const updated = upvoteIssue(issueId, user?.email || "operator.console@nexinfra.org");
+    setIssues(updated);
+    if (selectedIssue && selectedIssue.id === issueId) {
+      const found = updated.find((i) => i.id === issueId);
+      if (found) setSelectedIssue(found);
+    }
+  };
+
+  const handleStatusUpdate = (issueId, newStatus, e) => {
+    if (e) e.stopPropagation();
+    const updated = updateCivicIssueStatus(issueId, newStatus);
     setIssues(updated);
     if (selectedIssue && selectedIssue.id === issueId) {
       const found = updated.find((i) => i.id === issueId);
@@ -68,7 +97,6 @@ export default function CitySyncMapView({ setActivePage, viewMode = "auto", user
 
   // Filter Logic
   const filteredIssues = issues.filter((item) => {
-    // Search
     const q = searchQuery.toLowerCase();
     const matchesSearch =
       (item.title || "").toLowerCase().includes(q) ||
@@ -78,17 +106,9 @@ export default function CitySyncMapView({ setActivePage, viewMode = "auto", user
       (item.id || "").toLowerCase().includes(q);
 
     if (!matchesSearch) return false;
-
-    // Category
     if (selectedCategory !== "ALL" && item.category !== selectedCategory) return false;
-
-    // Ward
     if (selectedWard !== "ALL" && item.ward !== selectedWard) return false;
-
-    // Priority
     if (selectedPriority !== "ALL" && item.priority !== selectedPriority) return false;
-
-    // Status
     if (selectedStatus !== "ALL" && item.status !== selectedStatus) return false;
 
     return true;
@@ -108,7 +128,14 @@ export default function CitySyncMapView({ setActivePage, viewMode = "auto", user
   const mapCenter =
     activeIssue && activeIssue.latitude && activeIssue.longitude
       ? [activeIssue.latitude, activeIssue.longitude]
-      : [28.6139, 77.2090];
+      : [28.6139, 77.209];
+
+  // Tile URL mapping
+  const tileUrls = {
+    dark: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
+    light: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
+    satellite: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+  };
 
   const mapMarkers = filteredIssues
     .filter((issue) => issue.latitude && issue.longitude)
@@ -122,14 +149,14 @@ export default function CitySyncMapView({ setActivePage, viewMode = "auto", user
         color: pinColor,
         data: issue,
         popup: `
-          <div style="font-family:'JetBrains Mono',monospace; min-width:200px; color:#0F172A; font-size:12px;">
-            <div style="font-weight:800; font-size:13px; margin-bottom:4px;">${issue.title}</div>
+          <div style="font-family:'JetBrains Mono',monospace; min-width:210px; color:#0F172A; font-size:12px; padding:2px;">
+            <div style="font-weight:800; font-size:13px; margin-bottom:4px; color:#0F172A;">${issue.title}</div>
             <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
               <span style="color:#0284C7; font-weight:bold;">${issue.id}</span>
               <span style="font-weight:bold; color:${pinColor};">${issue.priorityLabel || issue.priority}</span>
             </div>
             <div style="font-size:11px; color:#475569; margin-bottom:6px;">📍 ${issue.address || ""}</div>
-            <div style="font-size:11px; color:#047857; font-weight:bold;">Status: ${issue.status} • SLA: ${issue.slaHours || 4}h</div>
+            <div style="font-size:11px; color:#047857; font-weight:bold;">Status: ${issue.status} • SLA: ${issue.slaHours || 4}h target</div>
           </div>
         `,
       };
@@ -161,312 +188,470 @@ export default function CitySyncMapView({ setActivePage, viewMode = "auto", user
   ];
 
   return (
-    <div className="h-screen w-screen bg-[#07090E] text-slate-100 flex justify-center overflow-y-auto">
-      <div
-        className={`w-full min-h-full ${
-          isPhoneFrame
-            ? "max-w-md bg-[#0D121D] border border-slate-800 rounded-2xl overflow-hidden min-h-[780px]"
-            : "w-full h-full bg-[#0D121D] flex flex-col min-h-0"
-        }`}
-      >
-        {/* Top Control Bar */}
-        <div className="border-b border-slate-800 px-6 py-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-[#090D16]/90 backdrop-blur-md">
-          <div>
-            <h1 className="text-xl font-extrabold text-white font-heading flex items-center gap-2.5">
-              <span>CitySync AI Civic Issue & Problem Radar</span>
-              <span className="px-2.5 py-0.5 rounded-full bg-cyan-950 border border-cyan-500 text-cyan-300 text-[11px] font-mono-tech uppercase">
-                {isAdmin ? "Admin Telemetry" : "Citizen GIS"}
-              </span>
-            </h1>
-            <p className="text-xs text-slate-400 font-mono-tech">
-              Spatial Defect Triaging • SLA Monitoring • Grievance Clustering
-            </p>
+    <div className="h-[calc(100vh-4rem)] w-screen bg-[#07090E] text-slate-100 flex flex-col overflow-hidden select-none">
+      
+      {/* 1. Top Command Center Telemetry & Control Bar */}
+      <header className="border-b border-slate-800 bg-[#090D16]/95 px-4 sm:px-6 py-3 shrink-0 backdrop-blur-md z-20">
+        <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-3">
+          
+          {/* Title & Live Status Indicator */}
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-cyan-950/80 border border-cyan-500 flex items-center justify-center text-cyan-400 cyan-glow-sm shrink-0">
+              <Radio className="w-5 h-5 animate-pulse" />
+            </div>
+
+            <div>
+              <div className="flex items-center gap-2.5">
+                <h1 className="text-lg sm:text-xl font-extrabold text-white font-heading tracking-tight">
+                  CitySync Command Console & AI GIS Radar
+                </h1>
+                <span className="px-2 py-0.5 rounded-full bg-emerald-950/80 border border-emerald-500 text-emerald-300 text-[10px] font-mono-tech font-bold uppercase flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+                  <span>LIVE 42ms</span>
+                </span>
+              </div>
+              <p className="text-xs text-slate-400 font-mono-tech">
+                Sub-Meter Geospatial Defect Triaging • UAV Autonomous Recon • Automated SLA Engine
+              </p>
+            </div>
           </div>
 
-          <div className="flex items-center gap-3 font-mono-tech text-xs w-full sm:w-auto justify-between sm:justify-end">
+          {/* Quick HUD Metrics & Command Controls */}
+          <div className="flex flex-wrap items-center gap-2.5 font-mono-tech text-xs w-full xl:w-auto justify-between xl:justify-end">
+            
+            {/* Tile Layer Selector */}
+            <div className="flex items-center bg-[#070A10] border border-slate-800 rounded-xl p-1">
+              <button
+                onClick={() => setTileMode("dark")}
+                className={`px-2.5 py-1 rounded-lg transition font-bold ${
+                  tileMode === "dark" ? "bg-cyan-950 text-cyan-300 border border-cyan-500/60" : "text-slate-400 hover:text-white"
+                }`}
+              >
+                Dark GIS
+              </button>
+              <button
+                onClick={() => setTileMode("satellite")}
+                className={`px-2.5 py-1 rounded-lg transition font-bold ${
+                  tileMode === "satellite" ? "bg-cyan-950 text-cyan-300 border border-cyan-500/60" : "text-slate-400 hover:text-white"
+                }`}
+              >
+                Satellite
+              </button>
+              <button
+                onClick={() => setTileMode("light")}
+                className={`px-2.5 py-1 rounded-lg transition font-bold ${
+                  tileMode === "light" ? "bg-cyan-950 text-cyan-300 border border-cyan-500/60" : "text-slate-400 hover:text-white"
+                }`}
+              >
+                Light
+              </button>
+            </div>
+
             {/* Heatmap Toggle */}
             <button
               onClick={() => setShowHeatmap(!showHeatmap)}
-              className={`px-3.5 py-2 rounded-xl border flex items-center gap-1.5 transition cursor-pointer font-bold ${
+              className={`px-3 py-1.5 rounded-xl border flex items-center gap-1.5 transition cursor-pointer font-bold ${
                 showHeatmap
-                  ? "bg-amber-950/80 border-amber-400 text-amber-300 shadow-md cyan-glow-sm"
+                  ? "bg-amber-950/80 border-amber-400 text-amber-300 cyan-glow-sm shadow-md"
                   : "bg-[#070A10] border-slate-800 text-slate-400 hover:text-white"
               }`}
+              title="Toggle Cluster Heatmap Intensity"
             >
-              <Flame className={`w-4 h-4 ${showHeatmap ? "text-amber-400 animate-pulse" : ""}`} />
-              <span>{showHeatmap ? "Grievance Heatmap ON" : "Heatmap Overlay"}</span>
+              <Flame className={`w-3.5 h-3.5 ${showHeatmap ? "text-amber-400 animate-pulse" : ""}`} />
+              <span>{showHeatmap ? "Heatmap ON" : "Heatmap"}</span>
             </button>
 
-            {/* Filter Toggle Button */}
+            {/* UAV Drone Recon Loop Toggle */}
             <button
-              onClick={() => setShowFilterPanel(!showFilterPanel)}
-              className={`px-3.5 py-2 rounded-xl border flex items-center gap-1.5 transition cursor-pointer font-bold ${
-                showFilterPanel
-                  ? "bg-cyan-950/80 border-cyan-400 text-cyan-300"
+              onClick={() => setShowUavTrails(!showUavTrails)}
+              className={`px-3 py-1.5 rounded-xl border flex items-center gap-1.5 transition cursor-pointer font-bold ${
+                showUavTrails
+                  ? "bg-cyan-950/80 border-cyan-400 text-cyan-300 cyan-glow-sm shadow-md"
                   : "bg-[#070A10] border-slate-800 text-slate-400 hover:text-white"
               }`}
+              title="Toggle UAV Drone Recon Trails"
             >
-              <Filter className="w-4 h-4 text-cyan-400" />
-              <span>Filters</span>
+              <Plane className="w-3.5 h-3.5 text-cyan-400" />
+              <span>UAV Patrols</span>
             </button>
 
-            {/* Report New Issue Button */}
+            {/* Level 5 Early Warning Broadcast Trigger */}
+            <button
+              onClick={() => setIsDisasterModalOpen(true)}
+              className="px-3.5 py-1.5 rounded-xl bg-red-950/90 border border-red-500 text-red-300 hover:bg-red-900 font-bold text-xs flex items-center gap-1.5 shadow-lg active:scale-95 transition cursor-pointer"
+            >
+              <ShieldAlert className="w-3.5 h-3.5 text-red-400 animate-bounce" />
+              <span>🚨 LEVEL 5 WARNING</span>
+            </button>
+
+            {/* Report Defect Button */}
             <button
               onClick={() => setActivePage("report-issue")}
-              className="px-4 py-2 bg-gradient-to-r from-cyan-400 to-teal-300 hover:from-cyan-300 hover:to-cyan-200 text-black rounded-xl font-extrabold text-xs uppercase cyan-glow-sm flex items-center gap-1.5 cursor-pointer shadow-lg active:scale-95 transition"
+              className="px-4 py-1.5 bg-gradient-to-r from-cyan-400 to-teal-300 hover:from-cyan-300 hover:to-cyan-200 text-black rounded-xl font-extrabold text-xs uppercase cyan-glow-sm flex items-center gap-1.5 cursor-pointer shadow-lg active:scale-95 transition"
             >
-              <Sparkles className="w-4 h-4" />
+              <Sparkles className="w-3.5 h-3.5" />
               <span>+ REPORT DEFECT</span>
             </button>
           </div>
+
         </div>
 
-        {/* Live HUD Statistics Strip */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 px-6 py-3 border-b border-slate-800/80 bg-[#070A10]/95 font-mono-tech text-xs">
-          <div className="flex items-center gap-2.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-ping" />
+        {/* Real-time KPI Stats Banner */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2.5 font-mono-tech text-xs">
+          <div className="flex items-center gap-2 bg-[#070A10] px-3 py-1 rounded-lg border border-slate-800/80">
+            <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
             <span className="text-slate-400">Total Tracked:</span>
             <strong className="text-cyan-300 font-bold">{totalCount}</strong>
           </div>
 
-          <div className="flex items-center gap-2.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-red-500" />
-            <span className="text-slate-400">P1 Critical Hazards:</span>
+          <div className="flex items-center gap-2 bg-[#070A10] px-3 py-1 rounded-lg border border-slate-800/80">
+            <span className="w-2 h-2 rounded-full bg-red-500" />
+            <span className="text-slate-400">P1 Critical:</span>
             <strong className="text-red-400 font-bold">{criticalCount}</strong>
           </div>
 
-          <div className="flex items-center gap-2.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-amber-400" />
+          <div className="flex items-center gap-2 bg-[#070A10] px-3 py-1 rounded-lg border border-slate-800/80">
+            <span className="w-2 h-2 rounded-full bg-amber-400" />
             <span className="text-slate-400">In Remediation:</span>
             <strong className="text-amber-300 font-bold">{inProgressCount}</strong>
           </div>
 
-          <div className="flex items-center gap-2.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-400" />
+          <div className="flex items-center gap-2 bg-[#070A10] px-3 py-1 rounded-lg border border-slate-800/80">
+            <span className="w-2 h-2 rounded-full bg-emerald-400" />
             <span className="text-slate-400">Citizen Resolved:</span>
             <strong className="text-emerald-400 font-bold">{resolvedCount}</strong>
           </div>
         </div>
+      </header>
 
-        {/* Search & Collapsible Multi-Filter Panel */}
-        <div className="px-6 py-3 space-y-3 bg-[#0B0F19]">
-          <div className="flex items-center gap-2 bg-[#070A12] border border-slate-800 rounded-xl px-3.5 py-2.5">
-            <Search className="w-4 h-4 text-slate-400" />
-            <input
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search by defect type, keyword, street address, ward, or Ticket ID..."
-              className="bg-transparent flex-1 outline-none text-white placeholder:text-slate-500 text-xs sm:text-sm font-mono-tech"
-            />
-            {searchQuery && (
-              <button
-                onClick={() => setSearchQuery("")}
-                className="text-xs text-slate-400 hover:text-white"
-              >
-                Clear
-              </button>
-            )}
-          </div>
-
-          {/* Expanded Filter Panel */}
-          {showFilterPanel && (
-            <div className="p-4 rounded-xl bg-[#070A10] border border-slate-800 grid grid-cols-1 sm:grid-cols-4 gap-3 font-mono-tech text-xs">
-              {/* Category */}
-              <div>
-                <label className="block mb-1 text-slate-400 font-bold">Category</label>
-                <select
-                  value={selectedCategory}
-                  onChange={(e) => setSelectedCategory(e.target.value)}
-                  className="w-full bg-[#0E131F] border border-slate-800 rounded-lg p-2 text-white"
+      {/* 2. Main 3-Column Tactical Workspace */}
+      <div className="flex-1 flex overflow-hidden relative">
+        
+        {/* LEFT COLUMN: Live Incident Queue & Triage List */}
+        <div
+          className={`h-full border-r border-slate-800 bg-[#090D16] flex flex-col shrink-0 transition-all duration-300 z-10 ${
+            isLeftPanelOpen ? "w-80 sm:w-96" : "w-0 overflow-hidden border-r-0"
+          }`}
+        >
+          {/* Search & Quick Category Filters */}
+          <div className="p-3.5 border-b border-slate-800 space-y-2.5 bg-[#070A10]">
+            <div className="flex items-center gap-2 bg-[#0E131F] border border-slate-800 rounded-xl px-3 py-2">
+              <Search className="w-4 h-4 text-slate-400 shrink-0" />
+              <input
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search ticket, defect, ward, address..."
+                className="bg-transparent flex-1 outline-none text-white placeholder:text-slate-500 text-xs font-mono-tech"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery("")}
+                  className="text-[11px] text-slate-400 hover:text-white"
                 >
-                  {categories.map((c) => (
-                    <option key={c} value={c}>{c}</option>
-                  ))}
-                </select>
-              </div>
+                  Clear
+                </button>
+              )}
+            </div>
 
-              {/* Ward / Zone */}
-              <div>
-                <label className="block mb-1 text-slate-400 font-bold">Ward / Zone</label>
-                <select
-                  value={selectedWard}
-                  onChange={(e) => setSelectedWard(e.target.value)}
-                  className="w-full bg-[#0E131F] border border-slate-800 rounded-lg p-2 text-white"
+            {/* Quick Priority Filter Pills */}
+            <div className="flex items-center gap-1.5 font-mono-tech text-[11px] overflow-x-auto pb-1">
+              {["ALL", "P1", "P2", "P3"].map((p) => (
+                <button
+                  key={p}
+                  onClick={() => setSelectedPriority(p)}
+                  className={`px-2.5 py-1 rounded-lg font-bold transition cursor-pointer shrink-0 ${
+                    selectedPriority === p
+                      ? "bg-cyan-950 text-cyan-300 border border-cyan-500"
+                      : "bg-[#0E131F] text-slate-400 border border-slate-800 hover:text-white"
+                  }`}
                 >
-                  {wards.map((w) => (
-                    <option key={w} value={w}>{w}</option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Priority */}
-              <div>
-                <label className="block mb-1 text-slate-400 font-bold">Priority Tier</label>
-                <select
-                  value={selectedPriority}
-                  onChange={(e) => setSelectedPriority(e.target.value)}
-                  className="w-full bg-[#0E131F] border border-slate-800 rounded-lg p-2 text-white"
-                >
-                  <option value="ALL">All Priorities</option>
-                  <option value="P1">P1 - Critical Hazard</option>
-                  <option value="P2">P2 - High Priority</option>
-                  <option value="P3">P3 - Medium/Low</option>
-                </select>
-              </div>
-
-              {/* Status */}
-              <div>
-                <label className="block mb-1 text-slate-400 font-bold">Workflow Status</label>
-                <select
-                  value={selectedStatus}
-                  onChange={(e) => setSelectedStatus(e.target.value)}
-                  className="w-full bg-[#0E131F] border border-slate-800 rounded-lg p-2 text-white"
-                >
-                  <option value="ALL">All Statuses</option>
-                  <option value="Reported">Reported</option>
-                  <option value="AI Verified">AI Verified</option>
-                  <option value="In Progress">In Progress</option>
-                  <option value="Resolved">Resolved</option>
-                </select>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Map Container */}
-        <div className="relative flex-1 min-h-[440px] border-y border-slate-800 bg-[#090D17] mx-0">
-          <div className="absolute inset-0 z-0">
-            <LeafletMap
-              center={mapCenter}
-              zoom={13}
-              markers={mapMarkers}
-              showHeatmap={showHeatmap}
-              onMarkerClick={(item) => {
-                setSelectedIssue(item);
-              }}
-            />
-          </div>
-
-          {/* Floating Map Legend & Overlay */}
-          <div className="absolute top-4 right-4 z-[400] bg-[#070A12]/90 backdrop-blur-md border border-slate-700 rounded-xl p-3 text-xs space-y-1.5 font-mono-tech shadow-2xl">
-            <div className="text-slate-300 font-bold mb-1 border-b border-slate-800 pb-1">
-              GIS Severity Pins
-            </div>
-            <div className="flex items-center gap-2 text-red-400">
-              <span className="w-3 h-3 rounded-full bg-red-500 animate-ping" />
-              <span>🔴 P1: Critical Safety Hazard</span>
-            </div>
-            <div className="flex items-center gap-2 text-orange-400">
-              <span className="w-2.5 h-2.5 rounded-full bg-orange-500" />
-              <span>🟠 P2: High Priority</span>
-            </div>
-            <div className="flex items-center gap-2 text-yellow-400">
-              <span className="w-2.5 h-2.5 rounded-full bg-yellow-400" />
-              <span>🟡 P3: Medium Priority</span>
-            </div>
-            <div className="flex items-center gap-2 text-emerald-400">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
-              <span>🟢 Resolved / Verified</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Bottom Drawer: Selected Defect Inspector Card */}
-        {activeIssue && (
-          <div className="p-4 sm:p-5 bg-[#090D16] border-t border-slate-800 font-mono-tech text-xs">
-            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                  {p === "ALL" ? "All Tiers" : p}
+                </button>
+              ))}
               
-              {/* Left: Thumbnail & Details */}
-              <div className="flex items-start gap-4 flex-1">
-                {activeIssue.imageUrl && (
-                  <div className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-xl overflow-hidden border border-cyan-500/40 shrink-0 shadow-lg">
-                    <img
-                      src={activeIssue.imageUrl}
-                      alt="Defect Preview"
-                      className="w-full h-full object-cover"
-                    />
-                    <span className="absolute bottom-1 right-1 px-1.5 py-0.5 rounded bg-black/80 text-[9px] text-cyan-300 font-bold border border-cyan-500/60">
-                      AI BOX
-                    </span>
-                  </div>
-                )}
+              <button
+                onClick={() => setSelectedStatus(selectedStatus === "Resolved" ? "ALL" : "Resolved")}
+                className={`px-2.5 py-1 rounded-lg font-bold transition cursor-pointer shrink-0 ${
+                  selectedStatus === "Resolved"
+                    ? "bg-emerald-950 text-emerald-300 border border-emerald-500"
+                    : "bg-[#0E131F] text-slate-400 border border-slate-800 hover:text-white"
+                }`}
+              >
+                Resolved
+              </button>
+            </div>
+          </div>
 
-                <div className="space-y-1.5 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="px-2 py-0.5 rounded bg-cyan-950 border border-cyan-500 text-cyan-300 font-bold">
-                      {activeIssue.id}
-                    </span>
+          {/* Incident Queue Scroll Area */}
+          <div className="flex-1 overflow-y-auto p-3 space-y-2.5 font-mono-tech text-xs">
+            <div className="flex items-center justify-between text-[11px] text-slate-400 px-1">
+              <span>ACTIVE QUEUE ({filteredIssues.length})</span>
+              <span>AUTO-SORTED BY SLA</span>
+            </div>
 
+            {filteredIssues.map((issue) => {
+              const isSelected = activeIssue?.id === issue.id;
+              const isCritical = issue.priority === "P1" || issue.priority === "High";
+
+              return (
+                <div
+                  key={issue.id}
+                  onClick={() => setSelectedIssue(issue)}
+                  className={`p-3 rounded-xl border transition-all cursor-pointer space-y-2 ${
+                    isSelected
+                      ? "bg-cyan-950/40 border-cyan-400 cyan-glow-sm shadow-md"
+                      : "bg-[#0B0F19] border-slate-800/80 hover:border-slate-700"
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-cyan-400 font-bold">{issue.id}</span>
                     <span
-                      className={`px-2 py-0.5 rounded font-bold ${
-                        activeIssue.priority === "P1"
+                      className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                        isCritical
                           ? "bg-red-950 text-red-300 border border-red-800"
-                          : activeIssue.priority === "P2"
+                          : issue.priority === "P2"
                           ? "bg-orange-950 text-orange-300 border border-orange-800"
                           : "bg-yellow-950 text-yellow-300 border border-yellow-800"
                       }`}
                     >
-                      {activeIssue.priorityLabel || activeIssue.priority}
+                      {issue.priorityLabel || issue.priority}
                     </span>
-
-                    <span className="px-2 py-0.5 rounded bg-slate-800 text-slate-200">
-                      {activeIssue.status}
-                    </span>
-
-                    {activeIssue.aiVerified && (
-                      <span className="px-2 py-0.5 rounded bg-emerald-950 border border-emerald-500 text-emerald-300 font-bold flex items-center gap-1">
-                        <CheckCircle2 className="w-3 h-3 text-emerald-400" />
-                        <span>AI Verified ({(activeIssue.aiConfidence * 100).toFixed(1)}%)</span>
-                      </span>
-                    )}
                   </div>
 
-                  <h3 className="font-bold text-white text-base font-sans hover:text-cyan-300 transition">
-                    {activeIssue.title}
-                  </h3>
+                  <h4 className="text-white font-sans font-bold text-xs line-clamp-1">
+                    {issue.title}
+                  </h4>
 
-                  <div className="flex flex-wrap items-center gap-3 text-slate-400 text-xs">
-                    <span className="flex items-center gap-1 text-slate-300">
-                      <MapPin className="w-3.5 h-3.5 text-cyan-400" />
-                      <span>{activeIssue.address}</span>
+                  <div className="flex items-center justify-between text-slate-400 text-[11px]">
+                    <span className="flex items-center gap-1 truncate max-w-[170px]">
+                      <MapPin className="w-3 h-3 text-cyan-400 shrink-0" />
+                      <span className="truncate">{issue.ward || issue.address}</span>
                     </span>
-                    <span>•</span>
-                    <span className="text-slate-300">{activeIssue.ward}</span>
-                    <span>•</span>
-                    <span className="text-cyan-300 font-bold flex items-center gap-1">
-                      <Clock className="w-3.5 h-3.5" />
-                      <span>SLA: {activeIssue.slaHours || 4}h target</span>
+                    <span className="text-cyan-300 font-bold">
+                      SLA: {issue.slaHours || 4}h
                     </span>
+                  </div>
+                </div>
+              );
+            })}
+
+            {filteredIssues.length === 0 && (
+              <div className="text-center py-10 text-slate-500 space-y-2">
+                <AlertTriangle className="w-6 h-6 mx-auto text-slate-600" />
+                <p>No incidents match current filter.</p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Left Panel Collapse Toggle Button */}
+        <button
+          onClick={() => setIsLeftPanelOpen(!isLeftPanelOpen)}
+          className="absolute top-4 left-4 z-[450] p-2 rounded-xl bg-[#090D16]/90 border border-slate-700 text-slate-300 hover:text-cyan-400 backdrop-blur-md shadow-lg cursor-pointer"
+          title={isLeftPanelOpen ? "Collapse Incident Queue" : "Expand Incident Queue"}
+        >
+          {isLeftPanelOpen ? <ChevronLeft className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+        </button>
+
+        {/* CENTER COLUMN: Tactical Interactive Leaflet Map */}
+        <div className="flex-1 h-full relative bg-[#070A12] min-w-0">
+          <LeafletMap
+            center={mapCenter}
+            zoom={14}
+            markers={mapMarkers}
+            showHeatmap={showHeatmap}
+            tileUrl={tileUrls[tileMode] || tileUrls.dark}
+            onMarkerClick={(item) => {
+              setSelectedIssue(item);
+            }}
+          />
+
+          {/* Floating Map Legend */}
+          <div className="absolute top-4 right-4 z-[400] bg-[#070A12]/90 backdrop-blur-md border border-slate-700 rounded-xl p-3 text-xs space-y-1.5 font-mono-tech shadow-2xl hidden md:block">
+            <div className="text-slate-300 font-bold mb-1 border-b border-slate-800 pb-1">
+              GIS Severity Pins
+            </div>
+            <div className="flex items-center gap-2 text-red-400">
+              <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-ping" />
+              <span>🔴 P1: Critical Safety Hazard</span>
+            </div>
+            <div className="flex items-center gap-2 text-orange-400">
+              <span className="w-2 h-2 rounded-full bg-orange-500" />
+              <span>🟠 P2: High Priority</span>
+            </div>
+            <div className="flex items-center gap-2 text-yellow-400">
+              <span className="w-2 h-2 rounded-full bg-yellow-400" />
+              <span>🟡 P3: Medium/Low</span>
+            </div>
+            <div className="flex items-center gap-2 text-emerald-400">
+              <span className="w-2 h-2 rounded-full bg-emerald-500" />
+              <span>🟢 Resolved / Citizen Confirmed</span>
+            </div>
+          </div>
+        </div>
+
+        {/* RIGHT COLUMN: Tactical Incident Telemetry HUD & Action Panel */}
+        {activeIssue && (
+          <div
+            className={`h-full border-l border-slate-800 bg-[#090D16] flex flex-col shrink-0 transition-all duration-300 z-10 ${
+              isRightPanelOpen ? "w-80 sm:w-96" : "w-0 overflow-hidden border-l-0"
+            }`}
+          >
+            {/* Header Inspector Title */}
+            <div className="p-4 border-b border-slate-800 bg-[#070A10] flex items-center justify-between font-mono-tech text-xs">
+              <div className="flex items-center gap-2">
+                <Activity className="w-4 h-4 text-cyan-400 animate-pulse" />
+                <span className="font-bold text-white uppercase">Incident Telemetry HUD</span>
+              </div>
+              <span className="px-2 py-0.5 rounded bg-cyan-950 border border-cyan-500 text-cyan-300 font-bold">
+                {activeIssue.id}
+              </span>
+            </div>
+
+            {/* Scrollable Telemetry Details */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 font-mono-tech text-xs">
+              
+              {/* Defect Image Preview with YOLOv9 Overlay */}
+              {activeIssue.imageUrl && (
+                <div className="relative rounded-xl overflow-hidden border border-cyan-500/50 shadow-xl bg-black">
+                  <img
+                    src={activeIssue.imageUrl}
+                    alt="Defect Telemetry"
+                    className="w-full h-44 object-cover"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent pointer-events-none" />
+                  
+                  <div className="absolute top-2 left-2 px-2 py-1 rounded bg-black/80 border border-cyan-400 text-[10px] text-cyan-300 font-bold flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-ping" />
+                    <span>YOLOv9-CivicNet: 96.8%</span>
+                  </div>
+
+                  <div className="absolute bottom-2 left-2 right-2 flex justify-between items-center text-[10px] text-slate-300">
+                    <span>GPS: {activeIssue.latitude?.toFixed(4)}, {activeIssue.longitude?.toFixed(4)}</span>
+                    <span className="text-cyan-400 font-bold">Inference: 142ms</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Title & Classification */}
+              <div className="space-y-1.5">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span
+                    className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                      activeIssue.priority === "P1"
+                        ? "bg-red-950 text-red-300 border border-red-800"
+                        : activeIssue.priority === "P2"
+                        ? "bg-orange-950 text-orange-300 border border-orange-800"
+                        : "bg-yellow-950 text-yellow-300 border border-yellow-800"
+                    }`}
+                  >
+                    {activeIssue.priorityLabel || activeIssue.priority}
+                  </span>
+
+                  <span className="px-2 py-0.5 rounded bg-slate-800 text-slate-200 text-[10px]">
+                    Status: {activeIssue.status}
+                  </span>
+                </div>
+
+                <h3 className="text-base font-bold text-white font-sans leading-snug">
+                  {activeIssue.title}
+                </h3>
+              </div>
+
+              {/* SLA Real-Time Clock & Progress */}
+              <div className="p-3 rounded-xl bg-[#070A12] border border-slate-800 space-y-2">
+                <div className="flex justify-between items-center text-slate-300">
+                  <span className="flex items-center gap-1 text-cyan-400 font-bold">
+                    <Clock className="w-3.5 h-3.5" />
+                    <span>SLA Target Clock</span>
+                  </span>
+                  <span className="text-emerald-400 font-bold">
+                    {activeIssue.slaHours ? `${activeIssue.slaHours}h Max` : "4h Target"}
+                  </span>
+                </div>
+
+                <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
+                  <div className="bg-gradient-to-r from-cyan-400 to-emerald-400 h-full w-[65%]" />
+                </div>
+                <div className="flex justify-between text-[10px] text-slate-400">
+                  <span>Elapsed: 1h 15m</span>
+                  <span className="text-cyan-300 font-bold">65% SLA Window Remaining</span>
+                </div>
+              </div>
+
+              {/* Location & Ward Info */}
+              <div className="p-3 rounded-xl bg-[#070A12] border border-slate-800 space-y-1.5 text-slate-300">
+                <div className="flex items-start gap-2">
+                  <MapPin className="w-4 h-4 text-cyan-400 shrink-0 mt-0.5" />
+                  <div>
+                    <div className="font-bold text-white">{activeIssue.address || "Main Infrastructure Corridor"}</div>
+                    <div className="text-[11px] text-slate-400">{activeIssue.ward || "Ward Zone 4"}</div>
                   </div>
                 </div>
               </div>
 
-              {/* Right: Upvote & Inspect Actions */}
-              <div className="flex items-center gap-2.5 w-full md:w-auto justify-between md:justify-end shrink-0 pt-2 md:pt-0 border-t md:border-t-0 border-slate-800">
-                {/* Citizen Upvote Button */}
+              {/* Quick Action Commands */}
+              <div className="space-y-2 pt-1">
+                <div className="text-[11px] text-slate-400 uppercase font-bold">Field Dispatch & Workflow</div>
+
                 <button
-                  onClick={(e) => handleUpvote(activeIssue.id, e)}
-                  className="px-4 py-2.5 rounded-xl bg-slate-900 border border-cyan-500/50 hover:bg-cyan-950/60 text-cyan-300 font-bold text-xs flex items-center gap-1.5 transition cursor-pointer active:scale-95"
-                  title="Confirm and upvote this civic issue"
+                  onClick={(e) => handleStatusUpdate(activeIssue.id, "In Progress", e)}
+                  className="w-full py-2.5 rounded-xl bg-cyan-950/80 border border-cyan-500 hover:bg-cyan-900 text-cyan-300 font-bold flex items-center justify-center gap-2 transition cursor-pointer"
                 >
-                  <ThumbsUp className="w-3.5 h-3.5 text-cyan-400" />
-                  <span>Upvote ({activeIssue.upvotes || 0})</span>
+                  <Send className="w-3.5 h-3.5" />
+                  <span>🚀 Dispatch Field Unit / Crew</span>
                 </button>
 
-                {/* Inspect Details */}
+                <button
+                  onClick={(e) => handleStatusUpdate(activeIssue.id, "Resolved", e)}
+                  className="w-full py-2.5 rounded-xl bg-emerald-950/80 border border-emerald-500 hover:bg-emerald-900 text-emerald-300 font-bold flex items-center justify-center gap-2 transition cursor-pointer"
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  <span>✅ Mark Defect Resolved</span>
+                </button>
+
+                <button
+                  onClick={() => setIsDisasterModalOpen(true)}
+                  className="w-full py-2 rounded-xl bg-red-950/80 border border-red-500/80 hover:bg-red-900 text-red-300 font-bold flex items-center justify-center gap-2 transition cursor-pointer"
+                >
+                  <ShieldAlert className="w-3.5 h-3.5 text-red-400" />
+                  <span>🚨 Level 5 Warning Broadcast</span>
+                </button>
+
                 <button
                   onClick={() => openIncidentDetails(activeIssue)}
-                  className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-cyan-400 to-teal-300 hover:from-cyan-300 hover:to-cyan-200 text-black font-extrabold text-xs uppercase flex items-center gap-2 cyan-glow-sm cursor-pointer shadow-lg active:scale-95 transition"
+                  className="w-full py-2.5 rounded-xl bg-gradient-to-r from-cyan-400 to-teal-300 hover:from-cyan-300 hover:to-cyan-200 text-black font-extrabold uppercase cyan-glow-sm flex items-center justify-center gap-2 shadow-lg cursor-pointer active:scale-95 transition"
                 >
-                  <span>{isAdmin ? "Inspect & Remediate" : "Track Incident"}</span>
+                  <span>Inspect Full Dossier</span>
                   <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Citizen Upvote Button */}
+              <div className="pt-2">
+                <button
+                  onClick={(e) => handleUpvote(activeIssue.id, e)}
+                  className="w-full py-2 rounded-xl bg-[#0E131F] border border-slate-800 hover:border-cyan-500 text-slate-300 hover:text-cyan-300 font-bold flex items-center justify-center gap-2 transition cursor-pointer"
+                >
+                  <ThumbsUp className="w-3.5 h-3.5 text-cyan-400" />
+                  <span>Citizen Upvote & Verification ({activeIssue.upvotes || 0})</span>
                 </button>
               </div>
 
             </div>
           </div>
         )}
+
       </div>
+
+      {/* Level 5 Early Warning Command Center Modal */}
+      <DisasterBroadcastModal
+        isOpen={isDisasterModalOpen}
+        onClose={() => setIsDisasterModalOpen(false)}
+        initialIncident={activeIssue}
+        user={user}
+      />
+
     </div>
   );
 }

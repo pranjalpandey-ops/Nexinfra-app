@@ -1,4 +1,4 @@
-﻿import React from "react";
+import React from "react";
 import { MapContainer, TileLayer, Marker, Popup, Circle, useMap } from "react-leaflet";
 import L from "leaflet";
 import { MapPin, Clock, CheckCircle2, AlertTriangle, Sparkles, ArrowRight } from "lucide-react";
@@ -213,12 +213,12 @@ export default function LeafletMap({
             );
           })
         ) : (
-          <Marker position={center}>
+          <Marker position={center} icon={getSeverityPinIcon("P1", "Reported", "#00F0FF")}>
             <Popup className="custom-dark-popup">
               <div className="p-3 font-mono-tech text-xs text-white">
                 <b className="text-cyan-400">NEXinfra Command Node</b>
                 <br />
-                Central GIS coordinate center.
+                Central GIS coordinate telemetry center.
               </div>
             </Popup>
           </Marker>

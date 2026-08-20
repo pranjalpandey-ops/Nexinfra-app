@@ -1,4 +1,4 @@
-﻿// Comprehensive Civic Issue Database with spatial coordinates, AI verification metadata & SLA timers
+// Comprehensive Civic Issue Database with spatial coordinates, AI verification metadata & SLA timers
 
 export const initialCivicIssues = [
   {
@@ -268,3 +268,20 @@ export function upvoteIssue(issueId, userEmail = "citizen.user") {
   saveLocalCivicIssues(updated);
   return updated;
 }
+
+export function updateCivicIssueStatus(issueId, newStatus) {
+  const issues = getLocalCivicIssues();
+  const updated = issues.map((issue) => {
+    if (issue.id === issueId) {
+      return {
+        ...issue,
+        status: newStatus,
+        updatedAt: new Date().toISOString(),
+      };
+    }
+    return issue;
+  });
+  saveLocalCivicIssues(updated);
+  return updated;
+}
+
