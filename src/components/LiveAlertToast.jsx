@@ -8,10 +8,10 @@ export default function LiveAlertToast({ alert, onInspect, onDismiss }) {
 
   return (
     <div className="fixed bottom-6 right-6 z-50 max-w-sm w-full animate-bounce-in">
-      <div className={`p-4 rounded-2xl border backdrop-blur-xl shadow-2xl space-y-2.5 font-mono-tech text-xs transition-all ${
+      <div className={`live-toast-card p-4 rounded-2xl border backdrop-blur-xl shadow-2xl space-y-2.5 font-mono-tech text-xs transition-all ${
         isCritical
-          ? "bg-[#0B0F19]/95 border-red-500 text-red-100 shadow-[0_0_25px_rgba(239,68,68,0.35)] dark:bg-[#0B0F19]/95"
-          : "bg-[#0B0F19]/95 border-cyan-500 text-cyan-100 cyan-glow-sm dark:bg-[#0B0F19]/95"
+          ? "bg-[#0B0F19]/95 border-red-500 text-red-100 shadow-[0_0_25px_rgba(239,68,68,0.35)]"
+          : "bg-[#0B0F19]/95 border-cyan-500 text-cyan-100 cyan-glow-sm"
       }`}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -31,15 +31,15 @@ export default function LiveAlertToast({ alert, onInspect, onDismiss }) {
         </div>
 
         <div className="space-y-1">
-          <h4 className="font-bold text-white text-sm font-sans">
+          <h4 className="font-bold text-white text-sm font-sans toast-title">
             {alert.title}
           </h4>
-          <p className="text-xs text-slate-300 font-sans line-clamp-2">
+          <p className="text-xs text-slate-300 font-sans line-clamp-2 toast-desc">
             {alert.message || alert.description}
           </p>
         </div>
 
-        <div className="flex items-center justify-between pt-1 border-t border-slate-800 text-[11px]">
+        <div className="flex items-center justify-between pt-1 border-t border-slate-800 text-[11px] toast-footer">
           <span className="text-slate-400">
             📍 {alert.location || alert.ward || "Central Sector"}
           </span>

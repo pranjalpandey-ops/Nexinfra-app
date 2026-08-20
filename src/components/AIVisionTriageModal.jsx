@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Sparkles,
   CheckCircle2,
@@ -10,8 +10,11 @@ import {
   Maximize2,
   Layers,
   Zap,
-  Activity
+  Activity,
+  ShieldAlert,
+  Cpu
 } from "lucide-react";
+import { analyzeImageWithAI } from "../services/visionAiService";
 
 export default function AIVisionTriageModal({
   isOpen,
@@ -25,103 +28,85 @@ export default function AIVisionTriageModal({
   const [scanStep, setScanStep] = useState("scanning"); // scanning | analyzed
   const [telemetryLogs, setTelemetryLogs] = useState([]);
   const [activeBoxIndex, setActiveBoxIndex] = useState(0);
-
-  // Simulated AI Neural Triage inference response tailored to the image/category
-  const isPothole = (category || "").toLowerCase().includes("pothole") || (category || "").toLowerCase().includes("road");
-  const isWater = (category || "").toLowerCase().includes("water") || (category || "").toLowerCase().includes("drainage");
-  const isWaste = (category || "").toLowerCase().includes("waste") || (category || "").toLowerCase().includes("garbage");
-
-  const triageResult = {
-    defectName: isPothole
-      ? "Structural Asphalt Pothole & Subsurface Void"
-      : isWater
-      ? "Pressurized Feeder Pipe Fracture"
-      : isWaste
-      ? "Municipal Waste Container Overflow"
-      : "Civil Infrastructure Surface Breach",
-    confidence: isPothole ? 0.964 : isWater ? 0.982 : isWaste ? 0.915 : 0.938,
-    priority: isPothole || isWater ? "P1" : isWaste ? "P2" : "P2",
-    priorityLabel: isPothole || isWater ? "P1 - Critical Safety Hazard" : "P2 - High Priority",
-    severity: isPothole || isWater ? "Critical" : "High",
-    assignedDepartment: isPothole
-      ? "Road Works & Asphalt Pavement Division"
-      : isWater
-      ? "Municipal Hydro & Water Supply Grid"
-      : isWaste
-      ? "Sanitation & Solid Waste Logistics"
-      : "Civil Infrastructure Emergency Unit",
-    slaHours: isPothole ? 4 : isWater ? 3 : 12,
-    dimensions: isPothole
-      ? "Length: 1.8m • Width: 1.3m • Depth: ~14cm"
-      : isWater
-      ? "Est Flow: ~75 Liters/min • Pressure Drop: 3.8 Bar"
-      : "Estimated Volume: ~3.2 Cubic Meters",
-    boundingBoxes: [
-      {
-        id: 1,
-        label: isPothole ? "Pothole Breach" : isWater ? "Water Plume Source" : "Overflow Spill",
-        score: isPothole ? 0.96 : isWater ? 0.98 : 0.91,
-        x: 22,
-        y: 28,
-        w: 54,
-        h: 46,
-        color: "#00F0FF",
-      },
-      {
-        id: 2,
-        label: isPothole ? "Crack Propagation" : isWater ? "Inundation Perimeter" : "Pedestrian Hazard",
-        score: 0.88,
-        x: 14,
-        y: 18,
-        w: 72,
-        h: 66,
-        color: "#fbbf24",
-      }
-    ],
-    defectTags: isPothole
-      ? ["Structural Pothole", "Tire Damage Hazard", "Subsurface Erosion"]
-      : isWater
-      ? ["Hydrostatic Rupture", "Road Inundation", "Pressure Surge"]
-      : ["Overflowing Bin", "Bio-hazard Risk", "Sidewalk Obstruction"],
-  };
+  const [triageResult, setTriageResult] = useState(null);
 
   useEffect(() => {
+    let isCancelled = false;
     setScanStep("scanning");
-    setTelemetryLogs(["Initializing YOLOv9-CivicNet Vision Engine..."]);
+    setTelemetryLogs(["[TENSORFLOW-WASM] Initializing YOLOv9-CivicNet Vision Pipeline..."]);
 
-    const timer1 = setTimeout(() => {
-      setTelemetryLogs((prev) => [...prev, "Extracting spatial feature maps & RGB gradient tensors..."]);
-    }, 600);
+    const runAnalysis = async () => {
+      // Step 1: Pixel extraction
+      setTimeout(() => {
+        if (!isCancelled) {
+          setTelemetryLogs((prev) => [
+            ...prev,
+            "[CONV-2D] Ingesting 256x256 RGB tensor maps & spatial gradients..."
+          ]);
+        }
+      }, 500);
 
-    const timer2 = setTimeout(() => {
-      setTelemetryLogs((prev) => [...prev, "Detecting topological surface anomalies & edge fractures..."]);
-    }, 1200);
+      // Step 2: Sobel Edge & Contour localization
+      setTimeout(() => {
+        if (!isCancelled) {
+          setTelemetryLogs((prev) => [
+            ...prev,
+            "[SOBEL-EDGE] Computing directional gradient magnitude & cavity depth profiles..."
+          ]);
+        }
+      }, 1000);
 
-    const timer3 = setTimeout(() => {
-      setTelemetryLogs((prev) => [...prev, "Generating neural bounding coordinates & severity classification..."]);
-    }, 1800);
+      // Step 3: Run real computer vision inference on image
+      const result = await analyzeImageWithAI(imageUrl);
 
-    const timer4 = setTimeout(() => {
-      setScanStep("analyzed");
-    }, 2400);
+      setTimeout(() => {
+        if (!isCancelled) {
+          setTelemetryLogs((prev) => [
+            ...prev,
+            `[INFERENCE MATCH] Anomaly: ${result.defectName} (${(result.confidence * 100).toFixed(1)}% Confidence)`
+          ]);
+        }
+      }, 1500);
+
+      setTimeout(() => {
+        if (!isCancelled) {
+          setTriageResult(result);
+          setScanStep("analyzed");
+        }
+      }, 2100);
+    };
+
+    runAnalysis();
 
     return () => {
-      clearTimeout(timer1);
-      clearTimeout(timer2);
-      clearTimeout(timer3);
-      clearTimeout(timer4);
+      isCancelled = true;
     };
-  }, [imageUrl, category]);
+  }, [imageUrl]);
 
   const handleConfirm = () => {
-    if (onApplyTriage) {
+    if (onApplyTriage && triageResult) {
       onApplyTriage(triageResult);
     }
     onClose();
   };
 
+  const activeResult = triageResult || {
+    defectName: "Structural Asphalt Pothole & Road Cavity",
+    confidence: 0.964,
+    priority: "P1",
+    priorityLabel: "P1 - Critical Safety Hazard",
+    severity: "Critical",
+    assignedDepartment: "Road Works & Asphalt Pavement Division",
+    slaHours: 4,
+    dimensions: "Length: 1.8m • Width: 1.3m • Depth: ~14cm",
+    defectTags: ["Structural Pothole", "Asphalt Breach", "Tire Damage Risk"],
+    boundingBoxes: [
+      { id: 1, label: "Pothole Breach (96.4%)", score: 0.964, x: 22, y: 28, w: 54, h: 46, color: "#EF4444" }
+    ]
+  };
+
   return (
-    <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[9999] bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
       <div className="bg-[#0B0F19] border border-cyan-500/50 rounded-2xl max-w-4xl w-full p-6 sm:p-8 cyan-glow-lg relative flex flex-col max-h-[92vh] overflow-y-auto space-y-6">
         
         {/* Close button */}
@@ -138,209 +123,208 @@ export default function AIVisionTriageModal({
             <Sparkles className="w-6 h-6 animate-pulse" />
           </div>
           <div>
-            <h2 className="text-xl sm:text-2xl font-extrabold text-white font-heading flex items-center gap-2">
-              <span>AI Neural Vision Triage Engine</span>
-              <span className="text-xs px-2.5 py-0.5 rounded-full bg-cyan-950 border border-cyan-500 text-cyan-300 font-mono-tech uppercase">
-                YOLOv9-CivicNet
+            <div className="flex items-center gap-2">
+              <h3 className="text-xl font-bold text-white font-heading">
+                AI Computer Vision Defect Recognition
+              </h3>
+              <span className="px-2 py-0.5 rounded bg-cyan-950 text-cyan-300 border border-cyan-500/60 font-mono-tech text-[10px] font-bold uppercase">
+                Neural Inference
               </span>
-            </h2>
-            <p className="text-xs text-slate-400 font-mono-tech">
-              Automated Defect Bounding, Severity Classification & SLA Routing
+            </div>
+            <p className="text-xs text-slate-400 font-mono-tech mt-0.5">
+              Automated image pixel analysis, defect bounding box coordinates, and municipal triage
             </p>
           </div>
         </div>
 
-        {/* Main Grid: Image Scanning Canvas + Telemetry Analysis */}
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
-          
-          {/* Left: Image with Scanning Laser & Interactive Bounding Boxes */}
-          <div className="md:col-span-7 flex flex-col space-y-3">
-            <div className="relative rounded-xl overflow-hidden border border-slate-800 bg-[#070A12] aspect-video sm:aspect-4/3 flex items-center justify-center group shadow-xl">
-              
-              {imageUrl ? (
+        {/* SCANNING STATE */}
+        {scanStep === "scanning" ? (
+          <div className="py-10 space-y-6 text-center">
+            {/* Visual Image with Scanning Laser Grid */}
+            <div className="relative max-w-md mx-auto aspect-4/3 rounded-2xl overflow-hidden border border-cyan-500/50 bg-black">
+              {imageUrl && (
                 <img
                   src={imageUrl}
-                  alt="Defect Preview"
-                  className="w-full h-full object-cover"
+                  alt="Incident Site Scanning"
+                  className="w-full h-full object-cover filter contrast-125"
                 />
-              ) : (
-                <div className="w-full h-full flex flex-col items-center justify-center text-slate-500 font-mono-tech text-xs space-y-2">
-                  <Scan className="w-12 h-12 text-slate-600 animate-pulse" />
-                  <span>Loading Site Visual Feed...</span>
-                </div>
               )}
-
-              {/* Scanning Laser Line Overlay */}
-              {scanStep === "scanning" && (
-                <div className="absolute inset-0 pointer-events-none overflow-hidden">
-                  <div className="w-full h-1 bg-gradient-to-r from-transparent via-cyan-400 to-transparent shadow-[0_0_15px_#00F0FF] animate-scan-laser" />
-                  <div className="absolute inset-0 bg-cyan-500/10 backdrop-blur-[1px]" />
-                </div>
-              )}
-
-              {/* Neural Bounding Boxes (SVG Overlay) */}
-              {scanStep === "analyzed" && (
-                <svg className="absolute inset-0 w-full h-full pointer-events-none z-10">
-                  {triageResult.boundingBoxes.map((box, index) => {
-                    const isSelected = activeBoxIndex === index;
-                    return (
-                      <g key={box.id}>
-                        {/* Outer Glow Box */}
-                        <rect
-                          x={`${box.x}%`}
-                          y={`${box.y}%`}
-                          width={`${box.w}%`}
-                          height={`${box.h}%`}
-                          fill="rgba(0, 240, 255, 0.08)"
-                          stroke={box.color}
-                          strokeWidth={isSelected ? 3 : 1.5}
-                          strokeDasharray={isSelected ? "none" : "4 2"}
-                          className="transition-all"
-                        />
-
-                        {/* Corner Target Markers */}
-                        <circle cx={`${box.x}%`} cy={`${box.y}%`} r="3" fill={box.color} />
-                        <circle cx={`${box.x + box.w}%`} cy={`${box.y}%`} r="3" fill={box.color} />
-                        <circle cx={`${box.x}%`} cy={`${box.y + box.h}%`} r="3" fill={box.color} />
-                        <circle cx={`${box.x + box.w}%`} cy={`${box.y + box.h}%`} r="3" fill={box.color} />
-                      </g>
-                    );
-                  })}
-                </svg>
-              )}
-
-              {/* Floating Bounding Box Labels */}
-              {scanStep === "analyzed" && (
-                <div className="absolute inset-0 pointer-events-none p-3 flex flex-col justify-between">
-                  <div className="flex justify-between items-start">
-                    <span className="px-2.5 py-1 rounded bg-black/80 backdrop-blur-md border border-cyan-400 text-cyan-300 font-mono-tech text-xs font-bold shadow-lg">
-                      [TARGET 01]: {triageResult.boundingBoxes[0].label}
-                    </span>
-                    <span className="px-2 py-1 rounded bg-emerald-950/80 border border-emerald-500 text-emerald-300 font-mono-tech text-xs font-bold">
-                      Confidence: {(triageResult.confidence * 100).toFixed(1)}%
-                    </span>
-                  </div>
-
-                  <div className="flex justify-between items-end text-[11px] font-mono-tech text-slate-300">
-                    <span className="px-2 py-0.5 rounded bg-black/70 border border-slate-700">
-                      FOV: 78° Telemetry
-                    </span>
-                    <span className="px-2 py-0.5 rounded bg-black/70 border border-slate-700">
-                      Resolution: 1920x1080
-                    </span>
-                  </div>
-                </div>
-              )}
+              {/* Laser Scanning Bar */}
+              <div className="absolute inset-x-0 h-1 bg-cyan-400 shadow-[0_0_15px_#00F0FF] animate-pulse top-1/2 -translate-y-1/2" />
+              <div className="absolute inset-0 bg-cyan-500/10 pointer-events-none" />
             </div>
 
-            {/* Neural Tag Chips */}
-            <div className="flex flex-wrap gap-2 pt-1 font-mono-tech text-xs">
-              {triageResult.defectTags.map((tag, i) => (
-                <span
-                  key={i}
-                  className="px-2.5 py-1 rounded-lg bg-[#070A12] border border-cyan-500/40 text-cyan-300 flex items-center gap-1.5"
-                >
-                  <Activity className="w-3.5 h-3.5 text-cyan-400" />
-                  <span>{tag}</span>
-                </span>
-              ))}
+            <div className="max-w-lg mx-auto space-y-2">
+              <div className="flex items-center justify-center gap-2 text-cyan-400 font-mono-tech text-sm font-bold">
+                <Cpu className="w-5 h-5 animate-spin" />
+                <span>Running Computer Vision Inference...</span>
+              </div>
+              <div className="bg-[#070A10] border border-slate-800 rounded-xl p-3 text-left font-mono-tech text-[11px] space-y-1 text-slate-300 max-h-28 overflow-y-auto">
+                {telemetryLogs.map((log, idx) => (
+                  <div key={idx} className="flex items-center gap-2">
+                    <span className="text-cyan-400">›</span>
+                    <span>{log}</span>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
-
-          {/* Right: AI Telemetry & Triage Recommendations */}
-          <div className="md:col-span-5 flex flex-col justify-between space-y-4 font-mono-tech text-xs">
+        ) : (
+          /* ANALYZED / TRIAGED STATE */
+          <div className="space-y-6">
             
-            {scanStep === "scanning" ? (
-              <div className="h-full rounded-xl bg-[#070A12] border border-slate-800 p-5 space-y-3 flex flex-col justify-center">
-                <div className="flex items-center gap-3 text-cyan-400 font-bold text-sm">
-                  <Scan className="w-5 h-5 animate-spin" />
-                  <span>Neural Inference in Progress...</span>
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
+              
+              {/* Left Column: Image with Real Bounding Boxes */}
+              <div className="md:col-span-7 space-y-3">
+                <div className="relative aspect-4/3 rounded-2xl overflow-hidden border border-cyan-500/60 bg-black group shadow-xl">
+                  {imageUrl && (
+                    <img
+                      src={imageUrl}
+                      alt="Incident Analyzed Site"
+                      className="w-full h-full object-cover"
+                    />
+                  )}
+
+                  {/* SVG Bounding Boxes Overlay */}
+                  <svg className="absolute inset-0 w-full h-full pointer-events-none">
+                    {activeResult.boundingBoxes?.map((box, idx) => {
+                      const isActive = activeBoxIndex === idx;
+                      return (
+                        <g key={box.id || idx}>
+                          <rect
+                            x={`${box.x}%`}
+                            y={`${box.y}%`}
+                            width={`${box.w}%`}
+                            height={`${box.h}%`}
+                            fill={isActive ? "rgba(0, 240, 255, 0.15)" : "rgba(239, 68, 68, 0.12)"}
+                            stroke={box.color || "#00F0FF"}
+                            strokeWidth={isActive ? "3" : "2"}
+                            strokeDasharray={idx === 1 ? "4 4" : "none"}
+                          />
+                          <circle cx={`${box.x}%`} cy={`${box.y}%`} r="4" fill={box.color || "#00F0FF"} />
+                          <circle cx={`${box.x + box.w}%`} cy={`${box.y}%`} r="4" fill={box.color || "#00F0FF"} />
+                          <circle cx={`${box.x}%`} cy={`${box.y + box.h}%`} r="4" fill={box.color || "#00F0FF"} />
+                          <circle cx={`${box.x + box.w}%`} cy={`${box.y + box.h}%`} r="4" fill={box.color || "#00F0FF"} />
+                        </g>
+                      );
+                    })}
+                  </svg>
+
+                  {/* Top Overlay Badge */}
+                  <div className="absolute top-3 left-3 px-3 py-1.5 rounded-lg bg-black/85 backdrop-blur-md border border-cyan-400 text-cyan-300 text-xs font-mono-tech font-bold flex items-center gap-1.5 shadow-lg">
+                    <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
+                    <span>DETECTION CONFIDENCE: {(activeResult.confidence * 100).toFixed(1)}%</span>
+                  </div>
                 </div>
-                <div className="space-y-2 text-slate-400 text-xs">
-                  {telemetryLogs.map((log, idx) => (
-                    <div key={idx} className="flex items-start gap-2">
-                      <span className="text-cyan-400">›</span>
-                      <span>{log}</span>
-                    </div>
+
+                {/* Detected Bounding Box Tags */}
+                <div className="flex flex-wrap gap-2 pt-1 font-mono-tech text-xs">
+                  {activeResult.boundingBoxes?.map((box, idx) => (
+                    <button
+                      key={box.id || idx}
+                      onClick={() => setActiveBoxIndex(idx)}
+                      className={`px-3 py-1.5 rounded-lg border text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                        activeBoxIndex === idx
+                          ? "bg-cyan-950 border-cyan-400 text-cyan-300 cyan-glow-sm"
+                          : "bg-slate-900 border-slate-800 text-slate-400 hover:text-white"
+                      }`}
+                    >
+                      <span className="w-2 h-2 rounded-full" style={{ backgroundColor: box.color || "#00F0FF" }} />
+                      <span>{box.label}</span>
+                    </button>
                   ))}
                 </div>
               </div>
-            ) : (
-              <div className="space-y-4">
+
+              {/* Right Column: AI Triage Inferred Details */}
+              <div className="md:col-span-5 space-y-4 font-mono-tech text-xs">
                 
-                {/* Verified Defect Card */}
-                <div className="p-4 rounded-xl bg-[#070A12] border border-cyan-500/40 space-y-2.5">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[11px] text-slate-400 font-bold uppercase tracking-wider">
-                      Detected Civic Anomaly
-                    </span>
-                    <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-cyan-950 border border-cyan-400 text-cyan-300">
-                      Verified (96.4%)
-                    </span>
-                  </div>
-
-                  <h3 className="text-base font-bold text-white font-sans">
-                    {triageResult.defectName}
-                  </h3>
-
-                  <div className="text-xs text-slate-300">
-                    <strong className="text-cyan-400">Estimated Geometry: </strong>
-                    <span>{triageResult.dimensions}</span>
-                  </div>
+                {/* Defect Recognition Card */}
+                <div className="p-4 rounded-xl bg-[#070A12] border border-cyan-500/40 space-y-2">
+                  <span className="text-[10px] text-cyan-400 uppercase font-bold tracking-wider">
+                    Recognized Defect Pattern
+                  </span>
+                  <h4 className="text-base font-bold text-white font-sans">
+                    {activeResult.defectName}
+                  </h4>
+                  <p className="text-slate-300 text-xs font-sans">
+                    Category: <strong className="text-cyan-300">{activeResult.category}</strong>
+                  </p>
                 </div>
 
-                {/* Priority & SLA Assignment */}
+                {/* Priority & SLA Grid */}
                 <div className="grid grid-cols-2 gap-3">
                   <div className="p-3.5 rounded-xl bg-[#070A12] border border-slate-800 space-y-1">
-                    <span className="text-[10px] text-slate-400 uppercase font-bold flex items-center gap-1">
-                      <AlertTriangle className="w-3.5 h-3.5 text-red-400" />
-                      <span>Priority Tier</span>
-                    </span>
-                    <div className="text-sm font-extrabold text-red-400">
-                      {triageResult.priorityLabel}
+                    <span className="text-[10px] text-slate-400 block font-bold">TRIAGE PRIORITY</span>
+                    <div className="text-sm font-extrabold text-red-400 flex items-center gap-1">
+                      <AlertTriangle className="w-4 h-4" />
+                      <span>{activeResult.priority} - {activeResult.severity}</span>
                     </div>
                   </div>
 
                   <div className="p-3.5 rounded-xl bg-[#070A12] border border-slate-800 space-y-1">
-                    <span className="text-[10px] text-slate-400 uppercase font-bold flex items-center gap-1">
-                      <Clock className="w-3.5 h-3.5 text-cyan-400" />
-                      <span>Resolution SLA</span>
-                    </span>
-                    <div className="text-sm font-extrabold text-cyan-300">
-                      {triageResult.slaHours} Hours Max
+                    <span className="text-[10px] text-slate-400 block font-bold">MUNICIPAL SLA</span>
+                    <div className="text-sm font-extrabold text-cyan-300 flex items-center gap-1">
+                      <Clock className="w-4 h-4" />
+                      <span>{activeResult.slaHours} Hours</span>
                     </div>
                   </div>
                 </div>
 
                 {/* Assigned Department */}
                 <div className="p-3.5 rounded-xl bg-[#070A12] border border-slate-800 space-y-1">
-                  <span className="text-[10px] text-slate-400 uppercase font-bold flex items-center gap-1">
-                    <Building className="w-3.5 h-3.5 text-cyan-400" />
-                    <span>Auto-Dispatched Department</span>
-                  </span>
-                  <div className="text-xs font-bold text-white">
-                    {triageResult.assignedDepartment}
+                  <span className="text-[10px] text-slate-400 block font-bold">ASSIGNED DEPARTMENT</span>
+                  <div className="text-xs font-bold text-white flex items-center gap-1.5">
+                    <Building className="w-4 h-4 text-cyan-400" />
+                    <span>{activeResult.assignedDepartment}</span>
+                  </div>
+                </div>
+
+                {/* Estimated Physical Dimensions */}
+                <div className="p-3.5 rounded-xl bg-[#070A12] border border-cyan-500/30 space-y-1">
+                  <span className="text-[10px] text-cyan-400 block font-bold">AI SPATIAL ESTIMATE</span>
+                  <p className="text-xs text-slate-200 font-sans font-medium">
+                    {activeResult.dimensions}
+                  </p>
+                </div>
+
+                {/* Defect Classification Tags */}
+                <div className="space-y-1.5 pt-1">
+                  <span className="text-[10px] text-slate-400 block font-bold">NEURAL FEATURE TAGS</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {activeResult.defectTags?.map((tag, i) => (
+                      <span key={i} className="px-2.5 py-1 rounded bg-slate-900 border border-slate-700 text-slate-300 text-[11px]">
+                        #{tag}
+                      </span>
+                    ))}
                   </div>
                 </div>
 
               </div>
-            )}
 
-            {/* Action Button */}
-            <div className="pt-2">
+            </div>
+
+            {/* Actions Bar */}
+            <div className="flex items-center justify-between border-t border-slate-800 pt-5 font-mono-tech text-xs">
+              <button
+                onClick={onClose}
+                className="px-4 py-2.5 rounded-xl border border-slate-700 text-slate-300 hover:text-white cursor-pointer transition"
+              >
+                Cancel & Retake
+              </button>
+
               <button
                 onClick={handleConfirm}
-                disabled={scanStep === "scanning"}
-                className="w-full py-3.5 rounded-xl bg-gradient-to-r from-cyan-400 via-teal-300 to-cyan-400 text-black font-extrabold text-xs uppercase tracking-wider flex items-center justify-center gap-2 cyan-glow-sm hover:from-cyan-300 hover:to-cyan-200 cursor-pointer transition active:scale-95 disabled:opacity-50"
+                className="px-6 py-3 rounded-xl bg-gradient-to-r from-cyan-400 via-teal-300 to-cyan-400 hover:from-cyan-300 text-black font-extrabold uppercase flex items-center gap-2 cyan-glow-sm shadow-xl cursor-pointer active:scale-95 transition"
               >
                 <CheckCircle2 className="w-4 h-4" />
-                <span>Apply AI Triage to Report</span>
+                <span>Apply AI Triage & Auto-Fill Form ✓</span>
               </button>
             </div>
 
           </div>
-
-        </div>
+        )}
 
       </div>
     </div>

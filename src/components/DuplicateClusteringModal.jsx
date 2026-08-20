@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 import {
   X,
   AlertTriangle,
@@ -23,7 +23,7 @@ export default function DuplicateClusteringModal({
   const topIssue = nearbyIssues[0];
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[9999] bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
       <div className="bg-[#0B0F19] border border-amber-500/50 rounded-2xl max-w-2xl w-full p-6 sm:p-8 cyan-glow-lg relative space-y-6 max-h-[92vh] overflow-y-auto">
         
         {/* Close Button */}

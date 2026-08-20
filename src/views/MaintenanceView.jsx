@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Inbox,
   Sparkles,
@@ -62,7 +62,25 @@ export default function MaintenanceView({
       }
     });
 
-    return unsubscribe;
+    // 3. Instant local status update listener
+    const handleStatusUpdated = (e) => {
+      const { id, status } = e.detail || {};
+      if (id && status) {
+        setIncidents((prev) =>
+          prev.map((item) => (item.id === id ? { ...item, status } : item))
+        );
+        setSelectedIncident((prev) =>
+          prev && prev.id === id ? { ...prev, status } : prev
+        );
+      }
+    };
+
+    window.addEventListener("civic_issue_updated", handleStatusUpdated);
+
+    return () => {
+      unsubscribe();
+      window.removeEventListener("civic_issue_updated", handleStatusUpdated);
+    };
   }, []);
 
   const handleAdvanceStatus = async (incident, targetStatus) => {

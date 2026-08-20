@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Search,
   Bell,
@@ -17,6 +17,7 @@ import {
 
 import { collection, onSnapshot, query, orderBy } from "firebase/firestore";
 import { db } from "../firebase";
+import { getLocalCivicIssues } from "../services/civicDb";
 
 export default function DashboardView({
   setActivePage,
@@ -25,25 +26,64 @@ export default function DashboardView({
 }) {
   const isAdmin = user?.role === "admin";
   const [searchQuery, setSearchQuery] = useState("");
-  const [allComplaints, setAllComplaints] = useState([]);
+  const [allComplaints, setAllComplaints] = useState(() => getLocalCivicIssues());
+
+  const refreshIssues = () => {
+    const local = getLocalCivicIssues();
+    setAllComplaints((prev) => {
+      const merged = [
+        ...prev.filter((p) => !local.some((l) => l.id === p.id)),
+        ...local
+      ];
+      return merged;
+    });
+  };
 
   useEffect(() => {
+    // 1. Load initial local civic issues
+    const local = getLocalCivicIssues();
+    setAllComplaints(local);
+
+    // 2. Real-time Firestore sync
     const q = query(collection(db, "complaints"), orderBy("createdAt", "desc"));
     const unsubscribe = onSnapshot(
       q,
       (snapshot) => {
-        const data = snapshot.docs.map((doc) => ({
+        const firestoreData = snapshot.docs.map((doc) => ({
           id: doc.id,
           ...doc.data(),
         }));
-        setAllComplaints(data);
+        const currentLocal = getLocalCivicIssues();
+        const merged = [
+          ...firestoreData,
+          ...currentLocal.filter((l) => !firestoreData.some((f) => f.id === l.id))
+        ];
+        setAllComplaints(merged);
       },
       (error) => {
-        console.error("Firestore Error in Dashboard:", error);
+        console.warn("Firestore listener note in Dashboard:", error);
       }
     );
 
-    return unsubscribe;
+    // 3. Listen to instant local / cross-component status update events
+    const handleStatusUpdated = (e) => {
+      const { id, status } = e.detail || {};
+      if (id && status) {
+        setAllComplaints((prev) =>
+          prev.map((c) => (c.id === id ? { ...c, status } : c))
+        );
+      }
+      refreshIssues();
+    };
+
+    window.addEventListener("civic_issue_updated", handleStatusUpdated);
+    window.addEventListener("storage", refreshIssues);
+
+    return () => {
+      unsubscribe();
+      window.removeEventListener("civic_issue_updated", handleStatusUpdated);
+      window.removeEventListener("storage", refreshIssues);
+    };
   }, []);
 
   // Filter complaints based on role

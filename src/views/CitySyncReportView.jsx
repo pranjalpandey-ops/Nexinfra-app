@@ -1,4 +1,4 @@
-﻿import React, { useState } from "react";
+import React, { useState } from "react";
 import {
   Camera,
   MapPin,
@@ -76,9 +76,13 @@ export default function CitySyncReportView({
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
       setSelectedImage(file);
-      const objUrl = URL.createObjectURL(file);
-      setImagePreviewUrl(objUrl);
-      setIsTriageModalOpen(true);
+      const reader = new FileReader();
+      reader.onload = (uploadEvent) => {
+        const dataUrl = uploadEvent.target.result;
+        setImagePreviewUrl(dataUrl);
+        setIsTriageModalOpen(true);
+      };
+      reader.readAsDataURL(file);
     }
   };
 
@@ -102,10 +106,18 @@ export default function CitySyncReportView({
 
   const handleApplyAITriage = (triage) => {
     setAiTriageData(triage);
-    setPriority(triage.priority);
-    setSeverity(triage.severity);
-    if (triage.dimensions) {
-      setDescription((prev) => `${prev}\n\n[AI Geometric Inspection]: ${triage.dimensions}`);
+    if (triage.category) setCategory(triage.category);
+    if (triage.priority) setPriority(triage.priority);
+    if (triage.severity) setSeverity(triage.severity);
+    if (triage.defectName) {
+      setDescription(
+        `${triage.defectName}\n` +
+        `• Recognized Category: ${triage.category}\n` +
+        `• AI Detection Certainty: ${(triage.confidence * 100).toFixed(1)}%\n` +
+        `• Physical Dimensions: ${triage.dimensions}\n` +
+        `• Municipal Unit: ${triage.assignedDepartment}\n` +
+        `• Target SLA: ${triage.slaHours} Hours`
+      );
     }
   };
 

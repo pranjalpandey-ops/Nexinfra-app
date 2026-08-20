@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   X,
   ShieldCheck,
@@ -77,7 +77,7 @@ export default function AdminApprovalModal({ isOpen, onClose, user }) {
   const pendingCount = requests.filter((r) => r.status === 'pending').length;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[9999] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
       <div className="bg-[#0B0F19] border border-cyan-500/40 rounded-2xl p-6 sm:p-8 max-w-3xl w-full cyan-glow-lg relative space-y-6 max-h-[90vh] flex flex-col">
         
         {/* Close Button */}

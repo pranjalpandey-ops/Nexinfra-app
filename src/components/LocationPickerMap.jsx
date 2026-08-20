@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { MapContainer, TileLayer, Marker, Popup, useMapEvents } from "react-leaflet";
 import L from "leaflet";
 import { MapPin, Navigation, Compass, AlertTriangle, ShieldCheck } from "lucide-react";
@@ -131,12 +131,12 @@ export default function LocationPickerMap({
         </button>
       </div>
 
-      {/* Embedded Leaflet Map */}
-      <div className="relative h-56 w-full rounded-xl overflow-hidden border border-slate-800 bg-[#070A10]">
+      {/* Embedded Leaflet Map with Isolated Stacking Context */}
+      <div className="relative isolate z-0 h-56 w-full rounded-xl overflow-hidden border border-slate-800 bg-[#070A10]">
         <MapContainer
           center={position}
           zoom={14}
-          style={{ height: "100%", width: "100%" }}
+          style={{ height: "100%", width: "100%", zIndex: 1 }}
         >
           <TileLayer
             url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
