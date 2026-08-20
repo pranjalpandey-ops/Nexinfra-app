@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { AlertTriangle, X, ArrowRight, ShieldAlert, Sparkles } from "lucide-react";
 
 export default function LiveAlertToast({ alert, onInspect, onDismiss }) {
@@ -8,10 +8,10 @@ export default function LiveAlertToast({ alert, onInspect, onDismiss }) {
 
   return (
     <div className="fixed bottom-6 right-6 z-50 max-w-sm w-full animate-bounce-in">
-      <div className={`p-4 rounded-2xl border backdrop-blur-xl shadow-2xl space-y-2.5 font-mono-tech text-xs ${
+      <div className={`p-4 rounded-2xl border backdrop-blur-xl shadow-2xl space-y-2.5 font-mono-tech text-xs transition-all ${
         isCritical
-          ? "bg-[#0B0F19]/95 border-red-500 text-red-100 shadow-[0_0_25px_rgba(239,68,68,0.35)]"
-          : "bg-[#0B0F19]/95 border-cyan-500 text-cyan-100 cyan-glow-sm"
+          ? "bg-[#0B0F19]/95 border-red-500 text-red-100 shadow-[0_0_25px_rgba(239,68,68,0.35)] dark:bg-[#0B0F19]/95"
+          : "bg-[#0B0F19]/95 border-cyan-500 text-cyan-100 cyan-glow-sm dark:bg-[#0B0F19]/95"
       }`}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -46,7 +46,7 @@ export default function LiveAlertToast({ alert, onInspect, onDismiss }) {
 
           <button
             onClick={() => onInspect(alert)}
-            className="px-3 py-1.5 rounded-lg bg-red-500 hover:bg-red-400 text-black font-extrabold uppercase tracking-wider flex items-center gap-1 cursor-pointer transition shadow-md"
+            className="px-3 py-1.5 rounded-lg bg-red-500 hover:bg-red-400 text-white font-extrabold uppercase tracking-wider flex items-center gap-1 cursor-pointer transition shadow-md"
           >
             <span>Inspect</span>
             <ArrowRight className="w-3 h-3" />

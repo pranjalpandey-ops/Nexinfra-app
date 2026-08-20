@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Radio, Sparkles, MapPin, Settings, ShieldCheck, UserCheck, Sun, Moon, Bell, ShieldAlert } from 'lucide-react';
 import { subscribeToLiveAlerts } from '../services/alertService';
 import Logo from './Logo';
@@ -66,16 +66,19 @@ export default function Navbar({
             Platform
           </button>
           
-          <button
-            onClick={() => setActivePage('dashboard')}
-            className={`px-3.5 py-2 rounded transition-colors cursor-pointer ${
-              activePage === 'dashboard'
-                ? 'text-cyan-400 bg-cyan-950/40 border-b-2 border-cyan-400 font-bold'
-                : 'text-slate-300 hover:text-white hover:bg-slate-800/40'
-            }`}
-          >
-            {isAdmin ? "Console Dashboard" : "Citizen Dashboard"}
-          </button>
+          {/* Dashboard Tab ONLY shown after citizen or admin login */}
+          {isAuth && (
+            <button
+              onClick={() => setActivePage('dashboard')}
+              className={`px-3.5 py-2 rounded transition-colors cursor-pointer ${
+                activePage === 'dashboard'
+                  ? 'text-cyan-400 bg-cyan-950/40 border-b-2 border-cyan-400 font-bold'
+                  : 'text-slate-300 hover:text-white hover:bg-slate-800/40'
+              }`}
+            >
+              {isAdmin ? "Console Dashboard" : "Citizen Dashboard"}
+            </button>
+          )}
 
           <button
             onClick={() => setActivePage('report-issue')}

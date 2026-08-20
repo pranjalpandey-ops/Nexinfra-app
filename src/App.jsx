@@ -92,10 +92,15 @@ export default function App() {
 
   // Protected Route Handler with Role Based Access Control
   const handleNavigate = (targetPage) => {
+    if (!user && (targetPage === "dashboard" || ADMIN_ONLY_PAGES.includes(targetPage))) {
+      setActivePage("login");
+      return;
+    }
+
     if (ADMIN_ONLY_PAGES.includes(targetPage)) {
       if (!user || user.role !== "admin") {
         alert("Access Restricted: This module requires Command Administrator clearance.");
-        setActivePage("dashboard");
+        setActivePage(user ? "dashboard" : "login");
         return;
       }
     }
@@ -229,7 +234,7 @@ export default function App() {
             />
           )}
         </div>
-      ) : (
+      ) : user ? (
         <div className="flex min-h-screen w-full overflow-hidden">
           {/* Sidebar */}
           <Sidebar
@@ -270,30 +275,28 @@ export default function App() {
                     {user.role === "admin"
                       ? "ADMIN"
                       : user.role === "pending_admin"
-                      ? "PENDING VERIFICATION"
-                      : "PUBLIC"}
+                      ? "PENDING"
+                      : "CITIZEN"}
                   </span>
                 )}
               </div>
 
-              <div className="flex items-center space-x-4">
-                {/* Emergency Alert Indicator */}
+              <div className="flex items-center gap-4">
+                {/* Live Alert Status Indicator in Header */}
                 <button
                   onClick={() => setIsAlertsOpen(true)}
-                  className="text-red-400 hover:text-red-300 transition-colors cursor-pointer text-xs font-bold font-mono-tech flex items-center gap-1.5"
-                  title="Open Live Alert Center"
+                  className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-red-400 cursor-pointer"
                 >
                   <span className="w-2 h-2 rounded-full bg-red-500 animate-ping" />
-                  <span>🚨 Live Alerts ({alerts.filter(a => a.level === "CRITICAL").length})</span>
+                  <span>Live Alerts ({alerts.filter((a) => !a.acknowledged).length})</span>
                 </button>
 
                 {user?.role === "admin" && (
                   <button
                     onClick={handleOpenApproval}
-                    className="text-cyan-400 hover:text-cyan-300 transition-colors cursor-pointer text-xs font-bold font-mono-tech flex items-center gap-1"
-                    title="Review Admin Applications"
+                    className="text-cyan-400 hover:text-cyan-300 transition-colors cursor-pointer text-xs font-bold flex items-center gap-1"
                   >
-                    <span>🛡️ Approvals</span>
+                    🛡️ Approvals
                   </button>
                 )}
 
@@ -340,6 +343,8 @@ export default function App() {
               {activePage === "live-map" && user?.role === "admin" && (
                 <LiveMapView
                   onOpenDispatchModal={handleOpenDispatch}
+                  setActivePage={handleNavigate}
+                  user={user}
                 />
               )}
 
@@ -354,6 +359,13 @@ export default function App() {
               {activePage === "cctv" && user?.role === "admin" && <CCTVMonitor />}
             </div>
           </main>
+        </div>
+      ) : (
+        <div className="flex-1">
+          <LoginView
+            setActivePage={handleNavigate}
+            onLoginSuccess={handleLoginSuccess}
+          />
         </div>
       )}
 
