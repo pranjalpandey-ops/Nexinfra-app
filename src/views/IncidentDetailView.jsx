@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import {
   ArrowLeft,
   Video,
@@ -15,10 +15,12 @@ import {
   Layers,
   Activity,
   AlertTriangle,
-  Flame
+  Flame,
+  Trash2
 } from "lucide-react";
 
 import { updateComplaintStatus } from "../services/updateComplaintStatus";
+import { deleteComplaint } from "../services/deleteComplaint";
 import { upvoteIssue, getLocalCivicIssues } from "../services/civicDb";
 import DisasterBroadcastModal from "../components/DisasterBroadcastModal";
 
@@ -331,10 +333,49 @@ export default function IncidentDetailView({
                     </button>
                   ))}
                 </div>
+
+                {/* Delete Resolved Problem Record Option */}
+                {complaint.status === "Resolved" && (
+                  <div className="pt-2 border-t border-slate-800/80">
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (confirm(`Are you sure you want to PERMANENTLY DELETE resolved ticket ${complaint.id}?`)) {
+                          await deleteComplaint(complaint.id);
+                          alert(`Ticket ${complaint.id} successfully deleted from records.`);
+                          setActivePage("dashboard");
+                        }
+                      }}
+                      className="w-full py-2.5 rounded-xl bg-red-950/40 hover:bg-red-900/60 border border-red-500/50 text-red-300 font-bold text-xs uppercase flex items-center justify-center gap-2 cursor-pointer transition active:scale-95"
+                    >
+                      <Trash2 className="w-4 h-4 text-red-400" />
+                      <span>🗑️ Delete Resolved Problem Record</span>
+                    </button>
+                  </div>
+                )}
               </div>
             ) : (
-              <div className="bg-[#070A12] border border-slate-800 rounded-2xl p-4 text-xs text-slate-400">
-                ℹ Citizen Notice: Updates made by the municipal repair unit will synchronize with this timeline in real-time.
+              <div className="space-y-3">
+                <div className="bg-[#070A12] border border-slate-800 rounded-2xl p-4 text-xs text-slate-400">
+                  ℹ Citizen Notice: Updates made by the municipal repair unit will synchronize with this timeline in real-time.
+                </div>
+
+                {complaint.status === "Resolved" && (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (confirm(`Are you sure you want to PERMANENTLY DELETE resolved ticket ${complaint.id}?`)) {
+                        await deleteComplaint(complaint.id);
+                        alert(`Ticket ${complaint.id} successfully deleted from records.`);
+                        setActivePage("dashboard");
+                      }
+                    }}
+                    className="w-full py-2.5 rounded-xl bg-red-950/40 hover:bg-red-900/60 border border-red-500/50 text-red-300 font-bold text-xs uppercase flex items-center justify-center gap-2 cursor-pointer transition active:scale-95"
+                  >
+                    <Trash2 className="w-4 h-4 text-red-400" />
+                    <span>🗑️ Delete Resolved Problem Record</span>
+                  </button>
+                )}
               </div>
             )}
           </div>

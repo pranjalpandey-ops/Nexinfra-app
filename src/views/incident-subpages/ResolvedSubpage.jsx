@@ -1,4 +1,3 @@
-﻿import React, { useState } from "react";
 import {
   CheckCircle2,
   ShieldCheck,
@@ -10,13 +9,16 @@ import {
   Building,
   Award,
   Sparkles,
-  FileCheck
+  FileCheck,
+  Trash2
 } from "lucide-react";
+import { deleteComplaint } from "../../services/deleteComplaint";
 
 export default function ResolvedSubpage({
   incidents = [],
   onSelectIncident,
-  selectedIncident
+  selectedIncident,
+  onDeleteIncident
 }) {
   const resolvedList = incidents.filter(
     (i) => i.status === "Resolved" || i.status === "Closed"
@@ -164,10 +166,28 @@ export default function ResolvedSubpage({
                   </span>
                 </div>
 
-                {/* SLA Fulfilled Chip */}
+                {/* SLA Fulfilled Chip & Delete Button */}
                 <div className="p-2 rounded-lg bg-[#070A10] border border-emerald-500/30 flex items-center justify-between text-[10px]">
                   <span className="text-slate-400">Target SLA: {item.slaHours || 4}h</span>
                   <span className="text-emerald-400 font-bold">✓ 100% SLA COMPLIANT</span>
+                </div>
+
+                {/* Delete Resolved Problem Record Option */}
+                <div className="pt-1">
+                  <button
+                    type="button"
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      if (confirm(`Are you sure you want to PERMANENTLY DELETE resolved ticket ${item.id}?`)) {
+                        await deleteComplaint(item.id);
+                        if (onDeleteIncident) onDeleteIncident(item.id);
+                      }
+                    }}
+                    className="w-full py-2 rounded-xl bg-red-950/40 hover:bg-red-900/60 border border-red-500/40 text-red-300 font-bold text-xs uppercase flex items-center justify-center gap-1.5 cursor-pointer transition active:scale-95"
+                  >
+                    <Trash2 className="w-3.5 h-3.5 text-red-400" />
+                    <span>Delete Resolved Problem Record</span>
+                  </button>
                 </div>
 
               </div>

@@ -17,6 +17,7 @@ import { auth } from "../firebase";
 import { createComplaint } from "../services/complaintService";
 import { uploadImage } from "../services/imageService";
 import { addCivicIssue, findNearbySimilarIssues, upvoteIssue, getLocalCivicIssues, saveLocalCivicIssues } from "../services/civicDb";
+import { detectMunicipalWardByText } from "../services/municipalWardService";
 
 import LocationPickerMap from "../components/LocationPickerMap";
 import AIVisionTriageModal from "../components/AIVisionTriageModal";
@@ -67,9 +68,12 @@ export default function CitySyncReportView({
   ];
 
   const sampleImages = [
-    { label: "Pothole Defect", url: "https://images.unsplash.com/photo-1515162816999-a0c47dc192f7?auto=format&fit=crop&w=800&q=80", cat: "Road Damage / Pothole" },
-    { label: "Waterline Burst", url: "https://images.unsplash.com/photo-1584467735815-f778f274e296?auto=format&fit=crop&w=800&q=80", cat: "Water / Drainage Burst" },
-    { label: "Waste Overflow", url: "https://images.unsplash.com/photo-1530587191325-3db32d826c18?auto=format&fit=crop&w=800&q=80", cat: "Solid Waste Overflow" },
+    { label: "🕳️ Road Pothole", url: "https://images.unsplash.com/photo-1515162816999-a0c47dc192f7?auto=format&fit=crop&w=800&q=80", cat: "Road Damage / Pothole" },
+    { label: "💧 Waterline Burst", url: "https://images.unsplash.com/photo-1584467735815-f778f274e296?auto=format&fit=crop&w=800&q=80", cat: "Water / Drainage Burst" },
+    { label: "🗑️ Garbage Dump", url: "https://images.unsplash.com/photo-1530587191325-3db32d826c18?auto=format&fit=crop&w=800&q=80", cat: "Solid Waste Overflow" },
+    { label: "⚡ Electrical / Wire", url: "https://images.unsplash.com/photo-1544717305-2782549b5136?auto=format&fit=crop&w=800&q=80", cat: "Electrical & Streetlight" },
+    { label: "🌉 Bridge / Wall Crack", url: "https://images.unsplash.com/photo-1581092160607-ee22621dd758?auto=format&fit=crop&w=800&q=80", cat: "Structural Anomaly / Bridge Crack" },
+    { label: "🌳 Fallen Tree / Park", url: "https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?auto=format&fit=crop&w=800&q=80", cat: "Public Park & Greenery Hazard" },
   ];
 
   const handleImageChange = (e) => {
@@ -358,27 +362,36 @@ export default function CitySyncReportView({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 font-mono-tech text-xs">
             <div>
               <label className="block mb-1.5 text-slate-300 font-bold">
-                Reverse-Geocoded Address
+                Incident Address / Locality
               </label>
               <input
                 type="text"
                 required
                 value={location}
-                onChange={(e) => setLocation(e.target.value)}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setLocation(val);
+                  const matched = detectMunicipalWardByText(val);
+                  if (matched && matched.name) {
+                    setWard(matched.name);
+                  }
+                }}
+                placeholder="e.g., Sector 62 Noida, Hauz Khas, Connaught Place..."
                 className="w-full bg-[#070A10] border border-slate-800 rounded-xl p-3 text-white focus:outline-none focus:border-cyan-400"
               />
             </div>
 
             <div>
-              <label className="block mb-1.5 text-slate-300 font-bold">
-                Municipal Ward / Sector Zone
+              <label className="block mb-1.5 text-slate-300 font-bold flex items-center justify-between">
+                <span>Auto-Detected Municipal Ward</span>
+                <span className="text-[10px] text-cyan-400 font-bold">⚡ AUTO-SYNC</span>
               </label>
               <input
                 type="text"
                 required
                 value={ward}
                 onChange={(e) => setWard(e.target.value)}
-                className="w-full bg-[#070A10] border border-slate-800 rounded-xl p-3 text-white focus:outline-none focus:border-cyan-400"
+                className="w-full bg-[#070A10] border border-slate-800 rounded-xl p-3 text-cyan-300 font-bold focus:outline-none focus:border-cyan-400"
               />
             </div>
           </div>

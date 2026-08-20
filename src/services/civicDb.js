@@ -285,3 +285,11 @@ export function updateCivicIssueStatus(issueId, newStatus) {
   return updated;
 }
 
+export function deleteCivicIssue(issueId) {
+  const issues = getLocalCivicIssues();
+  const updated = issues.filter((issue) => issue.id !== issueId);
+  saveLocalCivicIssues(updated);
+  return updated;
+}
+
+

@@ -1,10 +1,27 @@
 import React, { useState, useEffect, useRef } from "react";
 import { MapContainer, TileLayer, Marker, Popup, useMapEvents } from "react-leaflet";
 import L from "leaflet";
-import { MapPin, Navigation, Compass, AlertTriangle, ShieldCheck } from "lucide-react";
+import {
+  MapPin,
+  Navigation,
+  Compass,
+  AlertTriangle,
+  ShieldCheck,
+  Building,
+  CheckCircle2,
+  Search,
+  Phone,
+  Layers,
+  Sparkles
+} from "lucide-react";
 import { findNearbySimilarIssues } from "../services/civicDb";
+import {
+  detectMunicipalWardByCoordinates,
+  detectMunicipalWardByText,
+  reverseGeocodeAndDetectWard
+} from "../services/municipalWardService";
 
-// Custom Draggable Pin Icon
+// Custom Draggable High-Tech Pin Icon
 const getDraggablePinIcon = () =>
   L.divIcon({
     className: "custom-location-pin",
@@ -50,12 +67,18 @@ export default function LocationPickerMap({
   );
   const [nearbyCount, setNearbyCount] = useState(0);
   const [isLocating, setIsLocating] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [detectedWardInfo, setDetectedWardInfo] = useState(() =>
+    detectMunicipalWardByCoordinates(position[0], position[1])
+  );
 
   useEffect(() => {
     if (latitude && longitude) {
       setPosition([latitude, longitude]);
       const nearby = findNearbySimilarIssues(latitude, longitude, category, 200);
       setNearbyCount(nearby.length);
+      const wardInfo = detectMunicipalWardByCoordinates(latitude, longitude);
+      setDetectedWardInfo(wardInfo);
     }
   }, [latitude, longitude, category]);
 
@@ -64,27 +87,18 @@ export default function LocationPickerMap({
     const nearby = findNearbySimilarIssues(lat, lng, category, 200);
     setNearbyCount(nearby.length);
 
-    let address = `${lat.toFixed(5)}° N, ${lng.toFixed(5)}° E`;
-    let ward = "Central District - Ward 4";
-
-    try {
-      const response = await fetch(
-        `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`
-      );
-      const data = await response.json();
-      if (data && data.display_name) {
-        address = data.display_name.split(",").slice(0, 3).join(",");
-      }
-    } catch (err) {
-      console.log("Geocoding fallback:", err);
-    }
+    // Run spatial ward detection & reverse geocoding
+    const resolved = await reverseGeocodeAndDetectWard(lat, lng);
+    setDetectedWardInfo(detectMunicipalWardByCoordinates(lat, lng));
 
     if (onLocationChange) {
       onLocationChange({
         latitude: lat,
         longitude: lng,
-        address,
-        ward,
+        address: resolved.address,
+        ward: resolved.ward,
+        zone: resolved.zone,
+        depot: resolved.depot,
         nearbyCount: nearby.length,
       });
     }
@@ -110,13 +124,27 @@ export default function LocationPickerMap({
     );
   };
 
+  const handleSearchLocation = (e) => {
+    e.preventDefault();
+    if (!searchQuery.trim()) return;
+
+    // Detect ward by text query keywords
+    const matchedWard = detectMunicipalWardByText(searchQuery);
+    if (matchedWard) {
+      handleUpdate(matchedWard.centerLat, matchedWard.centerLng);
+      setSearchQuery("");
+    }
+  };
+
   return (
     <div className="space-y-3 font-mono-tech text-xs">
+      
+      {/* Top Controls & Search Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <MapPin className="w-4 h-4 text-cyan-400" />
           <span className="text-slate-200 font-bold uppercase tracking-wider">
-            Spatial Location & Ward Selection
+            Spatial Location & Municipal Ward Detector
           </span>
         </div>
 
@@ -130,6 +158,26 @@ export default function LocationPickerMap({
           <span>{isLocating ? "Detecting GPS..." : "📍 Detect My Location"}</span>
         </button>
       </div>
+
+      {/* Quick Location / Sector Search Input */}
+      <form onSubmit={handleSearchLocation} className="relative flex items-center gap-2">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-2.5 w-3.5 h-3.5 text-slate-400" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Type sector/locality (e.g., Sector 62, Rohini, Connaught Place, Hauz Khas)..."
+            className="w-full bg-[#070A10] border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-white placeholder:text-slate-500 text-xs focus:outline-none focus:border-cyan-400"
+          />
+        </div>
+        <button
+          type="submit"
+          className="px-3 py-2 rounded-xl bg-cyan-950 border border-cyan-500 text-cyan-300 font-bold text-xs hover:bg-cyan-900 transition cursor-pointer shrink-0"
+        >
+          Find Ward
+        </button>
+      </form>
 
       {/* Embedded Leaflet Map with Isolated Stacking Context */}
       <div className="relative isolate z-0 h-56 w-full rounded-xl overflow-hidden border border-slate-800 bg-[#070A10]">
@@ -158,9 +206,11 @@ export default function LocationPickerMap({
           >
             <Popup>
               <div className="font-mono-tech text-xs p-1">
-                <strong>Selected Incident Point</strong>
+                <strong className="text-cyan-300">Selected Incident Point</strong>
                 <br />
-                {position[0].toFixed(5)}, {position[1].toFixed(5)}
+                {position[0].toFixed(5)}° N, {position[1].toFixed(5)}° E
+                <br />
+                <span className="text-amber-300 font-bold">{detectedWardInfo.name}</span>
               </div>
             </Popup>
           </Marker>
@@ -175,9 +225,50 @@ export default function LocationPickerMap({
         )}
 
         <div className="absolute bottom-2 right-2 z-[400] px-2.5 py-1 rounded bg-black/80 text-[10px] text-slate-300 backdrop-blur-sm border border-slate-800">
-          Tip: Drag pin or click map to reposition
+          Tip: Drag pin or click map to auto-detect nearest ward
         </div>
       </div>
+
+      {/* Auto-Analyzed Municipal Ward & Sector Zone Inspector Panel */}
+      {detectedWardInfo && (
+        <div className="p-3.5 rounded-xl bg-[#0C101A] border border-cyan-500/40 space-y-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Building className="w-4 h-4 text-cyan-400" />
+              <span className="text-white font-bold text-xs uppercase tracking-wide">
+                Auto-Detected Municipal Ward & Zone
+              </span>
+            </div>
+            <span className="px-2 py-0.5 rounded bg-emerald-950 border border-emerald-500 text-emerald-300 text-[10px] font-extrabold flex items-center gap-1">
+              <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+              <span>SPATIAL MATCH ({detectedWardInfo.distanceKm || 0.8} km)</span>
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] pt-1 border-t border-slate-800">
+            <div>
+              <span className="text-slate-400 block text-[10px]">MUNICIPAL WARD & DISTRICT</span>
+              <strong className="text-cyan-300 font-sans text-xs">{detectedWardInfo.name}</strong>
+            </div>
+
+            <div>
+              <span className="text-slate-400 block text-[10px]">ADMINISTRATIVE CORPORATION</span>
+              <strong className="text-slate-200 font-sans text-xs">{detectedWardInfo.zone}</strong>
+            </div>
+
+            <div>
+              <span className="text-slate-400 block text-[10px]">ZONAL RESPONSE DEPOT</span>
+              <span className="text-slate-300 font-sans text-xs">{detectedWardInfo.depot}</span>
+            </div>
+
+            <div>
+              <span className="text-slate-400 block text-[10px]">ZONAL OFFICER / DESK</span>
+              <span className="text-slate-300 font-sans text-xs">{detectedWardInfo.officer}</span>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

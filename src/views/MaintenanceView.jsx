@@ -62,7 +62,7 @@ export default function MaintenanceView({
       }
     });
 
-    // 3. Instant local status update listener
+    // 3. Instant local status update & deletion listeners
     const handleStatusUpdated = (e) => {
       const { id, status } = e.detail || {};
       if (id && status) {
@@ -75,11 +75,21 @@ export default function MaintenanceView({
       }
     };
 
+    const handleIssueDeleted = (e) => {
+      const { id } = e.detail || {};
+      if (id) {
+        setIncidents((prev) => prev.filter((item) => item.id !== id));
+        setSelectedIncident((prev) => (prev && prev.id === id ? null : prev));
+      }
+    };
+
     window.addEventListener("civic_issue_updated", handleStatusUpdated);
+    window.addEventListener("civic_issue_deleted", handleIssueDeleted);
 
     return () => {
       unsubscribe();
       window.removeEventListener("civic_issue_updated", handleStatusUpdated);
+      window.removeEventListener("civic_issue_deleted", handleIssueDeleted);
     };
   }, []);
 
@@ -271,6 +281,12 @@ export default function MaintenanceView({
             incidents={incidents}
             onSelectIncident={setSelectedIncident}
             selectedIncident={selectedIncident}
+            onDeleteIncident={(id) => {
+              setIncidents((prev) => prev.filter((i) => i.id !== id));
+              if (selectedIncident && selectedIncident.id === id) {
+                setSelectedIncident(null);
+              }
+            }}
           />
         )}
       </div>

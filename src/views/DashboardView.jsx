@@ -65,7 +65,7 @@ export default function DashboardView({
       }
     );
 
-    // 3. Listen to instant local / cross-component status update events
+    // 3. Listen to instant local / cross-component status update & delete events
     const handleStatusUpdated = (e) => {
       const { id, status } = e.detail || {};
       if (id && status) {
@@ -76,12 +76,22 @@ export default function DashboardView({
       refreshIssues();
     };
 
+    const handleIssueDeleted = (e) => {
+      const { id } = e.detail || {};
+      if (id) {
+        setAllComplaints((prev) => prev.filter((c) => c.id !== id));
+      }
+      refreshIssues();
+    };
+
     window.addEventListener("civic_issue_updated", handleStatusUpdated);
+    window.addEventListener("civic_issue_deleted", handleIssueDeleted);
     window.addEventListener("storage", refreshIssues);
 
     return () => {
       unsubscribe();
       window.removeEventListener("civic_issue_updated", handleStatusUpdated);
+      window.removeEventListener("civic_issue_deleted", handleIssueDeleted);
       window.removeEventListener("storage", refreshIssues);
     };
   }, []);

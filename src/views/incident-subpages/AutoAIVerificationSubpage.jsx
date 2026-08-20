@@ -1,4 +1,4 @@
-﻿import React, { useState } from "react";
+import React, { useState } from "react";
 import {
   Sparkles,
   Scan,
@@ -171,8 +171,10 @@ export default function AutoAIVerificationSubpage({
                 {/* Estimated Geometry & SLA */}
                 <div className="grid grid-cols-2 gap-2 text-[10px] pt-1 border-t border-slate-800/80">
                   <div className="p-2 rounded-lg bg-[#070A10] border border-slate-800">
-                    <span className="text-slate-400 block">PRIORITY</span>
-                    <strong className="text-red-400">{item.priorityLabel || item.priority || "P1"}</strong>
+                    <span className="text-slate-400 block">SEVERITY LEVEL</span>
+                    <strong className={item.priority === "P1" ? "text-red-400" : "text-amber-400"}>
+                      {item.problemLevel ? `LEVEL ${item.problemLevel} HAZARD` : item.priority === "P1" ? "LEVEL 4 HAZARD" : "LEVEL 3 HAZARD"}
+                    </strong>
                   </div>
                   <div className="p-2 rounded-lg bg-[#070A10] border border-slate-800">
                     <span className="text-slate-400 block">SLA TARGET</span>
