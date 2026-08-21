@@ -125,7 +125,7 @@ export default function LocationPickerMap({
   };
 
   const handleSearchLocation = (e) => {
-    e.preventDefault();
+    if (e && e.preventDefault) e.preventDefault();
     if (!searchQuery.trim()) return;
 
     // Detect ward by text query keywords
@@ -160,24 +160,31 @@ export default function LocationPickerMap({
       </div>
 
       {/* Quick Location / Sector Search Input */}
-      <form onSubmit={handleSearchLocation} className="relative flex items-center gap-2">
+      <div className="relative flex items-center gap-2">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-2.5 w-3.5 h-3.5 text-slate-400" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                handleSearchLocation(e);
+              }
+            }}
             placeholder="Type sector/locality (e.g., Sector 62, Rohini, Connaught Place, Hauz Khas)..."
             className="w-full bg-[#070A10] border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-white placeholder:text-slate-500 text-xs focus:outline-none focus:border-cyan-400"
           />
         </div>
         <button
-          type="submit"
+          type="button"
+          onClick={handleSearchLocation}
           className="px-3 py-2 rounded-xl bg-cyan-950 border border-cyan-500 text-cyan-300 font-bold text-xs hover:bg-cyan-900 transition cursor-pointer shrink-0"
         >
           Find Ward
         </button>
-      </form>
+      </div>
 
       {/* Embedded Leaflet Map with Isolated Stacking Context */}
       <div className="relative isolate z-0 h-56 w-full rounded-xl overflow-hidden border border-slate-800 bg-[#070A10]">

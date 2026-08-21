@@ -20,6 +20,7 @@ import CCTVMonitor from "./components/CCTVMonitor";
 import CitySyncReportView from "./views/CitySyncReportView";
 import CitySyncMapView from "./views/CitySyncMapView";
 import IncidentDetailView from "./views/IncidentDetailView";
+import MunicipalOfficerView from "./views/MunicipalOfficerView";
 
 import DispatchDroneModal from "./components/DispatchDroneModal";
 import WorkOrderModal from "./components/WorkOrderModal";
@@ -61,7 +62,11 @@ export default function App() {
           activePage === "login" ||
           activePage === "signup"
         ) {
-          setActivePage("dashboard");
+          if (resolvedProfile.role === "officer") {
+            setActivePage("municipal-dashboard");
+          } else {
+            setActivePage("dashboard");
+          }
         }
       } else {
         setUser(null);
@@ -267,14 +272,18 @@ export default function App() {
                     className={`ml-2 px-2.5 py-0.5 rounded text-[11px] font-bold uppercase tracking-wider ${
                       user.role === "admin"
                         ? "bg-cyan-950 border border-cyan-500 text-cyan-300"
-                        : user.role === "pending_admin"
+                        : user.role === "officer"
+                        ? "bg-amber-950 border border-amber-500 text-amber-300"
+                        : user.role === "pending_admin" || user.role === "pending_officer"
                         ? "bg-amber-950 border border-amber-500 text-amber-300"
                         : "bg-emerald-950 border border-emerald-500 text-emerald-300"
                     }`}
                   >
                     {user.role === "admin"
                       ? "ADMIN"
-                      : user.role === "pending_admin"
+                      : user.role === "officer"
+                      ? "OFFICER"
+                      : user.role === "pending_admin" || user.role === "pending_officer"
                       ? "PENDING"
                       : "CITIZEN"}
                   </span>
@@ -333,7 +342,16 @@ export default function App() {
                 />
               )}
 
-              {activePage === "maintenance" && user?.role === "admin" && (
+              {activePage === "municipal-dashboard" && (
+                <div className="p-6">
+                  <MunicipalOfficerView
+                    user={user}
+                    setActivePage={handleNavigate}
+                  />
+                </div>
+              )}
+
+              {activePage === "maintenance" && (user?.role === "admin" || user?.role === "officer") && (
                 <MaintenanceView
                   onOpenWorkOrderModal={handleOpenWorkOrder}
                   onOpenDispatchModal={handleOpenDispatch}

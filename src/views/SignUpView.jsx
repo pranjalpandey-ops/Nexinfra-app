@@ -1,4 +1,4 @@
-﻿import React, { useState } from "react";
+import React, { useState } from "react";
 import {
   User,
   Mail,
@@ -8,7 +8,10 @@ import {
   ShieldAlert,
   UserCheck,
   FileText,
-  CheckCircle2
+  CheckCircle2,
+  Phone,
+  MapPin,
+  BadgeAlert
 } from "lucide-react";
 
 import {
@@ -21,14 +24,17 @@ import { createAdminRequest } from "../services/adminRequestService";
 import Logo from "../components/Logo";
 
 export default function SignUpView({ setActivePage, onLoginSuccess }) {
-  const [accountType, setAccountType] = useState("citizen"); // "citizen" | "admin"
+  const [accountType, setAccountType] = useState("citizen"); // "citizen" | "officer" | "admin"
 
   const [formData, setFormData] = useState({
     fullName: "",
     email: "",
-    organization: "",
-    department: "",
-    clearance: "Level 2 - Regional Grid Supervisor",
+    organization: "Municipal Corporation Infrastructure Authority",
+    department: "Road Works & Asphalt Pavement Division",
+    ward: "Central District - Ward 4 (Civic Centre)",
+    badgeNo: "",
+    phone: "",
+    clearance: "Municipal Zonal Engineering Officer",
     justification: "",
     password: "",
     agreed: false,
@@ -56,8 +62,8 @@ export default function SignUpView({ setActivePage, onLoginSuccess }) {
       return;
     }
 
-    if (accountType === "admin" && !formData.justification.trim()) {
-      alert("Please provide an official justification for Command Admin access.");
+    if (accountType !== "citizen" && !formData.justification.trim()) {
+      alert("Please provide an official justification for Officer / Admin access.");
       return;
     }
 
@@ -74,8 +80,47 @@ export default function SignUpView({ setActivePage, onLoginSuccess }) {
         displayName: formData.fullName,
       });
 
-      if (accountType === "admin") {
-        // Create user with pending status
+      if (accountType === "officer") {
+        // Create user with pending officer status
+        const pendingProfile = {
+          uid: userCredential.user.uid,
+          name: formData.fullName,
+          email: formData.email,
+          organization: formData.organization || "Municipal Corporation",
+          department: formData.department || "Road Works & Infrastructure",
+          ward: formData.ward || "Central District - Ward 4",
+          badgeNo: formData.badgeNo || `MCD-OFF-${Date.now().toString().slice(-4)}`,
+          phone: formData.phone,
+          clearance: "Municipal Zonal Engineering Officer",
+          role: "pending_officer",
+        };
+
+        await createOrUpdateUserProfile(userCredential.user.uid, pendingProfile);
+
+        // Submit formal request for admin approval
+        await createAdminRequest({
+          uid: userCredential.user.uid,
+          email: formData.email,
+          name: formData.fullName,
+          organization: formData.organization,
+          department: formData.department,
+          ward: formData.ward,
+          badgeNo: formData.badgeNo,
+          phone: formData.phone,
+          clearance: "Municipal Zonal Engineering Officer",
+          justification: formData.justification,
+          requestType: "officer",
+        });
+
+        alert(
+          `🏛️ Municipal Officer Request Submitted!\n\nYour account has been registered with PENDING status. A System Administrator will review and approve your officer badge and department assignment.`
+        );
+
+        if (onLoginSuccess) {
+          onLoginSuccess(pendingProfile);
+        }
+      } else if (accountType === "admin") {
+        // Create user with pending admin status
         const pendingProfile = {
           uid: userCredential.user.uid,
           name: formData.fullName,
@@ -88,7 +133,6 @@ export default function SignUpView({ setActivePage, onLoginSuccess }) {
 
         await createOrUpdateUserProfile(userCredential.user.uid, pendingProfile);
 
-        // Submit formal request for predefined admin approval
         await createAdminRequest({
           uid: userCredential.user.uid,
           email: formData.email,
@@ -97,6 +141,7 @@ export default function SignUpView({ setActivePage, onLoginSuccess }) {
           department: formData.department,
           clearance: formData.clearance,
           justification: formData.justification,
+          requestType: "admin",
         });
 
         alert(
@@ -123,18 +168,16 @@ export default function SignUpView({ setActivePage, onLoginSuccess }) {
           onLoginSuccess(citizenProfile);
         }
 
-        alert("Public Citizen Account created successfully!");
+        setActivePage("dashboard");
       }
-
-      setActivePage("dashboard");
     } catch (error) {
-      let message;
+      let message = "Registration failed.";
       switch (error.code) {
         case "auth/email-already-in-use":
-          message = "Email address is already registered.";
+          message = "An account with this email already exists.";
           break;
         case "auth/invalid-email":
-          message = "Invalid email address formatting.";
+          message = "Invalid email format.";
           break;
         case "auth/weak-password":
           message = "Password must be at least 6 characters.";
@@ -155,7 +198,7 @@ export default function SignUpView({ setActivePage, onLoginSuccess }) {
       <div className="my-auto w-full max-w-2xl relative z-10">
         <div className="bg-[#0D121F]/95 border border-cyan-500/40 rounded-2xl p-8 sm:p-10 shadow-2xl backdrop-blur-md space-y-7">
           
-          {/* Header with Custom Theme Logo */}
+          {/* Header */}
           <div className="flex flex-col items-center text-center space-y-3">
             <Logo size="lg" className="cyan-glow-sm" />
 
@@ -169,37 +212,57 @@ export default function SignUpView({ setActivePage, onLoginSuccess }) {
             </div>
           </div>
 
-          {/* Account Type Selection Toggle */}
-          <div className="grid grid-cols-2 gap-3 p-1.5 bg-[#070A10] border border-slate-800 rounded-xl font-mono-tech text-xs">
+          {/* Account Type Selection Toggle (3 Options) */}
+          <div className="grid grid-cols-3 gap-2 p-1.5 bg-[#070A10] border border-slate-800 rounded-xl font-mono-tech text-xs">
             <button
               type="button"
               onClick={() => setAccountType("citizen")}
-              className={`py-3 px-4 rounded-lg font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
+              className={`py-2.5 px-2 rounded-lg font-bold flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
                 accountType === "citizen"
                   ? "bg-emerald-950/70 border border-emerald-500/70 text-emerald-300 shadow-md"
                   : "text-slate-400 hover:text-slate-200"
               }`}
             >
               <UserCheck className="w-4 h-4" />
-              <span>Public Citizen</span>
+              <span>Citizen</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setAccountType("officer")}
+              className={`py-2.5 px-2 rounded-lg font-bold flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
+                accountType === "officer"
+                  ? "bg-amber-950/70 border border-amber-500/70 text-amber-300 shadow-md"
+                  : "text-slate-400 hover:text-slate-200"
+              }`}
+            >
+              <Building className="w-4 h-4" />
+              <span>Municipal Officer</span>
             </button>
 
             <button
               type="button"
               onClick={() => setAccountType("admin")}
-              className={`py-3 px-4 rounded-lg font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
+              className={`py-2.5 px-2 rounded-lg font-bold flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
                 accountType === "admin"
                   ? "bg-cyan-950/70 border border-cyan-500/70 text-cyan-300 shadow-md cyan-glow-sm"
                   : "text-slate-400 hover:text-slate-200"
               }`}
             >
               <ShieldAlert className="w-4 h-4" />
-              <span>Command Admin Request</span>
+              <span>Admin Request</span>
             </button>
           </div>
 
           {/* Notice Banner */}
-          {accountType === "admin" ? (
+          {accountType === "officer" ? (
+            <div className="p-3.5 rounded-xl bg-amber-950/40 border border-amber-500/50 text-xs text-amber-300 font-mono-tech flex items-start gap-2.5">
+              <Building className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+              <div>
+                <span className="font-bold">Municipal Officer Authorization:</span> Requests are forwarded to the Admin Command desk for official badge & zonal jurisdiction verification.
+              </div>
+            </div>
+          ) : accountType === "admin" ? (
             <div className="p-3.5 rounded-xl bg-cyan-950/40 border border-cyan-500/50 text-xs text-cyan-300 font-mono-tech flex items-start gap-2.5">
               <ShieldAlert className="w-5 h-5 text-cyan-400 shrink-0 mt-0.5" />
               <div>
@@ -218,152 +281,200 @@ export default function SignUpView({ setActivePage, onLoginSuccess }) {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block mb-1.5 text-slate-200 font-bold">
-                  Full Name
+                  Full Name / Officer Title
                 </label>
                 <div className="relative">
-                  <User className="absolute left-3 top-3.5 w-4 h-4 text-slate-500" />
+                  <User className="w-4 h-4 text-slate-500 absolute left-3.5 top-3.5" />
                   <input
                     type="text"
                     required
                     value={formData.fullName}
                     onChange={(e) => handleChange("fullName", e.target.value)}
-                    placeholder="e.g. Maya Lin"
-                    className="w-full bg-[#070A10] border border-slate-800 rounded-xl pl-10 py-3 text-white focus:outline-none focus:border-cyan-400 text-xs sm:text-sm"
+                    placeholder="e.g. Er. Rajesh Mehra"
+                    className="w-full bg-[#070A10] border border-slate-800 rounded-xl pl-10 pr-3 py-3 text-white placeholder:text-slate-600 focus:outline-none focus:border-cyan-400 text-xs"
                   />
                 </div>
               </div>
 
               <div>
                 <label className="block mb-1.5 text-slate-200 font-bold">
-                  {accountType === "admin" ? "Official Government Email" : "Email Address"}
+                  Official Email Address
                 </label>
                 <div className="relative">
-                  <Mail className="absolute left-3 top-3.5 w-4 h-4 text-slate-500" />
+                  <Mail className="w-4 h-4 text-slate-500 absolute left-3.5 top-3.5" />
                   <input
                     type="email"
                     required
                     value={formData.email}
                     onChange={(e) => handleChange("email", e.target.value)}
-                    placeholder={accountType === "admin" ? "officer@agency.gov" : "resident@domain.com"}
-                    className="w-full bg-[#070A10] border border-slate-800 rounded-xl pl-10 py-3 text-white focus:outline-none focus:border-cyan-400 text-xs sm:text-sm"
+                    placeholder="officer.mehra@mcd.gov.in"
+                    className="w-full bg-[#070A10] border border-slate-800 rounded-xl pl-10 pr-3 py-3 text-white placeholder:text-slate-600 focus:outline-none focus:border-cyan-400 text-xs"
                   />
                 </div>
               </div>
             </div>
 
-            {/* Extra Admin Fields */}
-            {accountType === "admin" && (
-              <>
+            {/* Officer Specific Fields */}
+            {accountType === "officer" && (
+              <div className="space-y-4 pt-2 border-t border-slate-800/80">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block mb-1.5 text-slate-200 font-bold">
-                      Authority / Organization
+                      Municipal Department
                     </label>
-                    <div className="relative">
-                      <Building className="absolute left-3 top-3.5 w-4 h-4 text-slate-500" />
-                      <input
-                        type="text"
-                        required
-                        value={formData.organization}
-                        onChange={(e) => handleChange("organization", e.target.value)}
-                        placeholder="e.g. Municipal Road Works"
-                        className="w-full bg-[#070A10] border border-slate-800 rounded-xl pl-10 py-3 text-white focus:outline-none focus:border-cyan-400 text-xs sm:text-sm"
-                      />
-                    </div>
+                    <select
+                      value={formData.department}
+                      onChange={(e) => handleChange("department", e.target.value)}
+                      className="w-full bg-[#070A10] border border-slate-800 rounded-xl p-3 text-white text-xs"
+                    >
+                      <option value="Road Works & Asphalt Pavement Division">Road Works & Asphalt Pavement Division</option>
+                      <option value="Municipal Hydro & Water Supply Grid">Municipal Hydro & Water Supply Grid</option>
+                      <option value="Sanitation & Solid Waste Logistics Unit">Sanitation & Solid Waste Logistics Unit</option>
+                      <option value="Municipal Power & Street Lighting Grid">Municipal Power & Street Lighting Grid</option>
+                      <option value="Structural Engineering & Bridge Safety Division">Structural Engineering & Bridge Safety Division</option>
+                      <option value="Urban Forestry & Public Parks Department">Urban Forestry & Public Parks Department</option>
+                    </select>
                   </div>
 
                   <div>
                     <label className="block mb-1.5 text-slate-200 font-bold">
-                      Division / Department
+                      Assigned Municipal Ward / Zone
                     </label>
                     <input
                       type="text"
                       required
-                      value={formData.department}
-                      onChange={(e) => handleChange("department", e.target.value)}
-                      placeholder="e.g. UAV & Drone Fleet"
-                      className="w-full bg-[#070A10] border border-slate-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-cyan-400 text-xs sm:text-sm"
+                      value={formData.ward}
+                      onChange={(e) => handleChange("ward", e.target.value)}
+                      placeholder="e.g. Central District - Ward 4"
+                      className="w-full bg-[#070A10] border border-slate-800 rounded-xl p-3 text-white text-xs"
                     />
                   </div>
                 </div>
 
-                <div>
-                  <label className="block mb-1.5 text-slate-200 font-bold">
-                    Official Justification for Admin Clearance
-                  </label>
-                  <div className="relative">
-                    <FileText className="absolute left-3 top-3.5 w-4 h-4 text-slate-500" />
-                    <textarea
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block mb-1.5 text-slate-200 font-bold">
+                      Govt Badge / Officer ID No.
+                    </label>
+                    <input
+                      type="text"
                       required
-                      rows={2}
-                      value={formData.justification}
-                      onChange={(e) => handleChange("justification", e.target.value)}
-                      placeholder="Specify your operational duty, sector oversight, or emergency management role..."
-                      className="w-full bg-[#070A10] border border-slate-800 rounded-xl pl-10 pr-3 py-2.5 text-white focus:outline-none focus:border-cyan-400 text-xs sm:text-sm resize-none"
+                      value={formData.badgeNo}
+                      onChange={(e) => handleChange("badgeNo", e.target.value)}
+                      placeholder="e.g. MCD-OFF-8842"
+                      className="w-full bg-[#070A10] border border-slate-800 rounded-xl p-3 text-white text-xs"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block mb-1.5 text-slate-200 font-bold">
+                      Direct Contact Phone
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.phone}
+                      onChange={(e) => handleChange("phone", e.target.value)}
+                      placeholder="+91 98112-XXXXX"
+                      className="w-full bg-[#070A10] border border-slate-800 rounded-xl p-3 text-white text-xs"
                     />
                   </div>
                 </div>
-              </>
+              </div>
             )}
 
+            {/* Admin / Officer Justification */}
+            {accountType !== "citizen" && (
+              <div>
+                <label className="block mb-1.5 text-slate-200 font-bold">
+                  Official Operational Justification
+                </label>
+                <textarea
+                  rows="2"
+                  required
+                  value={formData.justification}
+                  onChange={(e) => handleChange("justification", e.target.value)}
+                  placeholder="State municipal role, zonal responsibilities, and department authorization..."
+                  className="w-full bg-[#070A10] border border-slate-800 rounded-xl p-3 text-white placeholder:text-slate-600 focus:outline-none focus:border-cyan-400 text-xs"
+                />
+              </div>
+            )}
+
+            {/* Password */}
             <div>
               <label className="block mb-1.5 text-slate-200 font-bold">
-                Security Password
+                Security Password (Min 6 characters)
               </label>
               <div className="relative">
-                <Lock className="absolute left-3 top-3.5 w-4 h-4 text-slate-500" />
+                <Lock className="w-4 h-4 text-slate-500 absolute left-3.5 top-3.5" />
                 <input
                   type="password"
                   required
                   value={formData.password}
                   onChange={(e) => handleChange("password", e.target.value)}
-                  placeholder="Minimum 6 characters"
-                  className="w-full bg-[#070A10] border border-slate-800 rounded-xl pl-10 py-3 text-white focus:outline-none focus:border-cyan-400 text-xs sm:text-sm"
+                  placeholder="••••••••••••"
+                  className="w-full bg-[#070A10] border border-slate-800 rounded-xl pl-10 pr-3 py-3 text-white placeholder:text-slate-600 focus:outline-none focus:border-cyan-400 text-xs"
                 />
               </div>
             </div>
 
-            <label className="flex items-start gap-3 text-xs text-slate-300 pt-1">
+            {/* Agreement Checkbox */}
+            <div className="flex items-start gap-2.5 pt-2">
               <input
                 type="checkbox"
+                id="agreed"
                 checked={formData.agreed}
                 onChange={(e) => handleChange("agreed", e.target.checked)}
-                className="mt-0.5 cursor-pointer"
+                className="mt-1 w-4 h-4 rounded border-slate-700 bg-slate-900 text-cyan-400 focus:ring-cyan-400 cursor-pointer"
               />
-              <span>
-                I acknowledge the Nexinfra Security Governance & Data Protocol.
-              </span>
-            </label>
+              <label htmlFor="agreed" className="text-[11px] text-slate-400 cursor-pointer">
+                I hereby declare that the information provided is accurate and agree to abide by the Municipal Cyber-Security & Field Operations Protocol.
+              </label>
+            </div>
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full py-4 rounded-xl bg-gradient-to-r from-cyan-400 via-teal-300 to-cyan-400 text-black font-extrabold tracking-wider flex items-center justify-center gap-2 uppercase disabled:opacity-60 cursor-pointer shadow-lg hover:from-cyan-300 hover:to-cyan-200 active:scale-95 transition-all"
-            >
-              {loading
-                ? "TRANSMITTING REGISTRATION..."
-                : accountType === "admin"
-                ? "🛡️ SUBMIT ADMIN CLEARANCE REQUEST"
-                : "🚀 CREATE CITIZEN ACCOUNT"}
-              <ArrowRight className="w-5 h-5" />
-            </button>
+            {/* Submit Button */}
+            <div className="pt-2">
+              <button
+                type="submit"
+                disabled={loading}
+                className={`w-full py-4 rounded-xl font-extrabold text-xs sm:text-sm tracking-wider flex items-center justify-center gap-2 transition-all uppercase cursor-pointer shadow-xl active:scale-95 disabled:opacity-60 ${
+                  accountType === "officer"
+                    ? "bg-gradient-to-r from-amber-400 via-orange-400 to-amber-300 text-black shadow-[0_0_20px_rgba(245,158,11,0.3)]"
+                    : accountType === "admin"
+                    ? "bg-gradient-to-r from-cyan-400 via-teal-300 to-cyan-400 text-black cyan-glow-sm hover:cyan-glow-lg"
+                    : "bg-gradient-to-r from-emerald-400 via-teal-300 to-emerald-400 text-black shadow-lg"
+                }`}
+              >
+                <span>
+                  {loading
+                    ? "SUBMITTING CREDENTIALS..."
+                    : accountType === "officer"
+                    ? "🏛️ SUBMIT MUNICIPAL OFFICER APPLICATION"
+                    : accountType === "admin"
+                    ? "🛡️ SUBMIT COMMAND ADMIN REQUEST"
+                    : "⚡ REGISTER CITIZEN ACCOUNT"}
+                </span>
+                <ArrowRight className="w-5 h-5" />
+              </button>
+            </div>
 
             <div className="text-center text-xs text-slate-400 pt-2">
-              Already possess active authorization?
+              Already have an authorized credential?{" "}
               <button
                 type="button"
                 onClick={() => setActivePage("login")}
-                className="ml-2 text-cyan-400 hover:underline font-bold cursor-pointer"
+                className="text-cyan-400 hover:underline font-bold cursor-pointer"
               >
-                Sign In
+                Return to Login Portal
               </button>
             </div>
+
           </form>
         </div>
       </div>
 
-      <footer className="text-center text-slate-400 text-xs uppercase pt-6 font-mono-tech">
-        © 2024 NEXINFRA INFRASTRUCTURE INTELLIGENCE. ALL SYSTEMS OPERATIONAL.
+      <footer className="text-center text-slate-500 text-xs font-mono-tech uppercase pt-4">
+        © 2024 NEXINFRA INFRASTRUCTURE INTELLIGENCE • ALL OPERATIONAL PROTOCOLS ACTIVE
       </footer>
     </div>
   );

@@ -1,8 +1,9 @@
-﻿import React, { useState } from "react";
-import { User, Lock, ArrowRight, ShieldCheck, UserCheck } from "lucide-react";
+import React, { useState } from "react";
+import { User, Lock, ArrowRight, ShieldCheck, UserCheck, Building } from "lucide-react";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { auth } from "../firebase";
 import { resolveUserWithRole } from "../services/userService";
+import { authenticateOrProvisionDemo } from "../services/authDemoService";
 import Logo from "../components/Logo";
 
 export default function LoginView({ setActivePage, onLoginSuccess }) {
@@ -25,6 +26,34 @@ export default function LoginView({ setActivePage, onLoginSuccess }) {
 
     setLoading(true);
 
+    // Check if submitting demo account
+    const cleanEmail = email.trim().toLowerCase();
+    if (cleanEmail === "officer.demo@nexinfra.gov") {
+      const demoRes = await authenticateOrProvisionDemo("officer");
+      if (demoRes.success) {
+        if (onLoginSuccess) onLoginSuccess(demoRes.userProfile);
+        setActivePage("municipal-dashboard");
+        setLoading(false);
+        return;
+      }
+    } else if (cleanEmail === "admin@nexinfra.gov") {
+      const demoRes = await authenticateOrProvisionDemo("admin");
+      if (demoRes.success) {
+        if (onLoginSuccess) onLoginSuccess(demoRes.userProfile);
+        setActivePage("dashboard");
+        setLoading(false);
+        return;
+      }
+    } else if (cleanEmail === "citizen.demo@nexinfra.org") {
+      const demoRes = await authenticateOrProvisionDemo("citizen");
+      if (demoRes.success) {
+        if (onLoginSuccess) onLoginSuccess(demoRes.userProfile);
+        setActivePage("dashboard");
+        setLoading(false);
+        return;
+      }
+    }
+
     try {
       const userCredential = await signInWithEmailAndPassword(
         auth,
@@ -39,7 +68,11 @@ export default function LoginView({ setActivePage, onLoginSuccess }) {
         onLoginSuccess(userProfile);
       }
 
-      setActivePage("dashboard");
+      if (userProfile.role === "officer") {
+        setActivePage("municipal-dashboard");
+      } else {
+        setActivePage("dashboard");
+      }
     } catch (error) {
       let message = "Login failed.";
 
@@ -69,14 +102,31 @@ export default function LoginView({ setActivePage, onLoginSuccess }) {
     setLoading(false);
   };
 
-  const fillDemoAdmin = () => {
-    setEmail("admin@nexinfra.gov");
-    setSecurityKey("AdminPassword123!");
-  };
+  const handleQuickDemoLogin = async (roleKey) => {
+    setLoading(true);
+    if (roleKey === "officer") {
+      setEmail("officer.demo@nexinfra.gov");
+      setSecurityKey("OfficerPassword123!");
+    } else if (roleKey === "admin") {
+      setEmail("admin@nexinfra.gov");
+      setSecurityKey("AdminPassword123!");
+    } else {
+      setEmail("citizen.demo@nexinfra.org");
+      setSecurityKey("CitizenPassword123!");
+    }
 
-  const fillDemoCitizen = () => {
-    setEmail("citizen.demo@nexinfra.org");
-    setSecurityKey("CitizenPassword123!");
+    const res = await authenticateOrProvisionDemo(roleKey);
+    if (res.success) {
+      if (onLoginSuccess) onLoginSuccess(res.userProfile);
+      if (roleKey === "officer") {
+        setActivePage("municipal-dashboard");
+      } else {
+        setActivePage("dashboard");
+      }
+    } else {
+      alert(`Demo login error: ${res.error}`);
+    }
+    setLoading(false);
   };
 
   return (
@@ -100,27 +150,36 @@ export default function LoginView({ setActivePage, onLoginSuccess }) {
             </div>
           </div>
 
-          {/* Quick Demo Fill Presets */}
-          <div className="space-y-2 pt-1 font-mono-tech text-xs">
+          {/* Quick Fill Credentials Banner */}
+          <div className="bg-[#070A10] border border-cyan-500/30 rounded-xl p-3.5 space-y-2">
             <div className="text-slate-400 text-[11px] font-bold uppercase tracking-wider text-center">
               ⚡ Quick Fill Credentials for Testing:
             </div>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-3 gap-1.5 font-mono-tech text-[10px]">
               <button
                 type="button"
-                onClick={fillDemoAdmin}
-                className="py-2.5 px-3 rounded-xl bg-cyan-950/60 border border-cyan-500/70 hover:bg-cyan-900/60 text-cyan-300 font-bold flex items-center justify-center gap-1.5 transition cursor-pointer"
+                onClick={() => handleQuickDemoLogin("admin")}
+                className="py-2.5 px-1.5 rounded-lg bg-cyan-950/60 border border-cyan-500/70 hover:bg-cyan-900/60 text-cyan-300 font-bold flex flex-col items-center justify-center gap-1 transition cursor-pointer"
               >
-                <ShieldCheck className="w-3.5 h-3.5" />
+                <ShieldCheck className="w-4 h-4" />
                 <span>Demo Admin</span>
               </button>
 
               <button
                 type="button"
-                onClick={fillDemoCitizen}
-                className="py-2.5 px-3 rounded-xl bg-emerald-950/60 border border-emerald-500/70 hover:bg-emerald-900/60 text-emerald-300 font-bold flex items-center justify-center gap-1.5 transition cursor-pointer"
+                onClick={() => handleQuickDemoLogin("officer")}
+                className="py-2.5 px-1.5 rounded-lg bg-amber-950/60 border border-amber-500/70 hover:bg-amber-900/60 text-amber-300 font-bold flex flex-col items-center justify-center gap-1 transition cursor-pointer"
               >
-                <UserCheck className="w-3.5 h-3.5" />
+                <Building className="w-4 h-4" />
+                <span>Demo Officer</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleQuickDemoLogin("citizen")}
+                className="py-2.5 px-1.5 rounded-lg bg-emerald-950/60 border border-emerald-500/70 hover:bg-emerald-900/60 text-emerald-300 font-bold flex flex-col items-center justify-center gap-1 transition cursor-pointer"
+              >
+                <UserCheck className="w-4 h-4" />
                 <span>Demo Citizen</span>
               </button>
             </div>

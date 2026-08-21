@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   LayoutDashboard,
   MapPin,
@@ -12,7 +12,9 @@ import {
   Camera,
   ShieldCheck,
   UserCheck,
-  UserPlus
+  UserPlus,
+  Building,
+  Truck
 } from 'lucide-react';
 
 import { subscribeToAdminRequests } from '../services/adminRequestService';
@@ -28,6 +30,7 @@ export default function Sidebar({
   onOpenApprovalModal
 }) {
   const isAdmin = user?.role === 'admin';
+  const isOfficer = user?.role === 'officer';
   const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
 
   useEffect(() => {
@@ -49,6 +52,15 @@ export default function Sidebar({
     { id: 'cctv', label: 'CCTV Monitor', icon: Camera },
   ];
 
+  const officerMenuItems = [
+    { id: 'municipal-dashboard', label: 'Officer Operations', icon: Building },
+    { id: 'dashboard', label: 'City Complaints Feed', icon: LayoutDashboard },
+    { id: 'citysync-map', label: 'Zonal Map', icon: MapPin },
+    { id: 'maintenance', label: 'Incident Triage', icon: FileText },
+    { id: 'report-issue', label: 'Log On-Site Defect', icon: Sparkles },
+    { id: 'incident-detail', label: 'Track Complaint', icon: AlertCircle },
+  ];
+
   const publicMenuItems = [
     { id: 'dashboard', label: 'Citizen Dashboard', icon: LayoutDashboard },
     { id: 'citysync-map', label: 'CitySync AI Map', icon: MapPin },
@@ -62,6 +74,8 @@ export default function Sidebar({
     { id: 'incident-detail', label: 'Incident Inspector', icon: AlertCircle },
   ];
 
+  const menuToRender = isAdmin ? adminMenuItems : isOfficer ? officerMenuItems : publicMenuItems;
+
   return (
     <aside className="w-64 bg-[#0B0F19] border-r border-slate-800/80 flex flex-col justify-between shrink-0 min-h-screen text-slate-300 font-mono-tech select-none overflow-y-auto">
       <div>
@@ -72,7 +86,7 @@ export default function Sidebar({
             <div>
               <h2 className="text-xl font-extrabold text-white tracking-wide font-sans">Nexinfra</h2>
               <p className="text-[11px] text-cyan-400 font-mono-tech tracking-widest uppercase">
-                {isAdmin ? "Admin Authority" : "Citizen Portal"}
+                {isAdmin ? "Admin Authority" : isOfficer ? "Municipal Officer" : "Citizen Portal"}
               </p>
             </div>
           </div>
@@ -81,13 +95,15 @@ export default function Sidebar({
             <span className="flex items-center gap-1.5 text-slate-400">
               {isAdmin ? (
                 <ShieldCheck className="w-3.5 h-3.5 text-cyan-400" />
+              ) : isOfficer ? (
+                <Building className="w-3.5 h-3.5 text-amber-400" />
               ) : (
                 <UserCheck className="w-3.5 h-3.5 text-emerald-400" />
               )}
-              <span>{isAdmin ? "ADMIN" : "CITIZEN"}</span>
+              <span>{isAdmin ? "ADMIN" : isOfficer ? "OFFICER" : "CITIZEN"}</span>
             </span>
-            <span className={`font-bold ${isAdmin ? "text-cyan-400" : "text-emerald-400"}`}>
-              {isAdmin ? "EXECUTIVE" : "VERIFIED"}
+            <span className={`font-bold ${isAdmin ? "text-cyan-400" : isOfficer ? "text-amber-400" : "text-emerald-400"}`}>
+              {isAdmin ? "EXECUTIVE" : isOfficer ? "ZONAL LEAD" : "VERIFIED"}
             </span>
           </div>
         </div>
@@ -110,7 +126,7 @@ export default function Sidebar({
             >
               <div className="flex items-center gap-2">
                 <UserPlus className="w-3.5 h-3.5 text-cyan-400" />
-                <span>Admin Approvals</span>
+                <span>Personnel Approvals</span>
               </div>
               {pendingRequestsCount > 0 && (
                 <span className="px-2 py-0.5 rounded-full bg-cyan-400 text-black text-[10px] font-extrabold">
@@ -124,10 +140,10 @@ export default function Sidebar({
         {/* Navigation Menu */}
         <nav className="px-3 py-2 space-y-1">
           <div className="px-3 py-1.5 text-xs text-slate-400 font-bold uppercase tracking-widest">
-            {isAdmin ? "Command Center" : "Citizen Services"}
+            {isAdmin ? "Command Center" : isOfficer ? "Municipal Operations" : "Citizen Services"}
           </div>
 
-          {(isAdmin ? adminMenuItems : publicMenuItems).map((item) => {
+          {menuToRender.map((item) => {
             const Icon = item.icon;
             const isActive = activePage === item.id;
 

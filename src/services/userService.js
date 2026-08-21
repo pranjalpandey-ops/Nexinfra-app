@@ -1,4 +1,4 @@
-﻿import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
+import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "../firebase";
 
 export async function getUserProfile(uid) {
@@ -38,28 +38,58 @@ export async function resolveUserWithRole(firebaseUser) {
 
   try {
     const existing = await getUserProfile(firebaseUser.uid);
-    if (existing) {
+    if (existing && existing.role) {
       return {
         uid: firebaseUser.uid,
         name: existing.name || firebaseUser.displayName || "User",
         email: firebaseUser.email,
-        role: existing.role || "public",
-        clearance: existing.clearance || (existing.role === "admin" ? "Level 3 Executive Command" : "Public Citizen Level 1"),
-        organization: existing.organization || (existing.role === "admin" ? "Nexinfra Authority" : "Public Citizen"),
+        role: existing.role,
+        department: existing.department || (existing.role === "officer" ? "Road Works & Asphalt Division" : "Grid Operations"),
+        ward: existing.ward || "Central District - Ward 4 (Civic Centre)",
+        clearance: existing.clearance || (
+          existing.role === "admin"
+            ? "Level 3 Executive Command"
+            : existing.role === "officer"
+            ? "Municipal Zonal Officer - Level 2"
+            : "Public Citizen Level 1"
+        ),
+        organization: existing.organization || (
+          existing.role === "admin"
+            ? "Nexinfra Authority"
+            : existing.role === "officer"
+            ? "Municipal Infrastructure Corporation"
+            : "Public Citizen"
+        ),
       };
     }
 
     const email = (firebaseUser.email || "").toLowerCase();
     const isAdminEmail = email.includes("admin") || email.includes("operator") || email.endsWith("@nexinfra.gov");
-    const initialRole = isAdminEmail ? "admin" : "public";
+    const isOfficerEmail = email.includes("officer") || email.includes("mcd") || email.includes("zonal") || email.includes("engineer");
+    
+    const initialRole = isAdminEmail ? "admin" : isOfficerEmail ? "officer" : "public";
 
     const defaultProfile = {
       uid: firebaseUser.uid,
-      name: firebaseUser.displayName || (initialRole === "admin" ? "Command Operator" : "Resident Citizen"),
+      name: firebaseUser.displayName || (
+        initialRole === "admin" ? "Command Operator" :
+        initialRole === "officer" ? "Municipal Zonal Officer" :
+        "Resident Citizen"
+      ),
       email: firebaseUser.email,
       role: initialRole,
-      clearance: initialRole === "admin" ? "Level 3 Executive Command" : "Public Citizen Level 1",
-      organization: initialRole === "admin" ? "Nexinfra Authority" : "Public Citizen",
+      department: initialRole === "officer" ? "Road Works & Asphalt Division" : "Grid Operations",
+      ward: initialRole === "officer" ? "Central District - Ward 4 (Civic Centre)" : "Central District",
+      clearance: initialRole === "admin"
+        ? "Level 3 Executive Command"
+        : initialRole === "officer"
+        ? "Municipal Zonal Officer - Level 2"
+        : "Public Citizen Level 1",
+      organization: initialRole === "admin"
+        ? "Nexinfra Authority"
+        : initialRole === "officer"
+        ? "Municipal Infrastructure Corporation"
+        : "Public Citizen",
       createdAt: serverTimestamp(),
     };
 
