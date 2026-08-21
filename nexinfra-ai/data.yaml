@@ -1,0 +1,21 @@
+# ==============================================================================
+# NEXINFRA AI - CIVIC DEFECT DETECTION DATASET CONFIGURATION (YOLO Format)
+# ==============================================================================
+
+# Path configuration (Relative to dataset root or absolute paths)
+path: ./dataset # root dataset directory
+train: images/train # train images (relative to 'path')
+val: images/val # val images (relative to 'path')
+test: images/test # test images (optional)
+
+# Number of classes
+nc: 6
+
+# Class names corresponding to Nexinfra 6-tier municipal taxonomy
+names:
+  0: pothole_road_defect
+  1: water_drainage_burst
+  2: garbage_waste_overflow
+  3: electrical_hazard
+  4: structural_bridge_crack
+  5: tree_greenery_hazard

@@ -207,36 +207,39 @@ export default function CCTVMonitor() {
         <div className="absolute inset-0 pointer-events-none">
 
           {defects.map((defect, index) => {
-
             const box = defect.box;
-
             if (!box) return null;
+
+            const boxLeft = box.normX !== undefined ? `${box.normX}%` : `${box.x}px`;
+            const boxTop = box.normY !== undefined ? `${box.normY}%` : `${box.y}px`;
+            const boxWidth = box.normW !== undefined ? `${box.normW}%` : `${box.width}px`;
+            const boxHeight = box.normH !== undefined ? `${box.normH}%` : `${box.height}px`;
+            const boxColor = defect.color || '#EF4444';
 
             return (
               <div
                 key={index}
-                className="absolute border-2 border-red-500"
+                className="absolute border-2 transition-all duration-200"
                 style={{
-                  left: `${box.x}px`,
-                  top: `${box.y}px`,
-                  width: `${box.width}px`,
-                  height: `${box.height}px`,
+                  left: boxLeft,
+                  top: boxTop,
+                  width: boxWidth,
+                  height: boxHeight,
+                  borderColor: boxColor,
+                  boxShadow: `0 0 15px ${boxColor}40`,
+                  backgroundColor: `${boxColor}15`
                 }}
               >
-
-                <div className="absolute -top-7 left-0 bg-red-500 text-white text-xs font-bold px-2 py-1 rounded whitespace-nowrap">
-
-                  {defect.class || 'DEFECT'}
-
-                  {' '}
-
-                  {Math.round(
-                    (defect.confidence || 0) * 100
-                  )}
-                  %
-
+                <div
+                  className="absolute -top-7 left-0 text-white text-xs font-bold px-2 py-1 rounded shadow-md whitespace-nowrap flex items-center gap-1.5"
+                  style={{ backgroundColor: boxColor }}
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping" />
+                  <span>{defect.class || 'DEFECT'}</span>
+                  <span className="opacity-90 font-mono">
+                    {Math.round((defect.confidence || 0) * 100)}%
+                  </span>
                 </div>
-
               </div>
             );
           })}
