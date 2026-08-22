@@ -4,6 +4,7 @@
   "type": "module",
   "main": "server.js",
   "scripts": {
+    "build": "echo 'NEXinfra Backend Build Ready'",
     "start": "node server.js",
     "dev": "node server.js",
     "test:ai": "node validateModel.js"
