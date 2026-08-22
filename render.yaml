@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: nexinfra-ai-backend
+    env: node
+    plan: free
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: PORT
+        value: 4000
+      - key: HOST
+        value: 0.0.0.0
+      - key: NODE_ENV
+        value: production

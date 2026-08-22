@@ -7,11 +7,12 @@
     "backend"
   ],
   "scripts": {
+    "start": "node backend/server.js",
     "dev": "npm run dev:frontend",
     "dev:all": "npm --prefix backend start & npm --prefix frontend run dev",
     "dev:frontend": "npm --prefix frontend run dev",
     "dev:backend": "npm --prefix backend start",
-    "build": "npm --prefix frontend run build",
+    "build": "npm --prefix backend install && npm --prefix frontend install && npm --prefix frontend run build",
     "test:ai": "npm --prefix backend run test:ai"
   }
 }
