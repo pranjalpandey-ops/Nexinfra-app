@@ -92,6 +92,8 @@ export default function CCTVMonitor({ user, setActivePage }) {
   const [selectedSourceType, setSelectedSourceType] = useState("channel"); // default to channel for instant feed, user can click webcam
   const [activeChannel, setActiveChannel] = useState(CCTV_CHANNELS[0]);
   const [customVideoSrc, setCustomVideoSrc] = useState(null);
+  const isMobile = typeof navigator !== "undefined" && /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent || "");
+  const [cameraFacingMode, setCameraFacingMode] = useState(isMobile ? "environment" : "user");
   const [isMediaTypeImage, setIsMediaTypeImage] = useState(false);
   const [isGridMode, setIsGridMode] = useState(false);
   const [cameraPermissionDenied, setCameraPermissionDenied] = useState(false);
@@ -139,20 +141,26 @@ export default function CCTVMonitor({ user, setActivePage }) {
     });
   }, []);
 
-  // WebCam Stream Initializer
-  const startWebcam = useCallback(async () => {
+  // WebCam Stream Initializer with Phone Back Camera support
+  const startWebcam = useCallback(async (requestedFacingMode) => {
     setCameraPermissionDenied(false);
     setSelectedSourceType("webcam");
+    const mode = requestedFacingMode || cameraFacingMode;
     try {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         throw new Error("Browser does not support getUserMedia camera access");
+      }
+
+      if (videoRef.current?.srcObject) {
+        videoRef.current.srcObject.getTracks().forEach((track) => track.stop());
+        videoRef.current.srcObject = null;
       }
 
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
           width: { ideal: 1280 },
           height: { ideal: 720 },
-          facingMode: "user"
+          facingMode: { ideal: mode }
         },
         audio: false
       });
@@ -164,11 +172,25 @@ export default function CCTVMonitor({ user, setActivePage }) {
         };
       }
     } catch (err) {
-      console.warn("Hardware Webcam Error:", err);
-      setCameraPermissionDenied(true);
-      setSelectedSourceType("channel");
+      console.warn("Hardware Webcam Error with ideal constraint, falling back:", err);
+      try {
+        const streamFallback = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        if (videoRef.current) {
+          videoRef.current.srcObject = streamFallback;
+          videoRef.current.play().catch(() => {});
+        }
+      } catch (fallbackErr) {
+        setCameraPermissionDenied(true);
+        setSelectedSourceType("channel");
+      }
     }
-  }, []);
+  }, [cameraFacingMode]);
+
+  const toggleCameraFacingMode = () => {
+    const nextMode = cameraFacingMode === "environment" ? "user" : "environment";
+    setCameraFacingMode(nextMode);
+    startWebcam(nextMode);
+  };
 
   // Switch Sources
   useEffect(() => {
@@ -515,7 +537,7 @@ export default function CCTVMonitor({ user, setActivePage }) {
           <div className="bg-[#0D121F] border border-slate-800 p-2.5 rounded-xl flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <button
-                onClick={startWebcam}
+                onClick={() => startWebcam(cameraFacingMode)}
                 className={`px-3.5 py-2 rounded-lg text-xs font-bold flex items-center gap-2 transition-colors cursor-pointer ${
                   selectedSourceType === "webcam"
                     ? "bg-cyan-600 text-white shadow-md shadow-cyan-600/30"
@@ -523,8 +545,19 @@ export default function CCTVMonitor({ user, setActivePage }) {
                 }`}
               >
                 <Video className="w-4 h-4 text-cyan-300" />
-                Live Integrated Camera
+                Live Camera
               </button>
+
+              {selectedSourceType === "webcam" && (
+                <button
+                  onClick={toggleCameraFacingMode}
+                  className="px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 bg-indigo-950/90 hover:bg-indigo-900 border border-indigo-500/60 text-indigo-200 transition-colors cursor-pointer shadow-md shadow-indigo-600/20"
+                  title="Toggle between Phone Back Camera and Front Camera"
+                >
+                  <RefreshCw className="w-3.5 h-3.5 text-indigo-400" />
+                  <span>{cameraFacingMode === "environment" ? "📱 Back Camera (Road Mode)" : "👤 Front Camera"}</span>
+                </button>
+              )}
 
               <button
                 onClick={() => setSelectedSourceType("channel")}
