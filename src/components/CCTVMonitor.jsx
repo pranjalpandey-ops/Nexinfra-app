@@ -158,27 +158,70 @@ export default function CCTVMonitor({ user, setActivePage }) {
         videoRef.current.srcObject = null;
       }
 
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-          facingMode: { ideal: mode }
-        },
-        audio: false
-      });
+      let stream = null;
 
-      if (videoRef.current) {
+      // 1. Try finding exact rear/back camera device if available
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const videoDevices = devices.filter((d) => d.kind === "videoinput");
+        const backCamera = videoDevices.find(
+          (d) =>
+            d.label.toLowerCase().includes("back") ||
+            d.label.toLowerCase().includes("rear") ||
+            d.label.toLowerCase().includes("environment") ||
+            d.label.toLowerCase().includes("0, facing back")
+        );
+        const frontCamera = videoDevices.find(
+          (d) =>
+            d.label.toLowerCase().includes("front") ||
+            d.label.toLowerCase().includes("user") ||
+            d.label.toLowerCase().includes("selfie") ||
+            d.label.toLowerCase().includes("0, facing front")
+        );
+
+        const targetDevice = mode === "environment" ? (backCamera || (videoDevices.length > 1 ? videoDevices[videoDevices.length - 1] : null)) : frontCamera;
+
+        if (targetDevice && targetDevice.deviceId) {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: { deviceId: { exact: targetDevice.deviceId } },
+            audio: false
+          });
+        }
+      } catch (enumErr) {
+        console.warn("Device enumeration fallback:", enumErr);
+      }
+
+      // 2. Standard mobile facingMode constraint (with exact then ideal fallback)
+      if (!stream) {
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: { exact: mode } },
+            audio: false
+          });
+        } catch (exactErr) {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: mode },
+            audio: false
+          });
+        }
+      }
+
+      if (videoRef.current && stream) {
         videoRef.current.srcObject = stream;
+        videoRef.current.setAttribute("playsinline", "true");
+        videoRef.current.setAttribute("autoplay", "true");
+        videoRef.current.setAttribute("muted", "true");
         videoRef.current.onloadedmetadata = () => {
           videoRef.current?.play().catch((e) => console.warn("Video play exception:", e));
         };
       }
     } catch (err) {
-      console.warn("Hardware Webcam Error with ideal constraint, falling back:", err);
+      console.warn("Hardware Webcam Error with exact constraint, falling back:", err);
       try {
         const streamFallback = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-        if (videoRef.current) {
+        if (videoRef.current && streamFallback) {
           videoRef.current.srcObject = streamFallback;
+          videoRef.current.setAttribute("playsinline", "true");
           videoRef.current.play().catch(() => {});
         }
       } catch (fallbackErr) {
