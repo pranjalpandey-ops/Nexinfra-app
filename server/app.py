@@ -269,17 +269,20 @@ def analyze_image_with_yolo(pil_image: Image.Image):
         detected_class = "Water / Drainage Burst"
         confidence = round(min(0.97, 0.80 + blue_ratio), 2)
         is_anomaly = True
-    elif sat_std > 52 and hue_std > 48 and edge_density > 0.12:
+    elif edge_density > 0.06 and sat_std < 42:
+        # Concrete/Plaster/Masonry Wall Damage & Structural Cracks (Low color saturation, high fracture lines)
+        detected_class = "Structural Anomaly / Bridge Crack"
+        confidence = round(min(0.96, 0.78 + edge_density * 1.5), 2)
+        is_anomaly = True
+    elif sat_std > 46 and hue_std > 42 and edge_density > 0.08:
+        # Solid Waste & Plastic Debris Dumps (High multi-color saturation entropy)
         detected_class = "Solid Waste Overflow"
         confidence = round(min(0.95, 0.76 + (sat_std / 120)), 2)
         is_anomaly = True
-    elif edge_density > 0.16 and dark_void_ratio > 0.08:
+    elif edge_density > 0.10 and dark_void_ratio > 0.06:
+        # Asphalt Pothole (Dark cavity void on asphalt)
         detected_class = "Road Damage / Pothole"
         confidence = round(min(0.96, 0.79 + edge_density), 2)
-        is_anomaly = True
-    elif edge_density > 0.18 and float(np.mean(v_channel)) > 110:
-        detected_class = "Structural Anomaly / Bridge Crack"
-        confidence = round(min(0.94, 0.75 + edge_density), 2)
         is_anomaly = True
     else:
         # Scene is Nominal / Clear

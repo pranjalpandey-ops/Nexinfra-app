@@ -286,27 +286,26 @@ function processImagePixels(img) {
   // 3. 6-CLASS NEURAL MULTI-DEFECT DISCRIMINATOR
   // =========================================================
 
-  // 1. SOLID WASTE DUMP (Multi-colored debris, scattered plastic, chromatic entropy & rubble edges)
-  const isGarbageDump = (activeHueBinCount >= 2 && (wastePlasticRatio > 0.015 || chromaticEntropy > 0.006)) ||
-                        (brightPlasticPixels > 400 && totalEdgeEnergy > 15000) ||
-                        (activeHueBinCount >= 3 && totalEdgeEnergy > 18000) ||
-                        (chromaticEntropy > 0.010 && totalEdgeEnergy > 20000) ||
-                        (wastePlasticRatio > 0.020);
+  // 1. ELECTRICAL & STREETLIGHT (High localized orange/yellow spark luminance)
+  const isElectrical = (electricalOrangeCount / totalPixels > 0.08);
 
-  // 2. GREENERY / FALLEN TREE
-  const isGreenery = greenRatio > 0.28 && activeHueBinCount <= 2;
+  // 2. STRUCTURAL WALL DAMAGE & BRIDGE CRACK (Neutral concrete/masonry, directional fissure lines, low color saturation)
+  const isStructuralCrack = (concreteRatio > 0.16 || asphaltRatio > 0.20 || (saturatedPixelCount / totalPixels < 0.22)) &&
+                            (horizontalLinearEdges > 700 || verticalLinearEdges > 700 || totalEdgeEnergy > 16000) &&
+                            (brightPlasticPixels < 300 || activeHueBinCount <= 2);
 
-  // 3. WATER / DRAINAGE BURST
-  const isWaterBurst = waterRatio > 0.35 && asphaltRatio < 0.35 && !isGarbageDump;
+  // 3. GREENERY / FALLEN TREE (High chlorophyll green dominance)
+  const isGreenery = greenRatio > 0.26 && activeHueBinCount <= 2 && !isStructuralCrack;
 
-  // 4. ELECTRICAL & STREETLIGHT
-  const isElectrical = (electricalOrangeCount / totalPixels > 0.10) && !isGarbageDump;
+  // 4. WATER / DRAINAGE BURST (Hydrostatic blue/cyan sheen)
+  const isWaterBurst = waterRatio > 0.30 && asphaltRatio < 0.35 && !isStructuralCrack && !isGreenery;
 
-  // 5. STRUCTURAL ANOMALY / BRIDGE CRACK (Light concrete, continuous linear directional fissure)
-  const isStructuralCrack = (concreteRatio > 0.32 || (concreteRatio > 0.20 && (horizontalLinearEdges > 2500 || verticalLinearEdges > 2500))) &&
-                            totalEdgeEnergy > 60000 &&
-                            !isGarbageDump &&
-                            !isGreenery;
+  // 5. SOLID WASTE OVERFLOW (Multi-colored diverse plastic fragments, high saturation scatter)
+  const isGarbageDump = !isStructuralCrack && (
+    (activeHueBinCount >= 3 && brightPlasticPixels > 300) ||
+    (chromaticEntropy > 0.012 && wastePlasticRatio > 0.02) ||
+    (activeHueBinCount >= 4 && totalEdgeEnergy > 14000)
+  );
 
   let detectedCategory = "Road Damage / Pothole";
   let defectName = "Structural Asphalt Pothole & Road Cavity";
@@ -324,7 +323,41 @@ function processImagePixels(img) {
   let riskIndicators = ["Vehicle Axle Rupture Risk", "Expressway Traffic Bottleneck"];
   let urgencyLevel = "Critical Action Required (4 Hours SLA)";
 
-  if (isGarbageDump) {
+  if (isElectrical) {
+    // 4. ELECTRICAL & STREETLIGHT
+    detectedCategory = "Electrical & Streetlight";
+    defectName = "Streetlight Pole Fracture & Exposed Wire Hazard";
+    priority = "P1";
+    priorityLabel = "P1 - Critical Safety Hazard";
+    severity = "Critical";
+    department = "Municipal Power & Street Lighting Grid";
+    slaHours = 2;
+    dimensions = "Voltage Hazard: 240V Line Exposure • Luminaire Inactive";
+    defectTags = ["Exposed Wiring", "Dark Zone Risk", "Electrical Shock Hazard"];
+    labelMain = "Electrical Hazard Zone";
+    problemLevel = 5;
+    problemLevelLabel = "Level 5 - Catastrophic Emergency Hazard";
+    hazardScore = 96;
+    riskIndicators = ["Live Current Electrocution Hazard", "Pedestrian Fatal Contact Risk", "Fire Ignition Risk"];
+    urgencyLevel = "Immediate Emergency Dispatch (1-2 Hours SLA)";
+  } else if (isStructuralCrack) {
+    // 5. STRUCTURAL ANOMALY / WALL DAMAGE / BRIDGE CRACK
+    detectedCategory = "Structural Anomaly / Bridge Crack";
+    defectName = "Reinforced Concrete Wall Fracture & Masonry Shear Damage";
+    priority = "P1";
+    priorityLabel = "P1 - Critical Structural Hazard";
+    severity = "Critical";
+    department = "Structural Engineering & Bridge Safety Division";
+    slaHours = 4;
+    dimensions = "Crack Propagation Span: 2.8m • Fissure Depth: ~8.5cm";
+    defectTags = ["Concrete Shear Fracture", "Structural Fatigue", "Masonry Breach", "Wall Damage Risk"];
+    labelMain = "Structural Wall Fracture";
+    problemLevel = 4;
+    problemLevelLabel = "Level 4 - Major Structural Integrity Breach";
+    hazardScore = 93;
+    riskIndicators = ["Load-Bearing Integrity Compromise", "Masonry Plaster Collapse Hazard", "Vibration Shear Risk"];
+    urgencyLevel = "Critical Engineering Inspection (4 Hours SLA)";
+  } else if (isGarbageDump) {
     // 3. SOLID WASTE OVERFLOW
     detectedCategory = "Solid Waste Overflow";
     defectName = "Unattended Solid Waste, Plastic Debris & Landfill Spill";
