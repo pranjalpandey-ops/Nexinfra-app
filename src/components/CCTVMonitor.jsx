@@ -27,7 +27,8 @@ import {
   Grid,
   ChevronRight,
   FolderOpen,
-  Filter
+  Filter,
+  Sparkles
 } from "lucide-react";
 import { analyzeImageWithAI, checkYoloBackendHealth, YOLO_API_BASE } from "../services/visionAiService";
 import { addCivicIssue } from "../services/civicDb";
