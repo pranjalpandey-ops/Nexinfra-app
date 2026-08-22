@@ -261,30 +261,8 @@ def analyze_image_with_yolo(pil_image: Image.Image):
                     "timestamp": time.time()
                 }
             else:
-                # Model evaluated frame and found NO defects (Nominal)
-                meta = CLASS_METADATA["Clear / Normal"]
-                return {
-                    "success": True,
-                    "isDefect": False,
-                    "engine": f"Real YOLO Neural Net ({os.path.basename(model_path)})",
-                    "category": meta["category"],
-                    "defectName": meta["defectName"],
-                    "confidence": 0.95,
-                    "confidencePercent": 95,
-                    "priority": meta["priority"],
-                    "priorityLabel": meta["priorityLabel"],
-                    "severity": meta["severity"],
-                    "department": meta["department"],
-                    "slaHours": meta["slaHours"],
-                    "problemLevel": meta["problemLevel"],
-                    "problemLevelLabel": meta["problemLevelLabel"],
-                    "hazardScore": meta["hazardScore"],
-                    "riskIndicators": meta["riskIndicators"],
-                    "urgencyLevel": meta["urgencyLevel"],
-                    "labelMain": meta["labelMain"],
-                    "boundingBox": None,
-                    "timestamp": time.time()
-                }
+                # If YOLO has no confident detections, fall through to OpenCV multi-spectral analyzer
+                pass
         except Exception as e:
             print(f"[WARN] YOLO prediction exception: {e}, falling back to spatial classifier")
 
@@ -295,7 +273,7 @@ def analyze_image_with_yolo(pil_image: Image.Image):
     sobel_x = cv2.Sobel(gray, cv2.CV_64F, 1, 0, ksize=3)
     sobel_y = cv2.Sobel(gray, cv2.CV_64F, 0, 1, ksize=3)
     gradient_mag = np.sqrt(sobel_x**2 + sobel_y**2)
-    edge_density = float(np.mean(gradient_mag > 45))
+    edge_density = float(np.mean(gradient_mag > 35))
 
     hsv = cv2.cvtColor(img_cv, cv2.COLOR_BGR2HSV)
     h_channel = hsv[:, :, 0]
@@ -311,7 +289,7 @@ def analyze_image_with_yolo(pil_image: Image.Image):
     orange_fire_mask = cv2.inRange(hsv, (5, 140, 160), (25, 255, 255))
     orange_ratio = float(np.sum(orange_fire_mask > 0) / (width * height))
 
-    dark_void_mask = cv2.inRange(v_channel, 0, 45)
+    dark_void_mask = cv2.inRange(v_channel, 0, 55)
     dark_void_ratio = float(np.sum(dark_void_mask > 0) / (width * height))
 
     sat_std = float(np.std(s_channel))
@@ -322,39 +300,45 @@ def analyze_image_with_yolo(pil_image: Image.Image):
     grid_y, grid_x = max_idx[0], max_idx[1]
     
     box_x = max(10.0, min(75.0, (grid_x / 16.0) * 100))
+    box_y = max(10.0, min(75.0, (grid_y / 16.0) * 100))
+    box_w = 48.0
+    box_h = 44.0
+
     skin_mask = cv2.inRange(hsv, (0, 25, 50), (35, 175, 255))
     skin_ratio = float(np.sum(skin_mask > 0) / (width * height))
-    is_human_present = skin_ratio > 0.025
+    is_human_present = skin_ratio > 0.035
 
     if is_human_present:
-        # Human / indoor subject present in frame -> Nominal Scene
+        # Human / indoor portrait in frame -> Nominal Scene
         detected_class = "Clear / Normal"
         confidence = 0.98
         is_anomaly = False
-    elif orange_ratio > 0.08:
+    elif orange_ratio > 0.06:
         detected_class = "Electrical & Streetlight"
-        confidence = round(min(0.98, 0.82 + orange_ratio), 2)
+        confidence = round(min(0.98, 0.85 + orange_ratio), 2)
         is_anomaly = True
-    elif green_ratio > 0.30 and edge_density > 0.08:
+    elif green_ratio > 0.25 and edge_density > 0.05:
         detected_class = "Public Park & Greenery Hazard"
-        confidence = round(min(0.96, 0.78 + green_ratio), 2)
+        confidence = round(min(0.96, 0.80 + green_ratio), 2)
         is_anomaly = True
-    elif blue_ratio > 0.25 and edge_density > 0.06:
+    elif blue_ratio > 0.20 and edge_density > 0.04:
         detected_class = "Water / Drainage Burst"
-        confidence = round(min(0.97, 0.80 + blue_ratio), 2)
+        confidence = round(min(0.97, 0.82 + blue_ratio), 2)
         is_anomaly = True
-    elif edge_density > 0.08 and sat_std < 38 and dark_void_ratio > 0.04:
-        # Genuine Concrete/Wall Fracture
-        detected_class = "Structural Anomaly / Bridge Crack"
-        confidence = round(min(0.96, 0.78 + edge_density * 1.5), 2)
-        is_anomaly = True
-    elif sat_std > 46 and hue_std > 42 and edge_density > 0.08:
+    elif sat_std > 30 and (hue_std > 20 or sat_std > 50):
+        # Solid Waste / Multi-Color Plastic Cluster
         detected_class = "Solid Waste Overflow"
-        confidence = round(min(0.95, 0.76 + (sat_std / 120)), 2)
+        confidence = round(min(0.96, 0.82 + (sat_std / 150)), 2)
         is_anomaly = True
-    elif edge_density > 0.10 and dark_void_ratio > 0.06:
+    elif (dark_void_ratio > 0.012 or (edge_density > 0.02 and dark_void_ratio > 0.005)) and sat_std < 32:
+        # Road Pothole / Dark Asphalt Depth
         detected_class = "Road Damage / Pothole"
-        confidence = round(min(0.96, 0.79 + edge_density), 2)
+        confidence = round(min(0.96, 0.82 + edge_density * 1.5), 2)
+        is_anomaly = True
+    elif edge_density > 0.025 and sat_std < 32:
+        # Structural Fracture / Masonry Shear
+        detected_class = "Structural Anomaly / Bridge Crack"
+        confidence = round(min(0.96, 0.80 + edge_density * 2.0), 2)
         is_anomaly = True
     else:
         detected_class = "Clear / Normal"
