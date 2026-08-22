@@ -26,17 +26,25 @@ export const CIVIC_TAXONOMY_MAP = CANONICAL_METADATA;
  * Returns candidate URLs for central backend discovery across LAN, local, and cloud
  */
 function getBackendCandidates() {
-  const list = [activeBackendUrl, API_URL];
+  const list = [];
+  if (activeBackendUrl) list.push(activeBackendUrl);
+  if (API_URL) list.push(API_URL);
+
+  // Production Render HTTPS Cloud Backend
+  list.push("https://nexinfra-app-main.onrender.com");
+
   if (typeof window !== "undefined") {
-    if (window.location.origin) list.push(window.location.origin);
-    if (window.location.hostname) {
-      list.push(`${window.location.protocol}//${window.location.hostname}:4000`);
-      list.push(`http://${window.location.hostname}:4000`);
+    // Relative same-origin (proxied by Vercel or Vite dev server)
+    list.push("");
+
+    const isLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+    if (isLocalhost) {
+      list.push("http://localhost:4000");
+      list.push("http://127.0.0.1:4000");
     }
   }
-  list.push("http://localhost:4000");
-  list.push("http://127.0.0.1:4000");
-  return Array.from(new Set(list.filter(Boolean)));
+
+  return Array.from(new Set(list.filter((item) => item !== undefined && item !== null)));
 }
 
 /**
