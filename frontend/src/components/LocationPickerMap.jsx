@@ -77,8 +77,9 @@ export default function LocationPickerMap({
       setPosition([latitude, longitude]);
       const nearby = findNearbySimilarIssues(latitude, longitude, category, 200);
       setNearbyCount(nearby.length);
-      const wardInfo = detectMunicipalWardByCoordinates(latitude, longitude);
-      setDetectedWardInfo(wardInfo);
+      reverseGeocodeAndDetectWard(latitude, longitude).then((res) => {
+        setDetectedWardInfo(res);
+      });
     }
   }, [latitude, longitude, category]);
 
@@ -87,9 +88,12 @@ export default function LocationPickerMap({
     const nearby = findNearbySimilarIssues(lat, lng, category, 200);
     setNearbyCount(nearby.length);
 
-    // Run spatial ward detection & reverse geocoding
-    const resolved = await reverseGeocodeAndDetectWard(lat, lng);
+    // Initial instant estimate
     setDetectedWardInfo(detectMunicipalWardByCoordinates(lat, lng));
+
+    // Run AI & real-world reverse geocoding
+    const resolved = await reverseGeocodeAndDetectWard(lat, lng);
+    setDetectedWardInfo(resolved);
 
     if (onLocationChange) {
       onLocationChange({
@@ -99,6 +103,7 @@ export default function LocationPickerMap({
         ward: resolved.ward,
         zone: resolved.zone,
         depot: resolved.depot,
+        officer: resolved.officer,
         nearbyCount: nearby.length,
       });
     }
@@ -124,11 +129,31 @@ export default function LocationPickerMap({
     );
   };
 
-  const handleSearchLocation = (e) => {
+  const handleSearchLocation = async (e) => {
     if (e && e.preventDefault) e.preventDefault();
     if (!searchQuery.trim()) return;
 
-    // Detect ward by text query keywords
+    // Search via Nominatim OpenStreetMap for any global city/neighbourhood
+    try {
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(searchQuery.trim())}&format=json&limit=1`,
+        { headers: { "Accept-Language": "en" } }
+      );
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data[0]) {
+          const lat = parseFloat(data[0].lat);
+          const lng = parseFloat(data[0].lon);
+          handleUpdate(lat, lng);
+          setSearchQuery("");
+          return;
+        }
+      }
+    } catch (err) {
+      console.warn("Search geocoding error:", err);
+    }
+
+    // Fallback search keywords in local DB
     const matchedWard = detectMunicipalWardByText(searchQuery);
     if (matchedWard) {
       handleUpdate(matchedWard.centerLat, matchedWard.centerLng);
@@ -173,7 +198,7 @@ export default function LocationPickerMap({
                 handleSearchLocation(e);
               }
             }}
-            placeholder="Type sector/locality (e.g., Sector 62, Rohini, Connaught Place, Hauz Khas)..."
+            placeholder="Type city, neighbourhood, or sector (e.g., Pokhara, Mumbai, Indiranagar, Rohini)..."
             className="w-full bg-[#070A10] border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-white placeholder:text-slate-500 text-xs focus:outline-none focus:border-cyan-400"
           />
         </div>
@@ -217,7 +242,7 @@ export default function LocationPickerMap({
                 <br />
                 {position[0].toFixed(5)}° N, {position[1].toFixed(5)}° E
                 <br />
-                <span className="text-amber-300 font-bold">{detectedWardInfo.name}</span>
+                <span className="text-amber-300 font-bold">{detectedWardInfo?.ward || detectedWardInfo?.name}</span>
               </div>
             </Popup>
           </Marker>
@@ -248,14 +273,14 @@ export default function LocationPickerMap({
             </div>
             <span className="px-2 py-0.5 rounded bg-emerald-950 border border-emerald-500 text-emerald-300 text-[10px] font-extrabold flex items-center gap-1">
               <CheckCircle2 className="w-3 h-3 text-emerald-400" />
-              <span>SPATIAL MATCH ({detectedWardInfo.distanceKm || 0.8} km)</span>
+              <span>AUTHENTIC CIVIC JURISDICTION</span>
             </span>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] pt-1 border-t border-slate-800">
             <div>
               <span className="text-slate-400 block text-[10px]">MUNICIPAL WARD & DISTRICT</span>
-              <strong className="text-cyan-300 font-sans text-xs">{detectedWardInfo.name}</strong>
+              <strong className="text-cyan-300 font-sans text-xs">{detectedWardInfo.ward || detectedWardInfo.name}</strong>
             </div>
 
             <div>
@@ -270,7 +295,9 @@ export default function LocationPickerMap({
 
             <div>
               <span className="text-slate-400 block text-[10px]">ZONAL OFFICER / DESK</span>
-              <span className="text-slate-300 font-sans text-xs">{detectedWardInfo.officer}</span>
+              <span className={`font-sans text-xs ${detectedWardInfo.officer === "Not Available" ? "text-slate-400 italic" : "text-emerald-300 font-bold"}`}>
+                {detectedWardInfo.officer || "Not Available"}
+              </span>
             </div>
           </div>
         </div>

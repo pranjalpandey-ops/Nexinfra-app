@@ -96,30 +96,31 @@ export async function analyzeWithGeminiVision(imageSource) {
 
     if (!base64Data) return null;
 
-    const prompt = `You are the AI Vision Inspector for the Nexinfra Smart City Civic Governance Matrix.
-Analyze this camera surveillance / civic report image.
+    const prompt = `You are the Expert AI Civic Vision Inspector for the Nexinfra Smart City Infrastructure & Governance Matrix.
+Analyze this civic incident / infrastructure surveillance image with high precision.
 
-Carefully classify the image into EXACTLY ONE of these 8 categories:
-1. "Road Damage / Pothole" (Potholes, asphalt craters, road fractures, deep pavement cavities)
-2. "Water / Drainage Burst" (Water main rupture, open water flood, manhole regurgitation, sewage overflow)
-3. "Solid Waste Overflow" (Unattended garbage dump, scattered plastic piles, open trash heaps, landfill spill)
-4. "Electrical & Streetlight" (Broken streetlights, dangling live electrical wires, transformer sparks, dark pole hazards)
-5. "Structural Anomaly / Bridge Crack" (Reinforced concrete wall fissures, bridge pillar cracks, masonry shear breaches)
-6. "Public Park & Greenery Hazard" (Fallen tree limbs, roadway vegetation blockades, overgrown dangerous branches)
-7. "Fire & Smoke Hazard" (Active building/vehicle/trash fires, smoke plumes, flame flares, combustion hazard)
-8. "Clear / Normal" (Human subjects, selfies, indoor room/furniture, clean roads, cars, nominal sidewalks, NO defect)
+Classify the defect into EXACTLY ONE of these 8 categories:
+1. "Public Park & Greenery Hazard" -> ANY fallen tree, uprooted trunk, broken tree branch/bough lying on street/sidewalk, dangerous overgrown tree limb touching power lines or blocking roadway, root pavement disruption, or hazardous park foliage. (ALWAYS classify fallen trees or tree branches here, NEVER as solid waste or road damage).
+2. "Electrical & Streetlight" -> ANY dangling/low-hanging live power wire or cable, messy overhead cable nest, leaning or collapsed utility pole, transformer sparks/oil leak, broken or unlit streetlight luminaire, or open fuse/junction box with exposed wiring. (ALWAYS classify utility poles, electrical cables, transformers, and streetlights here).
+3. "Structural Anomaly / Bridge Crack" -> ANY concrete pillar crack, fractured bridge girder, sheared masonry wall, spalling concrete, deep fissure in building/retaining wall, or exposed rebar.
+4. "Road Damage / Pothole" -> ANY road pothole, crater, asphalt fracture, pavement subsidence, broken road surface, or manhole cavity.
+5. "Water / Drainage Burst" -> ANY burst water pipeline, open street flooding, gushing water main, manhole sewage overflow, or submerged road lane.
+6. "Solid Waste Overflow" -> ANY overflowing dumpster, open garbage pile, scattered plastic debris heaps, unattended trash dump, or roadside litter accumulation.
+7. "Fire & Smoke Hazard" -> ANY active building/vehicle fire, open flame flare, combustion blaze, or thick smoke plume.
+8. "Clear / Normal" -> NO civic defect present (clean nominal road, indoor room, regular vehicles in traffic, selfie, people, or furniture).
 
-IMPORTANT RULES:
-- If the image contains a human face, selfie, person, indoor furniture, or a clean surface with no public hazard, classify strictly as "Clear / Normal" with isDefect: false.
-- Be mutually exclusive: NEVER confuse a pothole for solid waste, or a concrete crack for garbage.
-- Return ONLY valid raw JSON conforming strictly to the requested schema.
+CRITICAL ACCURACY GUIDELINES:
+- If a fallen tree or branch is lying across a street or sidewalk, the primary hazard is "Public Park & Greenery Hazard" (Department: Forestry & Horticulture Division).
+- If wires or cables are hanging loose or a utility pole is leaning, the hazard is "Electrical & Streetlight" (Department: Power & Electrical Grid Authority).
+- If concrete is cracked, chipped, or spalling (pillars, beams, walls), the hazard is "Structural Anomaly / Bridge Crack" (Department: Structural Engineering & Bridge Maintenance).
+- Return ONLY valid raw JSON without markdown backticks.
 
 Schema:
 {
   "isDefect": boolean,
   "category": "Road Damage / Pothole" | "Water / Drainage Burst" | "Solid Waste Overflow" | "Electrical & Streetlight" | "Structural Anomaly / Bridge Crack" | "Public Park & Greenery Hazard" | "Fire & Smoke Hazard" | "Clear / Normal",
   "defectName": string,
-  "confidence": number between 0.85 and 0.999,
+  "confidence": number between 0.88 and 0.999,
   "priority": "P1" | "P2" | "P3" | "P4",
   "priorityLabel": string,
   "severity": "Critical" | "High" | "Medium" | "Low" | "Nominal",

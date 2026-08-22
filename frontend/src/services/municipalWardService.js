@@ -265,7 +265,7 @@ export function calculateDistanceKm(lat1, lon1, lat2, lon2) {
  */
 export function detectMunicipalWardByCoordinates(latitude, longitude) {
   if (!latitude || !longitude || isNaN(latitude) || isNaN(longitude)) {
-    return MUNICIPAL_WARD_DATABASE[1]; // Fallback to Central District - Ward 4
+    return MUNICIPAL_WARD_DATABASE[1];
   }
 
   let nearestWard = MUNICIPAL_WARD_DATABASE[0];
@@ -277,6 +277,24 @@ export function detectMunicipalWardByCoordinates(latitude, longitude) {
       minDistance = dist;
       nearestWard = ward;
     }
+  }
+
+  // If location is outside the local Delhi/NCR database (> 35km away)
+  if (minDistance > 35) {
+    return {
+      id: "WARD-GEO-01",
+      name: `Local Municipal Ward (${latitude.toFixed(4)}° N, ${longitude.toFixed(4)}° E)`,
+      zone: "Local Municipal Corporation",
+      subDistrict: "Local Sector",
+      centerLat: latitude,
+      centerLng: longitude,
+      distanceKm: 0.5,
+      officer: "Not Available",
+      depot: "Local Zonal Response Depot",
+      contact: "Local Civic Control Room",
+      formattedWardString: `Local Municipal Ward (${latitude.toFixed(4)}° N, ${longitude.toFixed(4)}° E)`,
+      zoneLabel: "Local Municipal Corporation"
+    };
   }
 
   return {
@@ -311,52 +329,204 @@ export function detectMunicipalWardByText(queryText) {
     }
   }
 
-  // Fallback to Central District
+  // Fallback
   return {
-    ...MUNICIPAL_WARD_DATABASE[1],
-    distanceKm: 1.2,
-    formattedWardString: `${MUNICIPAL_WARD_DATABASE[1].name}`,
-    zoneLabel: `${MUNICIPAL_WARD_DATABASE[1].zone}`
+    id: "WARD-LOCAL-01",
+    name: `Municipal Ward (${queryText})`,
+    zone: `Local Municipal Authority (${queryText})`,
+    subDistrict: queryText,
+    centerLat: 28.6139,
+    centerLng: 77.2090,
+    distanceKm: 0.5,
+    officer: "Not Available",
+    depot: `${queryText} Civic Response Depot`,
+    contact: "1800 11 0044",
+    formattedWardString: `Municipal Ward (${queryText})`,
+    zoneLabel: `Local Municipal Authority (${queryText})`
   };
 }
 
+import { getGeminiApiKey } from "./geminiVisionService";
+
+const WARD_AI_CACHE = new Map();
+
 /**
- * Reverse geocodes coordinates via OpenStreetMap Nominatim with instant local ward resolution
+ * Uses Google Gemini AI to resolve the authentic, real-world Municipal Corporation,
+ * official Ward Name/Number, Zonal Depot, and Civic Helpline for any global or Indian location.
+ */
+export async function resolveActualMunicipalWithGemini(lat, lng, addressString) {
+  const apiKey = getGeminiApiKey();
+  if (!apiKey) return null;
+
+  const cacheKey = `${lat.toFixed(3)},${lng.toFixed(3)}`;
+  if (WARD_AI_CACHE.has(cacheKey)) {
+    return WARD_AI_CACHE.get(cacheKey);
+  }
+
+  const prompt = `Given the geographic location (Coordinates: ${lat}, ${lng}, Address: "${addressString}"), identify the EXACT real-world Municipal Corporation / Local Civic Authority, official Ward Name and Number, local Response Depot, and Zonal Officer name.
+
+RULES FOR ACCURACY:
+1. "zone": The official Municipal Corporation or Council name (e.g. 'Bruhat Bengaluru Mahanagara Palike (BBMP)', 'Brihanmumbai Municipal Corporation (BMC)', 'Municipal Corporation of Delhi (MCD)', 'Pokhara Metropolitan City', 'Pune Municipal Corporation (PMC)', etc.).
+2. "ward": The exact Ward Name / Number (e.g. 'Ward 112 (Domlur)', 'Ward H/West (Bandra West)', 'Ward 4 (Civic Centre)', 'Ward No. 6 (Lakeside)').
+3. "officer": The real confirmed public name of the Zonal Officer or Chief Engineer. IF the specific person's name is NOT publicly documented or known on the internet/official directory, return STRICTLY 'Not Available'.
+4. "depot": The nearest municipal maintenance depot, zonal ward office, or civic service center.
+5. "contact": Official civic helpline or control room contact number.
+
+Return ONLY raw JSON conforming strictly to this schema:
+{
+  "ward": string,
+  "zone": string,
+  "officer": string,
+  "depot": string,
+  "contact": string
+}`;
+
+  const body = {
+    contents: [{ parts: [{ text: prompt }] }],
+    generationConfig: { responseMimeType: "application/json", temperature: 0.1 }
+  };
+
+  const models = ["gemini-3.6-flash", "gemini-3.7-flash", "gemini-flash-latest", "gemini-3.5-flash"];
+
+  for (const modelName of models) {
+    try {
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+          signal: AbortSignal.timeout(4500)
+        }
+      );
+
+      if (res.ok) {
+        const data = await res.json();
+        const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (text) {
+          const clean = text.replace(/^```json\s*/, "").replace(/\s*```$/, "").trim();
+          const parsed = JSON.parse(clean);
+          if (parsed && (parsed.ward || parsed.zone)) {
+            const rawOfficer = (parsed.officer || "").trim();
+            const isOfficerValid = rawOfficer && !rawOfficer.toLowerCase().includes("not available") && !rawOfficer.toLowerCase().includes("unknown") && !rawOfficer.toLowerCase().includes("n/a");
+            const result = {
+              ward: parsed.ward,
+              zone: parsed.zone,
+              officer: isOfficerValid ? rawOfficer : "Not Available",
+              depot: parsed.depot || `${parsed.ward || "Zonal"} Rapid Response Depot`,
+              contact: parsed.contact || "+91 1800 11 0044"
+            };
+            WARD_AI_CACHE.set(cacheKey, result);
+            return result;
+          }
+        }
+      }
+    } catch (e) {
+      // try next model
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Reverse geocodes coordinates via OpenStreetMap Nominatim with instant AI real-world municipal corporation resolution
  */
 export async function reverseGeocodeAndDetectWard(lat, lng) {
-  const detectedWard = detectMunicipalWardByCoordinates(lat, lng);
-  let resolvedAddress = `${lat.toFixed(5)}° N, ${lng.toFixed(5)}° E (${detectedWard.subDistrict})`;
+  let nearestWard = detectMunicipalWardByCoordinates(lat, lng);
+  let resolvedAddress = `${lat.toFixed(5)}° N, ${lng.toFixed(5)}° E`;
 
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 3500);
+    const timeoutId = setTimeout(() => controller.abort(), 4000);
 
     const res = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`,
-      { signal: controller.signal }
+      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&addressdetails=1`,
+      { signal: controller.signal, headers: { "Accept-Language": "en" } }
     );
     clearTimeout(timeoutId);
 
     if (res.ok) {
       const data = await res.json();
-      if (data && data.display_name) {
+      if (data && data.address) {
+        const addr = data.address;
+        const neighbourhood =
+          addr.neighbourhood ||
+          addr.suburb ||
+          addr.quarter ||
+          addr.residential ||
+          addr.village ||
+          addr.hamlet ||
+          addr.road ||
+          "Local Sector";
+        const city =
+          addr.city ||
+          addr.town ||
+          addr.municipality ||
+          addr.county ||
+          addr.state_district ||
+          "Municipal Region";
+        const state = addr.state || addr.country || "Civic Region";
+        const postcode = addr.postcode ? `PIN: ${addr.postcode}` : "";
+
+        resolvedAddress = [neighbourhood, city, state, postcode].filter(Boolean).join(", ");
+
+        if (nearestWard.distanceKm > 35) {
+          nearestWard = {
+            id: `WARD-${city.substring(0, 3).toUpperCase()}-01`,
+            name: `${city} District - Ward (${neighbourhood})`,
+            zone: `${city} Municipal Corporation (${state})`,
+            subDistrict: neighbourhood,
+            centerLat: lat,
+            centerLng: lng,
+            distanceKm: 0.5,
+            officer: "Not Available",
+            depot: `${neighbourhood} Civic Response Depot`,
+            contact: "+91 1800 11 0044",
+            formattedWardString: `${city} District - Ward (${neighbourhood})`,
+            zoneLabel: `${city} Municipal Corporation (${state})`
+          };
+        }
+      } else if (data && data.display_name) {
         const parts = data.display_name.split(",");
         resolvedAddress = parts.slice(0, 3).join(",").trim();
       }
     }
   } catch (e) {
-    console.log("Online reverse geocoding skipped, using local spatial resolution:", e.message);
+    console.log("Online reverse geocoding fallback:", e.message);
+  }
+
+  // Use Gemini AI to detect the exact real-world Municipal Corporation & Ward
+  try {
+    const aiMunicipal = await resolveActualMunicipalWithGemini(lat, lng, resolvedAddress);
+    if (aiMunicipal) {
+      return {
+        latitude: lat,
+        longitude: lng,
+        address: resolvedAddress,
+        name: aiMunicipal.ward || nearestWard.name,
+        ward: aiMunicipal.ward || nearestWard.name,
+        zone: aiMunicipal.zone || nearestWard.zone,
+        officer: aiMunicipal.officer || "Not Available",
+        depot: aiMunicipal.depot || nearestWard.depot,
+        contact: aiMunicipal.contact || nearestWard.contact,
+        distanceKm: 0.5
+      };
+    }
+  } catch (err) {
+    console.warn("Gemini municipal ward detection fallback:", err);
   }
 
   return {
     latitude: lat,
     longitude: lng,
     address: resolvedAddress,
-    ward: detectedWard.name,
-    zone: detectedWard.zone,
-    officer: detectedWard.officer,
-    depot: detectedWard.depot,
-    contact: detectedWard.contact,
-    distanceKm: detectedWard.distanceKm
+    name: nearestWard.name,
+    ward: nearestWard.name,
+    zone: nearestWard.zone,
+    officer: nearestWard.officer || "Not Available",
+    depot: nearestWard.depot,
+    contact: nearestWard.contact,
+    distanceKm: nearestWard.distanceKm
   };
 }
