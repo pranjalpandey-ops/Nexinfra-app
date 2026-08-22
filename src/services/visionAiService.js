@@ -9,7 +9,61 @@
  * 6. Public Park & Greenery Hazard
  */
 
+export const YOLO_API_BASE = "http://127.0.0.1:8000";
+
+/**
+ * Checks if the Ultralytics YOLO FastAPI backend is currently online
+ */
+export async function checkYoloBackendHealth() {
+  try {
+    const res = await fetch(`${YOLO_API_BASE}/api/health`, {
+      method: "GET",
+      headers: { "Accept": "application/json" },
+      signal: AbortSignal.timeout(1500)
+    });
+    if (res.ok) {
+      return await res.json();
+    }
+  } catch (err) {
+    // Backend offline or timeout
+  }
+  return { status: "offline", modelLoaded: false, engine: "In-Browser Heuristic Neural Engine" };
+}
+
 export async function analyzeImageWithAI(imageSource) {
+  // 1. First, attempt real Ultralytics YOLO API detection if backend is active
+  try {
+    let base64String = "";
+    if (typeof imageSource === "string" && imageSource.startsWith("data:image")) {
+      base64String = imageSource;
+    } else if (imageSource instanceof File || imageSource instanceof Blob) {
+      base64String = await new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = (e) => resolve(e.target.result);
+        reader.readAsDataURL(imageSource);
+      });
+    }
+
+    if (base64String) {
+      const response = await fetch(`${YOLO_API_BASE}/api/detect-base64`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ image: base64String }),
+        signal: AbortSignal.timeout(2500)
+      });
+
+      if (response.ok) {
+        const yoloResult = await response.json();
+        if (yoloResult.success) {
+          return yoloResult;
+        }
+      }
+    }
+  } catch (backendErr) {
+    // Graceful fallback to client-side neural pixel analyzer
+  }
+
+  // 2. High-Fidelity Client-Side Neural Vision Engine Fallback
   return new Promise((resolve) => {
     const img = new Image();
     img.crossOrigin = "anonymous";

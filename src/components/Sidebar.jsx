@@ -56,6 +56,7 @@ export default function Sidebar({
     { id: 'municipal-dashboard', label: 'Officer Operations', icon: Building },
     { id: 'dashboard', label: 'City Complaints Feed', icon: LayoutDashboard },
     { id: 'citysync-map', label: 'Zonal Map', icon: MapPin },
+    { id: 'cctv', label: 'CCTV Surveillance', icon: Camera },
     { id: 'maintenance', label: 'Incident Triage', icon: FileText },
     { id: 'report-issue', label: 'Log On-Site Defect', icon: Sparkles },
     { id: 'incident-detail', label: 'Track Complaint', icon: AlertCircle },

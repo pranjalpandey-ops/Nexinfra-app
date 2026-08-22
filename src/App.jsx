@@ -372,9 +372,9 @@ export default function App() {
                 />
               )}
 
-              {activePage === "analytics" && user?.role === "admin" && <AnalyticsView />}
-
-              {activePage === "cctv" && user?.role === "admin" && <CCTVMonitor />}
+              {activePage === "cctv" && (user?.role === "admin" || user?.role === "officer") && (
+                <CCTVMonitor user={user} setActivePage={handleNavigate} />
+              )}
             </div>
           </main>
         </div>
