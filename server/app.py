@@ -162,15 +162,25 @@ CLASS_METADATA = {
 }
 
 yolo_model = None
-model_path = os.environ.get("YOLO_MODEL_PATH", "yolov8n.pt")
+
+# Automatically search for trained best.pt weights
+possible_paths = ["server/best.pt", "best.pt", os.path.join(os.path.dirname(__file__), "best.pt"), "yolov8s.pt"]
+model_path = os.environ.get("YOLO_MODEL_PATH")
+if not model_path:
+    for p in possible_paths:
+        if os.path.exists(p):
+            model_path = p
+            break
+    if not model_path:
+        model_path = "yolov8s.pt"
 
 def get_yolo_model():
     global yolo_model
     if yolo_model is None and ULTRALYTICS_AVAILABLE:
         try:
-            print(f"[INFO] Loading YOLO model: {model_path}...")
+            print(f"[INFO] Loading trained YOLO weights: {model_path}...")
             yolo_model = YOLO(model_path)
-            print("[INFO] YOLO Model loaded successfully!")
+            print(f"[INFO] SUCCESS: Custom YOLO Model loaded from {model_path}!")
         except Exception as e:
             print(f"[WARN] Could not load {model_path}: {e}")
             yolo_model = None
