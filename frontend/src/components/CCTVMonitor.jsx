@@ -278,17 +278,19 @@ export default function CCTVMonitor({ user, setActivePage }) {
   }, []);
 
   // Check ONNX Backend Health
-  const checkBackend = useCallback(() => {
-    setIsCheckingBackend(true);
+  const checkBackend = useCallback((isManualClick = false) => {
+    if (isManualClick || backendHealth.status !== "online") {
+      setIsCheckingBackend(true);
+    }
     checkYoloBackendHealth().then((res) => {
       setBackendHealth(res);
       setIsCheckingBackend(false);
     });
-  }, []);
+  }, [backendHealth.status]);
 
   useEffect(() => {
-    checkBackend();
-    const timer = setInterval(checkBackend, 10000);
+    checkBackend(true);
+    const timer = setInterval(() => checkBackend(false), 30000);
     return () => clearInterval(timer);
   }, [checkBackend]);
 

@@ -28,10 +28,11 @@ export const CIVIC_TAXONOMY_MAP = CANONICAL_METADATA;
 function getBackendCandidates() {
   const list = [];
   if (activeBackendUrl) list.push(activeBackendUrl);
-  if (API_URL) list.push(API_URL);
 
   // Production Render HTTPS Cloud Backend
   list.push("https://nexinfra-app-main.onrender.com");
+
+  if (API_URL && API_URL !== activeBackendUrl) list.push(API_URL);
 
   if (typeof window !== "undefined") {
     // Relative same-origin (proxied by Vercel or Vite dev server)
