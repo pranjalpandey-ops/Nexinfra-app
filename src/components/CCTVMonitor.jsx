@@ -153,56 +153,31 @@ export default function CCTVMonitor({ user, setActivePage }) {
         throw new Error("Browser does not support getUserMedia camera access");
       }
 
+      // 1. Fully release existing camera hardware tracks
       if (videoRef.current?.srcObject) {
-        videoRef.current.srcObject.getTracks().forEach((track) => track.stop());
+        try {
+          const oldStream = videoRef.current.srcObject;
+          oldStream.getTracks().forEach((track) => track.stop());
+        } catch (e) {}
         videoRef.current.srcObject = null;
       }
 
       let stream = null;
 
-      // 1. Try finding exact rear/back camera device if available
-      try {
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        const videoDevices = devices.filter((d) => d.kind === "videoinput");
-        const backCamera = videoDevices.find(
-          (d) =>
-            d.label.toLowerCase().includes("back") ||
-            d.label.toLowerCase().includes("rear") ||
-            d.label.toLowerCase().includes("environment") ||
-            d.label.toLowerCase().includes("0, facing back")
-        );
-        const frontCamera = videoDevices.find(
-          (d) =>
-            d.label.toLowerCase().includes("front") ||
-            d.label.toLowerCase().includes("user") ||
-            d.label.toLowerCase().includes("selfie") ||
-            d.label.toLowerCase().includes("0, facing front")
-        );
+      // 2. Mobile camera constraint with exact then ideal fallback
+      const constraintList = [
+        { video: { facingMode: { exact: mode } }, audio: false },
+        { video: { facingMode: mode }, audio: false },
+        { video: { facingMode: { ideal: mode } }, audio: false },
+        { video: true, audio: false }
+      ];
 
-        const targetDevice = mode === "environment" ? (backCamera || (videoDevices.length > 1 ? videoDevices[videoDevices.length - 1] : null)) : frontCamera;
-
-        if (targetDevice && targetDevice.deviceId) {
-          stream = await navigator.mediaDevices.getUserMedia({
-            video: { deviceId: { exact: targetDevice.deviceId } },
-            audio: false
-          });
-        }
-      } catch (enumErr) {
-        console.warn("Device enumeration fallback:", enumErr);
-      }
-
-      // 2. Standard mobile facingMode constraint (with exact then ideal fallback)
-      if (!stream) {
+      for (const constraints of constraintList) {
         try {
-          stream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: { exact: mode } },
-            audio: false
-          });
-        } catch (exactErr) {
-          stream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: mode },
-            audio: false
-          });
+          stream = await navigator.mediaDevices.getUserMedia(constraints);
+          if (stream) break;
+        } catch (cErr) {
+          // try next constraint level
         }
       }
 
@@ -214,27 +189,20 @@ export default function CCTVMonitor({ user, setActivePage }) {
         videoRef.current.onloadedmetadata = () => {
           videoRef.current?.play().catch((e) => console.warn("Video play exception:", e));
         };
+        // Explicitly trigger play
+        videoRef.current.play().catch(() => {});
       }
     } catch (err) {
-      console.warn("Hardware Webcam Error with exact constraint, falling back:", err);
-      try {
-        const streamFallback = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-        if (videoRef.current && streamFallback) {
-          videoRef.current.srcObject = streamFallback;
-          videoRef.current.setAttribute("playsinline", "true");
-          videoRef.current.play().catch(() => {});
-        }
-      } catch (fallbackErr) {
-        setCameraPermissionDenied(true);
-        setSelectedSourceType("channel");
-      }
+      console.warn("Hardware Webcam Error:", err);
+      setCameraPermissionDenied(true);
+      setSelectedSourceType("channel");
     }
   }, [cameraFacingMode]);
 
-  const toggleCameraFacingMode = () => {
+  const toggleCameraFacingMode = async () => {
     const nextMode = cameraFacingMode === "environment" ? "user" : "environment";
     setCameraFacingMode(nextMode);
-    startWebcam(nextMode);
+    await startWebcam(nextMode);
   };
 
   // Switch Sources

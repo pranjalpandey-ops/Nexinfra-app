@@ -324,34 +324,34 @@ function processImagePixels(img) {
   };
 
   if (!isHumanPresent) {
-    // 1. ROAD DAMAGE / POTHOLE SCORE: Dark asphalt cavity or road surface roughness
-    if (darkVoidPixels > 100 || (asphaltRatio > 0.02 && totalEdgeEnergy > 2000)) {
-      scores["Road Damage / Pothole"] = Math.min(1.0, 0.40 + (darkVoidPixels / 800) * 0.4 + (totalEdgeEnergy / 20000) * 0.2);
+    // 1. ROAD DAMAGE / POTHOLE SCORE: Genuine dark asphalt cavity void with sharp edge energy
+    if ((darkVoidPixels > 1200 && asphaltRatio > 0.06 && totalEdgeEnergy > 2500) || (darkVoidPixels > 2500 && totalEdgeEnergy > 3000)) {
+      scores["Road Damage / Pothole"] = Math.min(1.0, 0.55 + (darkVoidPixels / 4000) * 0.3 + (totalEdgeEnergy / 30000) * 0.15);
     }
 
     // 2. SOLID WASTE OVERFLOW SCORE: Multi-hue plastic trash pile
-    if (brightPlasticPixels > 80 || (activeHueBinCount >= 2 && wastePlasticRatio > 0.005)) {
-      scores["Solid Waste Overflow"] = Math.min(1.0, 0.40 + (brightPlasticPixels / 600) * 0.4 + (chromaticEntropy * 20.0) * 0.2);
+    if (brightPlasticPixels > 300 || (activeHueBinCount >= 3 && wastePlasticRatio > 0.04)) {
+      scores["Solid Waste Overflow"] = Math.min(1.0, 0.55 + (brightPlasticPixels / 1500) * 0.3 + (chromaticEntropy * 15.0) * 0.15);
     }
 
-    // 3. STRUCTURAL CRACK / WALL DAMAGE SCORE: Directional fissure or surface fractures
-    if (horizontalLinearEdges > 120 || verticalLinearEdges > 120 || totalEdgeEnergy > 3000) {
-      scores["Structural Anomaly / Bridge Crack"] = Math.min(1.0, 0.35 + (totalEdgeEnergy / 20000) * 0.35 + (Math.max(horizontalLinearEdges, verticalLinearEdges) / 800) * 0.3);
+    // 3. STRUCTURAL CRACK / WALL DAMAGE SCORE: Directional fissure or masonry shear fractures
+    if ((horizontalLinearEdges > 250 || verticalLinearEdges > 250) && totalEdgeEnergy > 6000) {
+      scores["Structural Anomaly / Bridge Crack"] = Math.min(1.0, 0.50 + (totalEdgeEnergy / 30000) * 0.3 + (Math.max(horizontalLinearEdges, verticalLinearEdges) / 1200) * 0.2);
     }
 
     // 4. WATER / DRAINAGE BURST SCORE: Hydrostatic blue/cyan liquid pooling
-    if (waterRatio > 0.06) {
-      scores["Water / Drainage Burst"] = Math.min(1.0, 0.40 + waterRatio * 3.5);
+    if (waterRatio > 0.12 && waterReflectionCount > 1000) {
+      scores["Water / Drainage Burst"] = Math.min(1.0, 0.50 + waterRatio * 3.0);
     }
 
     // 5. ELECTRICAL & STREETLIGHT SCORE: Orange/yellow spark flare
-    if ((electricalOrangeCount / totalPixels) > 0.02) {
-      scores["Electrical & Streetlight"] = Math.min(1.0, 0.40 + (electricalOrangeCount / totalPixels) * 15.0);
+    if (electricalOrangeCount > 800 && (electricalOrangeCount / totalPixels) > 0.04) {
+      scores["Electrical & Streetlight"] = Math.min(1.0, 0.50 + (electricalOrangeCount / totalPixels) * 10.0);
     }
 
-    // 6. PUBLIC PARK & GREENERY SCORE: Chlorophyll green canopy
-    if (greenRatio > 0.12) {
-      scores["Public Park & Greenery Hazard"] = Math.min(1.0, 0.40 + greenRatio * 3.0);
+    // 6. PUBLIC PARK & GREENERY SCORE: Chlorophyll green canopy road blockage
+    if (greenRatio > 0.22 && totalEdgeEnergy > 4000) {
+      scores["Public Park & Greenery Hazard"] = Math.min(1.0, 0.50 + greenRatio * 2.0);
     }
   }
 
@@ -365,7 +365,7 @@ function processImagePixels(img) {
     }
   }
 
-  const isDefect = topScore >= 0.15 && topCategory !== "Clear / Normal";
+  const isDefect = topScore >= 0.50 && topCategory !== "Clear / Normal";
   const detectedCategory = isDefect ? topCategory : "Clear / Normal";
 
   let defectName = "Infrastructure Clear • No Defect Detected";

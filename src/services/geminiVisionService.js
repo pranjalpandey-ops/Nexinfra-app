@@ -158,43 +158,52 @@ Schema:
     const candidateText = data.candidates?.[0]?.content?.parts?.[0]?.text;
     if (!candidateText) return null;
 
-    const parsed = JSON.parse(candidateText);
+    const rawParsed = JSON.parse(candidateText);
+    const parsed = Array.isArray(rawParsed) ? (rawParsed[0] || {}) : (rawParsed || {});
+
+    const isDefect = parsed.isDefect !== undefined 
+      ? Boolean(parsed.isDefect) 
+      : (parsed.category && parsed.category !== "Clear / Normal" && parsed.category !== "Clear" && parsed.category !== "Normal");
+
+    const category = parsed.category || (isDefect ? "Road Damage / Pothole" : "Clear / Normal");
+    const defectName = parsed.defectName || (isDefect ? `${category} Detected` : "Infrastructure Clear • No Defect Detected");
+    const confidence = typeof parsed.confidence === "number" ? parsed.confidence : 0.96;
 
     return {
       success: true,
-      engine: "Google Gemini 2.0 Flash Multimodal Vision",
-      isDefect: Boolean(parsed.isDefect),
-      category: parsed.category || "Clear / Normal",
-      defectName: parsed.defectName || (parsed.isDefect ? "Civic Infrastructure Defect" : "Nominal Scene"),
-      confidence: parsed.confidence || 0.985,
-      confidencePercent: Math.round((parsed.confidence || 0.985) * 100),
-      priority: parsed.priority || "P4",
-      priorityLabel: parsed.priorityLabel || (parsed.isDefect ? "P1 - Critical Priority" : "P4 - Normal / Nominal"),
-      severity: parsed.severity || (parsed.isDefect ? "High" : "Nominal"),
-      problemLevel: parsed.problemLevel ?? (parsed.isDefect ? 3 : 0),
-      problemLevelLabel: parsed.problemLevelLabel || `Level ${parsed.problemLevel || 0}`,
-      hazardScore: parsed.hazardScore ?? (parsed.isDefect ? 85 : 4),
+      engine: "Google Gemini 3.5 Flash Multimodal Vision",
+      isDefect: isDefect,
+      category: category,
+      defectName: defectName,
+      confidence: confidence,
+      confidencePercent: Math.round(confidence * 100),
+      priority: parsed.priority || (isDefect ? "P1" : "P4"),
+      priorityLabel: parsed.priorityLabel || (isDefect ? "P1 - High Priority" : "P4 - Normal / Nominal"),
+      severity: parsed.severity || (isDefect ? "High" : "Nominal"),
+      problemLevel: typeof parsed.problemLevel === "number" ? parsed.problemLevel : (isDefect ? 4 : 0),
+      problemLevelLabel: parsed.problemLevelLabel || `Level ${parsed.problemLevel || (isDefect ? 4 : 0)}`,
+      hazardScore: parsed.hazardScore ?? (isDefect ? 85 : 4),
       riskIndicators: parsed.riskIndicators || ["Multi-Modal Structural Anomaly Verified"],
-      urgencyLevel: parsed.urgencyLevel || "Routine Surveillance",
+      urgencyLevel: parsed.urgencyLevel || (isDefect ? "Field Dispatch Required" : "Routine Surveillance"),
       department: parsed.department || parsed.assignedDepartment || "Municipal Public Works Department",
       assignedDepartment: parsed.department || parsed.assignedDepartment || "Municipal Public Works Department",
-      slaHours: parsed.slaHours ?? (parsed.isDefect ? 4 : 0),
+      slaHours: parsed.slaHours ?? (isDefect ? 4 : 0),
       dimensions: parsed.dimensions || "Field Verified via Multimodal Vision AI",
-      labelMain: parsed.labelMain || parsed.category || "Nominal Surface",
-      suggestedTitle: parsed.suggestedTitle || parsed.defectName || "Civic Incident",
-      boundingBox: parsed.isDefect && parsed.boundingBox ? parsed.boundingBox : null,
-      boundingBoxes: parsed.isDefect && parsed.boundingBox ? [
+      labelMain: parsed.labelMain || category,
+      suggestedTitle: parsed.suggestedTitle || defectName,
+      boundingBox: isDefect && parsed.boundingBox ? parsed.boundingBox : null,
+      boundingBoxes: isDefect && parsed.boundingBox ? [
         {
           id: 1,
-          label: `${parsed.labelMain || parsed.category} (${Math.round((parsed.confidence || 0.98) * 100)}%)`,
-          score: parsed.confidence || 0.98,
-          x: Math.round(parsed.boundingBox.x || 15),
+          label: `${parsed.labelMain || category} (${Math.round(confidence * 100)}%)`,
+          score: confidence,
+          x: Math.round(parsed.boundingBox.x || 20),
           y: Math.round(parsed.boundingBox.y || 20),
-          w: Math.round(parsed.boundingBox.w || 60),
-          h: Math.round(parsed.boundingBox.h || 55),
-          color: parsed.category === "Solid Waste Overflow" ? "#F59E0B" :
-                 parsed.category === "Public Park & Greenery Hazard" ? "#10B981" :
-                 parsed.category === "Water / Drainage Burst" ? "#00F0FF" :
+          w: Math.round(parsed.boundingBox.w || 55),
+          h: Math.round(parsed.boundingBox.h || 50),
+          color: category === "Solid Waste Overflow" ? "#F59E0B" :
+                 category === "Public Park & Greenery Hazard" ? "#10B981" :
+                 category === "Water / Drainage Burst" ? "#00F0FF" :
                  "#EF4444",
         }
       ] : [],
