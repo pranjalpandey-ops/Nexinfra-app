@@ -297,16 +297,29 @@ export default function CitySyncReportView({
               </div>
 
               <div className="sm:col-span-4 flex flex-col justify-between space-y-2">
-                <label className="w-full py-3 px-4 rounded-xl border border-cyan-500/50 bg-cyan-950/40 hover:bg-cyan-900/50 text-cyan-300 font-bold flex items-center justify-center gap-2 cursor-pointer transition text-xs">
-                  <Camera className="w-4 h-4" />
-                  <span>Choose Photo File</span>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleImageChange}
-                    className="hidden"
-                  />
-                </label>
+                <div className="grid grid-cols-1 gap-2">
+                  <label className="w-full py-2.5 px-3 rounded-xl border border-cyan-500/50 bg-cyan-950/50 hover:bg-cyan-900/60 text-cyan-300 font-bold flex items-center justify-center gap-2 cursor-pointer transition text-xs shadow-sm">
+                    <Camera className="w-4 h-4 text-cyan-400" />
+                    <span>📸 Take Photo (Back Camera)</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      onChange={handleImageChange}
+                      className="hidden"
+                    />
+                  </label>
+
+                  <label className="w-full py-2 px-3 rounded-xl border border-slate-700 bg-slate-900/60 hover:bg-slate-800 text-slate-300 font-medium flex items-center justify-center gap-2 cursor-pointer transition text-xs">
+                    <span>📁 Choose from Gallery</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageChange}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
 
                 <div className="text-[11px] text-slate-400 font-bold pt-1">
                   Or Test with Sample Data:

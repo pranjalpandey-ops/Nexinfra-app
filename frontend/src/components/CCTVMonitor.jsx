@@ -317,10 +317,24 @@ export default function CCTVMonitor({ user, setActivePage }) {
         videoRef.current.srcObject = null;
       }
 
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: true,
-        audio: false
-      });
+      let stream;
+      try {
+        // Specifically request back camera on mobile phones
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: { ideal: "environment" },
+            width: { ideal: 1920 },
+            height: { ideal: 1080 }
+          },
+          audio: false
+        });
+      } catch (e) {
+        // Fallback to any camera if environment camera is unavailable
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: false
+        });
+      }
 
       if (videoRef.current && stream) {
         videoRef.current.srcObject = stream;
