@@ -46,7 +46,6 @@ import {
   getCanonicalMetadata,
   CANONICAL_CIVIC_CATEGORIES
 } from "../services/aiClassMapping";
-import { analyzeWithGeminiVision } from "../services/geminiVisionService";
 import { addCivicIssue } from "../services/civicDb";
 import { createDroneMissionFromIncident } from "../services/droneMissionService";
 import {
