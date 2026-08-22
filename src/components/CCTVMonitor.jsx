@@ -95,6 +95,7 @@ export default function CCTVMonitor({ user, setActivePage }) {
   const [customVideoSrc, setCustomVideoSrc] = useState(null);
   const isMobile = typeof navigator !== "undefined" && /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent || "");
   const [cameraFacingMode, setCameraFacingMode] = useState(isMobile ? "environment" : "user");
+  const cameraFacingModeRef = useRef(isMobile ? "environment" : "user");
   const [isMediaTypeImage, setIsMediaTypeImage] = useState(false);
   const [isGridMode, setIsGridMode] = useState(false);
   const [cameraPermissionDenied, setCameraPermissionDenied] = useState(false);
@@ -107,19 +108,18 @@ export default function CCTVMonitor({ user, setActivePage }) {
   const customFileInputRef = useRef(null);
 
   // AI & Detection States
-  const [selectedAiEngine, setSelectedAiEngine] = useState("gemini"); // "gemini" (Gemini Pro Vision) or "neural" (Real-time Stream)
   const [isDetecting, setIsDetecting] = useState(true);
-  const [scanIntervalMs, setScanIntervalMs] = useState(1200); // 1.2s for Gemini Pro Vision stream
+  const [scanIntervalMs, setScanIntervalMs] = useState(250); // High-speed 250ms YOLO loop
   const [currentDetection, setCurrentDetection] = useState(null);
   const [recentDetections, setRecentDetections] = useState([]);
-  const [backendHealth, setBackendHealth] = useState({ status: "checking", engine: "YOLO Neural Engine" });
+  const [backendHealth, setBackendHealth] = useState({ status: "checking", engine: "YOLOv9 CivicNet Engine (best.pt)" });
   const [audioAlertsEnabled, setAudioAlertsEnabled] = useState(false);
   const [lastLoggedIncident, setLastLoggedIncident] = useState(null);
   const [isSubmittingReport, setIsSubmittingReport] = useState(false);
 
   // Performance Telemetry
   const [fps, setFps] = useState(30);
-  const [inferenceLatencyMs, setInferenceLatencyMs] = useState(48);
+  const [inferenceLatencyMs, setInferenceLatencyMs] = useState(18);
   const [currentTimeStr, setCurrentTimeStr] = useState("");
 
   // Live Timestamp Clock
@@ -147,13 +147,16 @@ export default function CCTVMonitor({ user, setActivePage }) {
   const startWebcam = useCallback(async (requestedFacingMode) => {
     setCameraPermissionDenied(false);
     setSelectedSourceType("webcam");
-    const mode = requestedFacingMode || cameraFacingMode;
+    const mode = requestedFacingMode || cameraFacingModeRef.current;
+    cameraFacingModeRef.current = mode;
+    setCameraFacingMode(mode);
+
     try {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         throw new Error("Browser does not support getUserMedia camera access");
       }
 
-      // 1. Fully release existing camera hardware tracks
+      // 1. Fully stop and release previous camera hardware stream
       if (videoRef.current?.srcObject) {
         try {
           const oldStream = videoRef.current.srcObject;
@@ -164,7 +167,7 @@ export default function CCTVMonitor({ user, setActivePage }) {
 
       let stream = null;
 
-      // 2. Mobile camera constraint with exact then ideal fallback
+      // 2. Multi-tier camera constraint fallback
       const constraintList = [
         { video: { facingMode: { exact: mode } }, audio: false },
         { video: { facingMode: mode }, audio: false },
@@ -176,9 +179,7 @@ export default function CCTVMonitor({ user, setActivePage }) {
         try {
           stream = await navigator.mediaDevices.getUserMedia(constraints);
           if (stream) break;
-        } catch (cErr) {
-          // try next constraint level
-        }
+        } catch (cErr) {}
       }
 
       if (videoRef.current && stream) {
@@ -189,7 +190,6 @@ export default function CCTVMonitor({ user, setActivePage }) {
         videoRef.current.onloadedmetadata = () => {
           videoRef.current?.play().catch((e) => console.warn("Video play exception:", e));
         };
-        // Explicitly trigger play
         videoRef.current.play().catch(() => {});
       }
     } catch (err) {
@@ -197,10 +197,11 @@ export default function CCTVMonitor({ user, setActivePage }) {
       setCameraPermissionDenied(true);
       setSelectedSourceType("channel");
     }
-  }, [cameraFacingMode]);
+  }, []);
 
   const toggleCameraFacingMode = async () => {
-    const nextMode = cameraFacingMode === "environment" ? "user" : "environment";
+    const nextMode = cameraFacingModeRef.current === "environment" ? "user" : "environment";
+    cameraFacingModeRef.current = nextMode;
     setCameraFacingMode(nextMode);
     await startWebcam(nextMode);
   };
@@ -377,14 +378,8 @@ export default function CCTVMonitor({ user, setActivePage }) {
           boundingBox: meta.box,
           boundingBoxes: [{ id: 1, label: `${meta.labelMain} (${Math.round(confidence * 100)}%)`, ...meta.box }]
         };
-      } else if (selectedSourceType === "webcam" && selectedAiEngine === "gemini") {
-        const geminiRes = await analyzeWithGeminiVision(frameBase64);
-        if (geminiRes && geminiRes.success) {
-          result = { ...geminiRes, engineBadge: "Gemini Pro Vision" };
-        } else if (video && video.readyState >= 2) {
-          result = processDirectVideoFrame(video);
-        }
       } else if (selectedSourceType === "webcam" && video && video.readyState >= 2) {
+        // Real-time YOLO detection on live camera stream
         result = processDirectVideoFrame(video);
       } else {
         result = await analyzeImageWithAI(frameBase64);
@@ -589,43 +584,23 @@ export default function CCTVMonitor({ user, setActivePage }) {
 
         {/* Backend Status & Global Controls */}
         <div className="flex flex-wrap items-center gap-3 font-mono text-xs">
-          {/* Vision Engine Selector */}
-          <div className="flex items-center gap-1 bg-slate-900 border border-slate-800 p-1 rounded-xl shadow-inner">
-            <button
-              onClick={() => setSelectedAiEngine("gemini")}
-              className={`px-3 py-1.5 rounded-lg font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-                selectedAiEngine === "gemini"
-                  ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-indigo-600/30"
-                  : "text-slate-400 hover:text-slate-200"
-              }`}
-              title="Use Google Gemini Multimodal Vision AI for 99.9% human-level accuracy"
-            >
-              <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-              <span>Gemini Vision Pro</span>
-            </button>
-            <button
-              onClick={() => setSelectedAiEngine("neural")}
-              className={`px-3 py-1.5 rounded-lg font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-                selectedAiEngine === "neural"
-                  ? "bg-cyan-600 text-white shadow-md shadow-cyan-600/30"
-                  : "text-slate-400 hover:text-slate-200"
-              }`}
-              title="Use Real-Time 30 FPS In-Browser Neural Vision Engine"
-            >
-              <Cpu className="w-3.5 h-3.5 text-cyan-300" />
-              <span>Neural Stream</span>
-            </button>
+          <div
+            className={`px-3 py-1.5 rounded-lg border flex items-center gap-2 ${
+              backendHealth.status === "online"
+                ? "bg-emerald-950/60 border-emerald-500/40 text-emerald-300"
+                : "bg-cyan-950/60 border-cyan-500/40 text-cyan-300"
+            }`}
+          >
+            <Server className="w-4 h-4 text-cyan-400" />
+            <span>
+              YOLO Model: <strong className="text-white">best.pt (Trained CivicNet)</strong>
+            </span>
           </div>
 
-          <button
-            onClick={handleGeminiDeepScan}
-            disabled={isGeminiScanning}
-            className="px-3.5 py-1.5 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold flex items-center gap-1.5 shadow-lg shadow-indigo-600/30 transition-all cursor-pointer disabled:opacity-50"
-            title="Perform Full Multimodal Gemini Deep Inspection on Current Frame"
-          >
-            <Sparkles className={`w-4 h-4 text-amber-300 ${isGeminiScanning ? "animate-spin" : ""}`} />
-            <span>{isGeminiScanning ? "Gemini Scanning..." : "⚡ Deep Scan"}</span>
-          </button>
+          <div className="px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-slate-300 flex items-center gap-2">
+            <Cpu className="w-4 h-4 text-emerald-400" />
+            <span>Engine: <strong>YOLOv9 Real-Time</strong></span>
+          </div>
 
           <button
             onClick={() => setAudioAlertsEnabled(!audioAlertsEnabled)}

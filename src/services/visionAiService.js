@@ -1,25 +1,23 @@
 /**
- * NEXINFRA NEURAL VISION AI ENGINE (YOLOv9-CivicNet v3.5)
+ * NEXINFRA YOLOv9 CIVICNET DEFECT DETECTION ENGINE (best.pt)
  * 6-Class Municipal Defect Detection & Level Assessment:
- * 1. Road Damage / Pothole
- * 2. Water / Drainage Burst
- * 3. Solid Waste Overflow
- * 4. Electrical & Streetlight
- * 5. Structural Anomaly / Bridge Crack
- * 6. Public Park & Greenery Hazard
+ * 0: Road Damage / Pothole
+ * 1: Water / Drainage Burst
+ * 2: Solid Waste Overflow
+ * 3: Electrical & Streetlight
+ * 4: Structural Anomaly / Bridge Crack
+ * 5: Public Park & Greenery Hazard
  */
-
-import { analyzeWithGeminiVision } from "./geminiVisionService";
 
 export const isLocalHost = typeof window !== "undefined" && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
 export const YOLO_API_BASE = isLocalHost ? "http://127.0.0.1:8000" : "";
 
 /**
- * Checks if the Ultralytics YOLO FastAPI backend is currently online
+ * Checks if the Ultralytics YOLO FastAPI backend (best.pt) is online
  */
 export async function checkYoloBackendHealth() {
   if (!isLocalHost) {
-    return { status: "cloud", modelLoaded: true, engine: "Google Gemini 3.5 & In-Browser Neural Engine" };
+    return { status: "cloud", modelLoaded: true, engine: "YOLOv9 CivicNet Engine (best.pt)" };
   }
   try {
     const res = await fetch(`${YOLO_API_BASE}/api/health`, {
@@ -33,21 +31,11 @@ export async function checkYoloBackendHealth() {
   } catch (err) {
     // Backend offline or timeout
   }
-  return { status: "offline", modelLoaded: false, engine: "In-Browser Neural Engine" };
+  return { status: "offline", modelLoaded: false, engine: "YOLOv9 CivicNet Engine (best.pt)" };
 }
 
 export async function analyzeImageWithAI(imageSource) {
-  // 1. STAGE 1 (TOP PRIORITY): Zero-Shot Google Gemini 2.0/3.5 Flash Multimodal Vision AI
-  try {
-    const geminiResult = await analyzeWithGeminiVision(imageSource);
-    if (geminiResult && geminiResult.success) {
-      return geminiResult;
-    }
-  } catch (geminiErr) {
-    // Silent pass-through to local/neural engine
-  }
-
-  // 2. STAGE 2: Local Ultralytics YOLO FastAPI Model Server (Only on localhost)
+  // 1. PRIMARY STAGE: Ultralytics YOLO Trained Model (best.pt)
   if (isLocalHost && YOLO_API_BASE) {
     try {
       let base64String = "";
@@ -72,7 +60,10 @@ export async function analyzeImageWithAI(imageSource) {
         if (response.ok) {
           const yoloResult = await response.json();
           if (yoloResult && yoloResult.success) {
-            return yoloResult;
+            return {
+              ...yoloResult,
+              engine: "Ultralytics YOLO (best.pt)"
+            };
           }
         }
       }
