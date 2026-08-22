@@ -292,12 +292,15 @@ export default function MaintenanceView({
       </div>
 
       {/* Level 5 Disaster Early Warning Broadcast Modal */}
-      <DisasterBroadcastModal
-        isOpen={isDisasterModalOpen}
-        onClose={() => setIsDisasterModalOpen(false)}
-        initialIncident={selectedIncident}
-        user={user}
-      />
+      {isDisasterModalOpen && (
+        <DisasterBroadcastModal
+          key="maint-disaster-modal"
+          isOpen={isDisasterModalOpen}
+          onClose={() => setIsDisasterModalOpen(false)}
+          initialIncident={selectedIncident}
+          user={user}
+        />
+      )}
 
       {/* AI Vision Triage Modal */}
       {selectedIncident && (

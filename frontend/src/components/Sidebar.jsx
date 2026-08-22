@@ -58,6 +58,7 @@ export default function Sidebar({
     { id: 'citysync-map', label: 'Zonal Map', icon: MapPin },
     { id: 'cctv', label: 'CCTV Surveillance', icon: Camera },
     { id: 'maintenance', label: 'Incident Triage', icon: FileText },
+    { id: 'analytics', label: 'Zonal Analytics', icon: BarChart3 },
     { id: 'report-issue', label: 'Log On-Site Defect', icon: Sparkles },
     { id: 'incident-detail', label: 'Track Complaint', icon: AlertCircle },
   ];
@@ -66,6 +67,7 @@ export default function Sidebar({
     { id: 'dashboard', label: 'Citizen Dashboard', icon: LayoutDashboard },
     { id: 'citysync-map', label: 'CitySync AI Map', icon: MapPin },
     { id: 'report-issue', label: 'Report Issue', icon: Sparkles },
+    { id: 'analytics', label: 'Civic Analytics', icon: BarChart3 },
     { id: 'incident-detail', label: 'Track Complaint', icon: AlertCircle },
   ];
 

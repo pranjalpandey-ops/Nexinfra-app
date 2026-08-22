@@ -29,7 +29,7 @@ import AdminApprovalModal from "./components/AdminApprovalModal";
 import AlertsDrawerModal from "./components/AlertsDrawerModal";
 import LiveAlertToast from "./components/LiveAlertToast";
 
-const ADMIN_ONLY_PAGES = ["live-map", "maintenance", "drone-fleet", "analytics", "cctv"];
+const ADMIN_ONLY_PAGES = ["live-map", "maintenance", "drone-fleet", "cctv"];
 
 export default function App() {
   const [activePage, setActivePage] = useState("landing");
@@ -374,6 +374,12 @@ export default function App() {
 
               {activePage === "cctv" && (user?.role === "admin" || user?.role === "officer") && (
                 <CCTVMonitor user={user} setActivePage={handleNavigate} />
+              )}
+
+              {activePage === "analytics" && (
+                <AnalyticsView
+                  setActivePage={handleNavigate}
+                />
               )}
             </div>
           </main>

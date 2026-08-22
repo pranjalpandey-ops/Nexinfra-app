@@ -1,4 +1,4 @@
-﻿import {
+import {
   collection,
   addDoc,
   getDocs,
@@ -206,6 +206,72 @@ export async function executeLevel5DisasterBroadcast({
     dispatchedAt: new Date().toISOString(),
     dispatchedBy: dispatchedBy || "National Disaster Command Authority"
   };
+
+  // 1. Play real Emergency Audio Siren via Web Audio API
+  try {
+    if (typeof window !== "undefined" && (window.AudioContext || window.webkitAudioContext)) {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sawtooth";
+      osc.frequency.setValueAtTime(880, ctx.currentTime); // High pitch warning
+      osc.frequency.exponentialRampToValueAtTime(440, ctx.currentTime + 0.5);
+      osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 1.0);
+      gain.gain.setValueAtTime(0.3, ctx.currentTime);
+      gain.gain.linearRampToValueAtTime(0.01, ctx.currentTime + 2.0);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 2.0);
+    }
+  } catch (audioErr) {
+    console.log("Audio siren notification:", audioErr.message);
+  }
+
+  // 2. Trigger real System Web Push Notification
+  try {
+    if (typeof window !== "undefined" && "Notification" in window) {
+      if (Notification.permission === "granted") {
+        new Notification(`🚨 LEVEL 5 DISASTER WARNING: ${disasterType.toUpperCase()}`, {
+          body: finalMessage,
+          icon: "/favicon.ico",
+          requireInteraction: true
+        });
+      } else if (Notification.permission !== "denied") {
+        Notification.requestPermission().then((perm) => {
+          if (perm === "granted") {
+            new Notification(`🚨 LEVEL 5 DISASTER WARNING: ${disasterType.toUpperCase()}`, {
+              body: finalMessage,
+              icon: "/favicon.ico",
+              requireInteraction: true
+            });
+          }
+        });
+      }
+    }
+  } catch (notifErr) {
+    console.log("Browser notification dispatch:", notifErr.message);
+  }
+
+  // 3. Dispatch to Backend Server Emergency Gateway (Render / Local)
+  try {
+    const backendUrl = import.meta.env?.VITE_API_URL || "https://nexinfra-app-main.onrender.com";
+    await fetch(`${backendUrl}/api/emergency/broadcast-level5`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        disasterType,
+        epicenterLat,
+        epicenterLng,
+        epicenterLocation,
+        radiusKm,
+        shelterLocation,
+        customMessage: finalMessage
+      })
+    });
+  } catch (apiErr) {
+    console.warn("Backend emergency gateway broadcast:", apiErr.message);
+  }
 
   // Save to local broadcast history
   try {

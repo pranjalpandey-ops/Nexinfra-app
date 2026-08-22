@@ -162,8 +162,8 @@ Schema:
       },
     };
 
-    // Candidate Gemini model endpoints (tries 3.6-flash, 3.7-flash, flash-latest, 3.5-flash)
-    const models = ["gemini-3.6-flash", "gemini-3.7-flash", "gemini-flash-latest", "gemini-3.5-flash"];
+    // Candidate Gemini model endpoints (tries 3.6-flash, 3.7-flash)
+    const models = ["gemini-3.6-flash", "gemini-3.7-flash"];
     let data = null;
 
     for (const modelName of models) {
@@ -173,7 +173,13 @@ Schema:
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(requestBody),
+          signal: AbortSignal.timeout(6000)
         });
+
+        if (response.status === 429) {
+          console.warn("Gemini Vision 429 Rate Limit. Entering 30s cooldown and using ONNX / neural engine.");
+          break; // Stop immediately to prevent burning API quota
+        }
 
         if (response.ok) {
           data = await response.json();

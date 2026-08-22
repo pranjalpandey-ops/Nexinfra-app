@@ -72,6 +72,8 @@ export default function LocationPickerMap({
     detectMunicipalWardByCoordinates(position[0], position[1])
   );
 
+  const debounceTimerRef = useRef(null);
+
   useEffect(() => {
     if (latitude && longitude) {
       setPosition([latitude, longitude]);
@@ -83,7 +85,7 @@ export default function LocationPickerMap({
     }
   }, [latitude, longitude, category]);
 
-  const handleUpdate = async (lat, lng) => {
+  const handleUpdate = (lat, lng) => {
     setPosition([lat, lng]);
     const nearby = findNearbySimilarIssues(lat, lng, category, 200);
     setNearbyCount(nearby.length);
@@ -91,22 +93,28 @@ export default function LocationPickerMap({
     // Initial instant estimate
     setDetectedWardInfo(detectMunicipalWardByCoordinates(lat, lng));
 
-    // Run AI & real-world reverse geocoding
-    const resolved = await reverseGeocodeAndDetectWard(lat, lng);
-    setDetectedWardInfo(resolved);
-
-    if (onLocationChange) {
-      onLocationChange({
-        latitude: lat,
-        longitude: lng,
-        address: resolved.address,
-        ward: resolved.ward,
-        zone: resolved.zone,
-        depot: resolved.depot,
-        officer: resolved.officer,
-        nearbyCount: nearby.length,
-      });
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
     }
+
+    debounceTimerRef.current = setTimeout(async () => {
+      // Run AI & real-world reverse geocoding
+      const resolved = await reverseGeocodeAndDetectWard(lat, lng);
+      setDetectedWardInfo(resolved);
+
+      if (onLocationChange) {
+        onLocationChange({
+          latitude: lat,
+          longitude: lng,
+          address: resolved.address,
+          ward: resolved.ward,
+          zone: resolved.zone,
+          depot: resolved.depot,
+          officer: resolved.officer,
+          nearbyCount: nearby.length,
+        });
+      }
+    }, 450);
   };
 
   const handleDetectGPS = () => {

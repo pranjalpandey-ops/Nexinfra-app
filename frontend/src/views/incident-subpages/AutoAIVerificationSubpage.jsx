@@ -24,7 +24,13 @@ export default function AutoAIVerificationSubpage({
   const [activeCategoryFilter, setActiveCategoryFilter] = useState("ALL");
 
   const verifiedList = incidents.filter(
-    (i) => i.status === "AI Verified" || i.status === "Verified" || i.aiVerified
+    (i) =>
+      i.status === "AI Verified" ||
+      i.status === "Verified" ||
+      i.status === "Forwarded to Municipal Officer" ||
+      i.status === "Pending Officer Assignment" ||
+      i.status === "In Progress" ||
+      i.aiVerified
   );
 
   const filtered = verifiedList.filter((item) => {
@@ -103,6 +109,9 @@ export default function AutoAIVerificationSubpage({
           filtered.map((item) => {
             const isCardActive = selectedIncident?.id === item.id;
             const confidencePercent = (item.aiConfidence ? item.aiConfidence * 100 : 96.4).toFixed(1);
+            const isForwarded = item.status === "Forwarded to Municipal Officer" || item.status === "Pending Officer Assignment";
+            const isInProgress = item.status === "In Progress" || item.status === "Dispatched";
+            const isResolved = item.status === "Resolved" || item.status === "Closed";
 
             return (
               <div
@@ -182,18 +191,36 @@ export default function AutoAIVerificationSubpage({
                   </div>
                 </div>
 
-                {/* Action to Dispatch Field Operations */}
+                {/* Action Button: Forward to Municipal Officer vs In-Progress State */}
                 <div className="pt-1">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onAdvanceStatus(item, "In Progress");
-                    }}
-                    disabled={actionLoading === item.id}
-                    className="w-full py-2.5 rounded-xl bg-gradient-to-r from-amber-400 to-amber-300 hover:from-amber-300 text-black font-extrabold text-xs uppercase flex items-center justify-center gap-2 cursor-pointer shadow-md transition"
-                  >
-                    <span>Approve & Dispatch Field Unit ›</span>
-                  </button>
+                  {isInProgress ? (
+                    <div className="w-full py-2.5 px-3 rounded-xl bg-emerald-950/50 border border-emerald-500 text-emerald-300 font-extrabold text-[11px] uppercase flex items-center justify-center gap-2 shadow-sm">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400 animate-pulse" />
+                      <span>⚡ In Progress (Field Team Deployed)</span>
+                    </div>
+                  ) : isForwarded ? (
+                    <div className="w-full py-2.5 px-3 rounded-xl bg-amber-950/40 border border-amber-500 text-amber-300 font-extrabold text-[11px] uppercase flex items-center justify-center gap-2 shadow-sm">
+                      <Clock className="w-4 h-4 text-amber-400 animate-spin" />
+                      <span>⏳ Sent to Municipal Officer (Pending Team Allotment)</span>
+                    </div>
+                  ) : isResolved ? (
+                    <div className="w-full py-2.5 px-3 rounded-xl bg-slate-900 border border-slate-700 text-slate-400 font-extrabold text-[11px] uppercase flex items-center justify-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-slate-500" />
+                      <span>✓ Resolved & Closed</span>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onAdvanceStatus(item, "Forwarded to Municipal Officer");
+                      }}
+                      disabled={actionLoading === item.id}
+                      className="w-full py-2.5 rounded-xl bg-gradient-to-r from-cyan-400 via-teal-300 to-cyan-400 hover:from-cyan-300 text-black font-extrabold text-xs uppercase flex items-center justify-center gap-2 cursor-pointer shadow-md transition active:scale-95"
+                    >
+                      <Building className="w-4 h-4" />
+                      <span>Send to Municipal Officer 🏛️ ›</span>
+                    </button>
+                  )}
                 </div>
 
               </div>

@@ -617,12 +617,15 @@ export default function LiveMapView({ onOpenDispatchModal, setActivePage, user }
       </div>
 
       {/* Level 5 Early Warning Broadcast Modal */}
-      <DisasterBroadcastModal
-        isOpen={isDisasterModalOpen}
-        onClose={() => setIsDisasterModalOpen(false)}
-        initialIncident={activeEntity}
-        user={user}
-      />
+      {isDisasterModalOpen && (
+        <DisasterBroadcastModal
+          key="live-map-disaster-modal"
+          isOpen={isDisasterModalOpen}
+          onClose={() => setIsDisasterModalOpen(false)}
+          initialIncident={activeEntity}
+          user={user}
+        />
+      )}
 
     </div>
   );

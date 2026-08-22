@@ -349,6 +349,7 @@ export function detectMunicipalWardByText(queryText) {
 import { getGeminiApiKey } from "./geminiVisionService";
 
 const WARD_AI_CACHE = new Map();
+let GEMINI_RATE_LIMIT_COOLDOWN = 0;
 
 /**
  * Uses Google Gemini AI to resolve the authentic, real-world Municipal Corporation,
@@ -358,7 +359,12 @@ export async function resolveActualMunicipalWithGemini(lat, lng, addressString) 
   const apiKey = getGeminiApiKey();
   if (!apiKey) return null;
 
-  const cacheKey = `${lat.toFixed(3)},${lng.toFixed(3)}`;
+  // Check rate limit cooldown
+  if (Date.now() < GEMINI_RATE_LIMIT_COOLDOWN) {
+    return null;
+  }
+
+  const cacheKey = `${lat.toFixed(2)},${lng.toFixed(2)}`;
   if (WARD_AI_CACHE.has(cacheKey)) {
     return WARD_AI_CACHE.get(cacheKey);
   }
@@ -386,7 +392,7 @@ Return ONLY raw JSON conforming strictly to this schema:
     generationConfig: { responseMimeType: "application/json", temperature: 0.1 }
   };
 
-  const models = ["gemini-3.6-flash", "gemini-3.7-flash", "gemini-flash-latest", "gemini-3.5-flash"];
+  const models = ["gemini-3.6-flash", "gemini-3.7-flash"];
 
   for (const modelName of models) {
     try {
@@ -396,9 +402,15 @@ Return ONLY raw JSON conforming strictly to this schema:
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
-          signal: AbortSignal.timeout(4500)
+          signal: AbortSignal.timeout(4000)
         }
       );
+
+      if (res.status === 429) {
+        console.warn("Gemini Rate Limit (429) reached. Entering 30s cooldown and using local geographic resolution.");
+        GEMINI_RATE_LIMIT_COOLDOWN = Date.now() + 30000;
+        break; // Stop immediately to avoid burning quota
+      }
 
       if (res.ok) {
         const data = await res.json();

@@ -118,7 +118,14 @@ export default function MunicipalOfficerView({
 
   // Pending tasks ready for dispatch
   const pendingTasks = incidents.filter(
-    (i) => i.status === "Submitted" || i.status === "AI Verified" || i.status === "Verified" || i.status === "In Progress"
+    (i) =>
+      i.status === "Forwarded to Municipal Officer" ||
+      i.status === "Pending Officer Assignment" ||
+      i.status === "AI Verified" ||
+      i.status === "Verified" ||
+      i.status === "Submitted" ||
+      i.status === "Reported" ||
+      i.status === "In Progress"
   );
 
   const lateTeamsCount = occupiedTeams.filter((t) => {

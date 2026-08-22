@@ -24,6 +24,7 @@ import {
 import { detect, getModelInfo } from "./detector.js";
 import { getAllStreams, getStreamById, registerStream, getMediaGatewayConfig } from "./streamGateway.js";
 import { runModelValidation } from "./validateModel.js";
+import { dispatchRealWorldEmergencyAlerts } from "./notificationGateway.js";
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -142,6 +143,16 @@ app.post("/api/emergency/broadcast-level5", async (req, res) => {
       })
       .filter((c) => c.inHazardZone);
 
+    // 2. Dispatch Real-World SMS and Email to all targeted recipients
+    const realWorldDispatch = await dispatchRealWorldEmergencyAlerts({
+      recipients: targetedCitizens,
+      disasterType: disasterType || "Level 5 Structural / Toxic Catastrophe",
+      epicenterLocation: epicenterLocation || "Municipal Hazard Zone",
+      shelterLocation: shelterLocation || "Municipal Disaster Relief Center A",
+      radiusKm,
+      message: customMessage || `🚨 [NEXINFRA LEVEL 5 DISASTER ALERT]: Evacuate ${radiusKm}km perimeter around ${epicenterLocation}. Proceed to ${shelterLocation}. Helplines: 112 / 108.`
+    });
+
     const broadcastPayload = {
       broadcastId: `L5-DISASTER-${Date.now()}`,
       disasterType: disasterType || "Level 5 Structural / Toxic Catastrophe",
@@ -151,16 +162,17 @@ app.post("/api/emergency/broadcast-level5", async (req, res) => {
       shelterLocation: shelterLocation || "Municipal Disaster Relief Center A",
       message: customMessage || `🚨 [NEXINFRA LEVEL 5 DISASTER ALERT]: Evacuate ${radiusKm}km perimeter around ${epicenterLocation}. Proceed to ${shelterLocation}. Helplines: 112 / 108.`,
       dispatchedCount: targetedCitizens.length,
-      dispatchedRecipients: targetedCitizens.map((c) => ({ name: c.name, phone: c.phone, ward: c.ward, dist: `${c.distanceKm} km` })),
+      dispatchedRecipients: targetedCitizens.map((c) => ({ name: c.name, phone: c.phone, email: c.email, ward: c.ward, dist: `${c.distanceKm} km` })),
       cellularGatewayStatus: "TRANSMITTED_ALL_CHANNELS",
+      realWorldDispatch,
       timestamp: new Date().toISOString()
     };
 
-    console.log(`🚨 [LEVEL 5 BROADCAST DISPATCHED]: ${targetedCitizens.length} mobile numbers notified!`);
+    console.log(`🚨 [LEVEL 5 BROADCAST DISPATCHED]: ${targetedCitizens.length} mobile numbers & emails notified! SMS Sent: ${realWorldDispatch.smsDispatched}, Emails Sent: ${realWorldDispatch.emailDispatched}`);
 
     res.status(200).json({
       success: true,
-      message: `Level 5 Disaster Broadcast transmitted to ${targetedCitizens.length} registered mobile numbers.`,
+      message: `Level 5 Disaster Broadcast transmitted to ${targetedCitizens.length} registered citizens (Real SMS: ${realWorldDispatch.smsDispatched}, Real Emails: ${realWorldDispatch.emailDispatched}).`,
       data: broadcastPayload
     });
 
