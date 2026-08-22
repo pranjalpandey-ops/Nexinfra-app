@@ -72,7 +72,12 @@ export async function analyzeWithGeminiVision(imageSource) {
 
     if (!base64Data) return null;
 
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+    let endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`;
+    const headers = { "Content-Type": "application/json" };
+
+    if (apiKey.startsWith("AQ.") || apiKey.startsWith("ya29.")) {
+      endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`;
+    }
 
     const prompt = `You are the AI Vision Inspector for the Nexinfra Smart City Civic Governance Matrix.
 Analyze this camera surveillance / civic report image.
@@ -140,12 +145,12 @@ Schema:
 
     const response = await fetch(endpoint, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: headers,
       body: JSON.stringify(requestBody),
     });
 
     if (!response.ok) {
-      console.warn("Gemini API Error:", response.status, response.statusText);
+      // Gracefully fall back to local neural analyzer without throwing
       return null;
     }
 
