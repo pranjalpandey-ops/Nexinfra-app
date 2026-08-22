@@ -22,6 +22,8 @@ import {
 } from "firebase/firestore";
 
 import { detect, getModelInfo } from "./detector.js";
+import { getAllStreams, getStreamById, registerStream, getMediaGatewayConfig } from "./streamGateway.js";
+import { runModelValidation } from "./validateModel.js";
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -418,6 +420,72 @@ app.post("/api/detect-frame", upload.single("frame"), async (req, res) => {
       error: "DETECTION_FAILED",
       message: error.message || "Detection failed",
       detections: []
+    });
+  }
+});
+
+// =========================================================
+// CCTV RTSP & MEDIA GATEWAY ENDPOINTS
+// =========================================================
+
+app.get("/api/streams", (req, res) => {
+  res.json({
+    success: true,
+    count: getAllStreams().length,
+    streams: getAllStreams()
+  });
+});
+
+app.get("/api/streams/:id", (req, res) => {
+  const stream = getStreamById(req.params.id);
+  if (!stream) {
+    return res.status(404).json({ success: false, error: "Stream not found" });
+  }
+  res.json({ success: true, stream });
+});
+
+app.post("/api/streams/register", (req, res) => {
+  const { id, rtspUrl, streamType, streamUrl, name, location, latitude, longitude } = req.body;
+  if (!id) {
+    return res.status(400).json({ success: false, error: "Camera ID is required" });
+  }
+  const updated = registerStream(id, {
+    rtspUrl,
+    streamType: streamType || (rtspUrl ? "rtsp" : "demo"),
+    streamUrl,
+    name,
+    location,
+    latitude,
+    longitude,
+    status: rtspUrl ? "LIVE" : "NO_STREAM"
+  });
+  res.json({ success: true, message: `Stream for ${id} registered`, stream: updated });
+});
+
+app.get("/api/media-gateway/config", (req, res) => {
+  res.json({
+    success: true,
+    config: getMediaGatewayConfig()
+  });
+});
+
+// =========================================================
+// AI MODEL VALIDATION & BENCHMARK SUITE
+// =========================================================
+
+app.get("/api/ai/validate", async (req, res) => {
+  try {
+    const report = await runModelValidation();
+    res.json({
+      success: true,
+      report
+    });
+  } catch (err) {
+    console.error("AI Validation error:", err);
+    res.status(500).json({
+      success: false,
+      error: "VALIDATION_FAILED",
+      message: err.message
     });
   }
 });

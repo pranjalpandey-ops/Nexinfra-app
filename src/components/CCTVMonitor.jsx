@@ -30,19 +30,33 @@ import {
   Filter,
   Sparkles,
   Plane,
-  ShieldCheck
+  ShieldCheck,
+  Signal,
+  Settings,
+  Link,
+  HelpCircle
 } from "lucide-react";
 import {
   checkYoloBackendHealth,
   detectFrameWithBackend,
   CIVIC_TAXONOMY_MAP
 } from "../services/visionAiService";
+import {
+  getCanonicalCategory,
+  getCanonicalMetadata,
+  CANONICAL_CIVIC_CATEGORIES
+} from "../services/aiClassMapping";
 import { analyzeWithGeminiVision } from "../services/geminiVisionService";
 import { addCivicIssue } from "../services/civicDb";
 import { createDroneMissionFromIncident } from "../services/droneMissionService";
+import {
+  fetchCctvStreams,
+  attachHlsStream,
+  getStreamStatusBadge
+} from "../services/streamService";
 
-// Fixed Municipal CCTV Feeds for Smart City Grid with Exact GPS Telemetry
-const CCTV_CHANNELS = [
+// Municipal CCTV Feeds Configuration with HLS Streams & RTSP Gateway mappings
+const DEFAULT_CCTV_CHANNELS = [
   {
     id: "CAM-01",
     name: "Western Expressway - Sector 4",
@@ -51,9 +65,12 @@ const CCTV_CHANNELS = [
     latitude: 28.6139,
     longitude: 77.2090,
     ward: "Central District - Ward 4",
+    streamType: "hls", // "hls" | "webrtc" | "video" | "rtsp" | "demo"
+    streamUrl: "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+    rtspUrl: "rtsp://gateway.nexinfra.local:8554/cam01",
+    status: "LIVE",
     resolution: "1080p @ 30fps",
     bitrate: "5.4 Mbps",
-    videoUrl: "",
     sampleImage: "https://images.unsplash.com/photo-1515162816999-a0c47dc192f7?w=1200&auto=format&fit=crop&q=80"
   },
   {
@@ -64,9 +81,12 @@ const CCTV_CHANNELS = [
     latitude: 28.6220,
     longitude: 77.2140,
     ward: "Sector 18 Ward - Zone A",
+    streamType: "hls",
+    streamUrl: "https://bitdash-a.akamaihd.net/content/sintel/hls/playlist.m3u8",
+    rtspUrl: "rtsp://gateway.nexinfra.local:8554/cam02",
+    status: "LIVE",
     resolution: "1080p @ 30fps",
     bitrate: "4.8 Mbps",
-    videoUrl: "",
     sampleImage: "https://images.unsplash.com/photo-1584467735871-8e85353a8413?w=1200&auto=format&fit=crop&q=80"
   },
   {
@@ -77,9 +97,12 @@ const CCTV_CHANNELS = [
     latitude: 28.6060,
     longitude: 77.1945,
     ward: "North Green Corridor - Ward 2",
+    streamType: "webrtc",
+    streamUrl: "",
+    rtspUrl: "",
+    status: "NO_STREAM",
     resolution: "720p @ 30fps",
     bitrate: "3.2 Mbps",
-    videoUrl: "",
     sampleImage: "https://images.unsplash.com/photo-1605600659908-0ef719419d41?w=1200&auto=format&fit=crop&q=80"
   },
   {
@@ -90,9 +113,12 @@ const CCTV_CHANNELS = [
     latitude: 28.6290,
     longitude: 77.2020,
     ward: "Cyber Hub Transit Corridor - Ward 12",
+    streamType: "hls",
+    streamUrl: "https://cph-p2p-msl.akamaized.net/hls/live/200034/test/master.m3u8",
+    rtspUrl: "rtsp://gateway.nexinfra.local:8554/cam04",
+    status: "LIVE",
     resolution: "4K UHD @ 60fps",
     bitrate: "12.0 Mbps",
-    videoUrl: "",
     sampleImage: "https://images.unsplash.com/photo-1541888946425-d0fbb18086f6?w=1200&auto=format&fit=crop&q=80"
   },
   {
@@ -103,9 +129,12 @@ const CCTV_CHANNELS = [
     latitude: 28.6010,
     longitude: 77.2280,
     ward: "East Ring Ward 8",
+    streamType: "rtsp",
+    streamUrl: "",
+    rtspUrl: "rtsp://192.168.1.105:554/live",
+    status: "OFFLINE",
     resolution: "1080p @ 30fps",
-    bitrate: "6.1 Mbps",
-    videoUrl: "",
+    bitrate: "0 Mbps",
     sampleImage: "https://images.unsplash.com/photo-1509390144018-8bc7f2868846?w=1200&auto=format&fit=crop&q=80"
   },
   {
@@ -116,21 +145,67 @@ const CCTV_CHANNELS = [
     latitude: 28.6065,
     longitude: 77.1950,
     ward: "South Perimeter Parks - Ward 15",
+    streamType: "demo",
+    streamUrl: "",
+    rtspUrl: "",
+    status: "DEMO_SAMPLE",
     resolution: "1080p @ 30fps",
-    bitrate: "5.8 Mbps",
-    videoUrl: "",
+    bitrate: "--",
     sampleImage: "https://images.unsplash.com/photo-1448375240586-882707db888b?w=1200&auto=format&fit=crop&q=80"
   }
 ];
 
+/**
+ * Calculates 2D Intersection over Union (IoU) between consecutive detection bounding boxes
+ * @param {Object} boxA - Previous frame bounding box { normX, normY, normW, normH }
+ * @param {Object} boxB - Current frame bounding box { normX, normY, normW, normH }
+ * @returns {number} IoU score between 0.0 and 1.0
+ */
+export function calculateBoxIoU(boxA, boxB) {
+  if (!boxA || !boxB) return 0;
+
+  const ax1 = boxA.normX ?? boxA.x ?? 0;
+  const ay1 = boxA.normY ?? boxA.y ?? 0;
+  const aw = boxA.normW ?? boxA.w ?? 0;
+  const ah = boxA.normH ?? boxA.h ?? 0;
+  const ax2 = ax1 + aw;
+  const ay2 = ay1 + ah;
+
+  const bx1 = boxB.normX ?? boxB.x ?? 0;
+  const by1 = boxB.normY ?? boxB.y ?? 0;
+  const bw = boxB.normW ?? boxB.w ?? 0;
+  const bh = boxB.normH ?? boxB.h ?? 0;
+  const bx2 = bx1 + bw;
+  const by2 = by1 + bh;
+
+  const interX1 = Math.max(ax1, bx1);
+  const interY1 = Math.max(ay1, by1);
+  const interX2 = Math.min(ax2, bx2);
+  const interY2 = Math.min(ay2, by2);
+
+  const interW = Math.max(0, interX2 - interX1);
+  const interH = Math.max(0, interY2 - interY1);
+  const interArea = interW * interH;
+
+  const areaA = Math.max(0, aw) * Math.max(0, ah);
+  const areaB = Math.max(0, bw) * Math.max(0, bh);
+  const unionArea = areaA + areaB - interArea;
+
+  if (unionArea <= 0) return 0;
+  return parseFloat((interArea / unionArea).toFixed(3));
+}
+
 export default function CCTVMonitor({ user, setActivePage }) {
   // Feed & Video State
-  const [selectedSourceType, setSelectedSourceType] = useState("channel");
-  const [activeChannel, setActiveChannel] = useState(CCTV_CHANNELS[0]);
+  const [cctvChannels, setCctvChannels] = useState(DEFAULT_CCTV_CHANNELS);
+  const [selectedSourceType, setSelectedSourceType] = useState("channel"); // "channel" | "webcam" | "file"
+  const [activeChannel, setActiveChannel] = useState(DEFAULT_CCTV_CHANNELS[0]);
+  const [currentStreamStatus, setCurrentStreamStatus] = useState("CONNECTING"); // "LIVE" | "CONNECTING" | "OFFLINE" | "NO_STREAM" | "DEMO_SAMPLE"
   const [customVideoSrc, setCustomVideoSrc] = useState(null);
   const [isMediaTypeImage, setIsMediaTypeImage] = useState(false);
-  const [isGridMode, setIsGridMode] = useState(false);
   const [cameraPermissionDenied, setCameraPermissionDenied] = useState(false);
+  const [showRtspConfigModal, setShowRtspConfigModal] = useState(false);
+  const [customRtspInput, setCustomRtspInput] = useState("");
 
   const [targetDefectFilter, setTargetDefectFilter] = useState("all");
 
@@ -138,10 +213,11 @@ export default function CCTVMonitor({ user, setActivePage }) {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const customFileInputRef = useRef(null);
+  const hlsCleanupRef = useRef(null);
 
   // AI & Multi-Frame Temporal Verification States
   const [isDetecting, setIsDetecting] = useState(true);
-  const [scanIntervalMs, setScanIntervalMs] = useState(800); // 800ms controlled loop
+  const [scanIntervalMs, setScanIntervalMs] = useState(800);
   const [currentDetection, setCurrentDetection] = useState(null);
   const [recentDetections, setRecentDetections] = useState([]);
   const [backendHealth, setBackendHealth] = useState({ status: "checking", engine: "NEXinfra ONNX Civic Detector" });
@@ -150,14 +226,15 @@ export default function CCTVMonitor({ user, setActivePage }) {
   const [isSubmittingReport, setIsSubmittingReport] = useState(false);
 
   // Verification Pipeline States
-  const [verificationState, setVerificationState] = useState("WAITING"); // WAITING, VERIFYING (1/3), VERIFYING (2/3), AI VERIFIED, NO DEFECT, AI DETECTION OFFLINE
+  const [verificationState, setVerificationState] = useState("WAITING");
   const [consecutiveCount, setConsecutiveCount] = useState(0);
+  const [currentTrackingIou, setCurrentTrackingIou] = useState(null);
 
-  // Concurrency and Multi-Frame Ref Guards
+  // Concurrency, Spatial IoU Tracking & Cooldown Refs
   const isInferencingRef = useRef(false);
   const consecutiveCountRef = useRef(0);
-  const trackedClassRef = useRef(null);
-  const cooldownMapRef = useRef({}); // Prevents duplicate spam within 60s: { "[camId]_[defectClass]": timestamp }
+  const trackedDefectRef = useRef(null); // { canonicalCategory, box, confidence, lastIou, timestamp }
+  const cooldownMapRef = useRef({});
 
   // Performance Telemetry
   const [fps, setFps] = useState(30);
@@ -178,7 +255,17 @@ export default function CCTVMonitor({ user, setActivePage }) {
     return () => clearInterval(timer);
   }, []);
 
-  // Check ONNX Backend Health on Mount & Periodically
+  // Fetch Live CCTV Streams from Backend Stream Gateway
+  useEffect(() => {
+    fetchCctvStreams().then((remoteStreams) => {
+      if (remoteStreams && remoteStreams.length > 0) {
+        setCctvChannels(remoteStreams);
+        setActiveChannel((prev) => remoteStreams.find((s) => s.id === prev.id) || remoteStreams[0]);
+      }
+    });
+  }, []);
+
+  // Check ONNX Backend Health
   const checkBackend = useCallback(() => {
     checkYoloBackendHealth().then((res) => {
       setBackendHealth(res);
@@ -193,8 +280,13 @@ export default function CCTVMonitor({ user, setActivePage }) {
 
   // WebCam Stream Initializer
   const startWebcam = useCallback(async () => {
+    if (hlsCleanupRef.current) {
+      hlsCleanupRef.current.destroy();
+      hlsCleanupRef.current = null;
+    }
     setCameraPermissionDenied(false);
     setSelectedSourceType("webcam");
+    setCurrentStreamStatus("CONNECTING");
 
     try {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
@@ -221,60 +313,99 @@ export default function CCTVMonitor({ user, setActivePage }) {
         videoRef.current.setAttribute("muted", "true");
         videoRef.current.onloadedmetadata = () => {
           videoRef.current?.play().catch((e) => console.warn("Video play exception:", e));
+          setCurrentStreamStatus("LIVE");
         };
         videoRef.current.play().catch(() => {});
       }
     } catch (err) {
       console.warn("Hardware Webcam Error:", err);
       setCameraPermissionDenied(true);
+      setCurrentStreamStatus("OFFLINE");
       setSelectedSourceType("channel");
     }
   }, []);
 
-  // Switch Sources
+  // Stream Lifecycle Management for Channel Switching & HLS/WebRTC playback
   useEffect(() => {
-    if (selectedSourceType === "webcam") {
-      startWebcam();
-    } else {
+    if (selectedSourceType === "channel" && activeChannel) {
+      if (hlsCleanupRef.current) {
+        hlsCleanupRef.current.destroy();
+        hlsCleanupRef.current = null;
+      }
+
       if (videoRef.current?.srcObject) {
-        videoRef.current.srcObject.getTracks().forEach((track) => track.stop());
+        try {
+          videoRef.current.srcObject.getTracks().forEach((track) => track.stop());
+        } catch (e) {}
         videoRef.current.srcObject = null;
       }
+
+      if (activeChannel.streamType === "demo" || !activeChannel.streamUrl) {
+        if (activeChannel.status === "NO_STREAM") {
+          setCurrentStreamStatus("NO_STREAM");
+        } else if (activeChannel.status === "OFFLINE") {
+          setCurrentStreamStatus("OFFLINE");
+        } else {
+          setCurrentStreamStatus("DEMO_SAMPLE");
+        }
+      } else if (videoRef.current) {
+        const cleanup = attachHlsStream(videoRef.current, activeChannel.streamUrl, (status) => {
+          setCurrentStreamStatus(status);
+        });
+        hlsCleanupRef.current = cleanup;
+      }
+    } else if (selectedSourceType === "file") {
+      if (hlsCleanupRef.current) {
+        hlsCleanupRef.current.destroy();
+        hlsCleanupRef.current = null;
+      }
+      setCurrentStreamStatus(isMediaTypeImage ? "DEMO_SAMPLE" : "LIVE");
     }
-  }, [selectedSourceType, startWebcam]);
+
+    return () => {
+      if (hlsCleanupRef.current) {
+        hlsCleanupRef.current.destroy();
+        hlsCleanupRef.current = null;
+      }
+    };
+  }, [selectedSourceType, activeChannel, isMediaTypeImage]);
+
+  // Is Real Video Stream Playing?
+  const isRealStreamPlaying = () => {
+    if (selectedSourceType === "webcam") {
+      return Boolean(videoRef.current?.srcObject && videoRef.current.readyState >= 2);
+    }
+    if (selectedSourceType === "file") {
+      return !isMediaTypeImage && Boolean(videoRef.current && videoRef.current.readyState >= 2 && !videoRef.current.paused);
+    }
+    if (selectedSourceType === "channel") {
+      return currentStreamStatus === "LIVE" && Boolean(videoRef.current && videoRef.current.readyState >= 2 && !videoRef.current.paused);
+    }
+    return false;
+  };
 
   // Real-Time Frame Capture & Multi-Frame ONNX Detection Loop
   const captureAndDetect = useCallback(async () => {
-    if (isInferencingRef.current) {
-      return; // Skip frame if previous inference is still in flight
+    if (isInferencingRef.current) return;
+
+    // Only run continuous detection when an actual video stream or webcam is actively playing
+    if (!isRealStreamPlaying()) {
+      return;
     }
 
     const video = videoRef.current;
     const canvas = canvasRef.current;
-    let frameBase64 = "";
+    if (!video || !canvas || video.readyState < 2) return;
 
+    let frameBase64 = "";
     try {
-      if (selectedSourceType === "file" && isMediaTypeImage && customVideoSrc) {
-        frameBase64 = customVideoSrc;
-      } else if (video && video.readyState >= 2 && video.videoWidth > 0 && canvas) {
-        canvas.width = 640;
-        canvas.height = 360;
-        const ctx = canvas.getContext("2d", { willReadFrequently: true });
-        ctx.drawImage(video, 0, 0, 640, 360);
-        try {
-          frameBase64 = canvas.toDataURL("image/jpeg", 0.75);
-        } catch (taintErr) {
-          if (selectedSourceType === "channel" && activeChannel?.sampleImage) {
-            frameBase64 = activeChannel.sampleImage;
-          }
-        }
-      } else if (selectedSourceType === "channel" && activeChannel?.sampleImage) {
-        frameBase64 = activeChannel.sampleImage;
-      }
+      canvas.width = 640;
+      canvas.height = 360;
+      const ctx = canvas.getContext("2d", { willReadFrequently: true });
+      ctx.drawImage(video, 0, 0, 640, 360);
+      frameBase64 = canvas.toDataURL("image/jpeg", 0.75);
     } catch (err) {
-      if (selectedSourceType === "channel" && activeChannel?.sampleImage) {
-        frameBase64 = activeChannel.sampleImage;
-      }
+      return;
     }
 
     if (!frameBase64) return;
@@ -283,14 +414,12 @@ export default function CCTVMonitor({ user, setActivePage }) {
     const startTime = performance.now();
 
     try {
-      // 1. Send frame to ONNX backend detector (Zero Fake Pothole Heuristics)
       const backendRes = await detectFrameWithBackend(frameBase64);
       const elapsed = Math.round(performance.now() - startTime);
       setInferenceLatencyMs(elapsed);
 
-      // Determine active camera identifiers and coordinates
       const camId = selectedSourceType === "webcam" ? "CAM-LIVE" : selectedSourceType === "file" ? "CAM-USER" : activeChannel.id;
-      const camName = selectedSourceType === "webcam" ? "Live Integrated Camera" : selectedSourceType === "file" ? "Uploaded Media Stream" : activeChannel.name;
+      const camName = selectedSourceType === "webcam" ? "Live Integrated Camera" : selectedSourceType === "file" ? "Uploaded Video Stream" : activeChannel.name;
       const camLat = selectedSourceType === "channel" ? activeChannel.latitude : 28.6139;
       const camLng = selectedSourceType === "channel" ? activeChannel.longitude : 77.2090;
       const camLocation = selectedSourceType === "channel" ? activeChannel.location : "Central Command Hub";
@@ -308,56 +437,84 @@ export default function CCTVMonitor({ user, setActivePage }) {
       setBackendHealth({ status: "online", modelLoaded: true, engine: backendRes.engine || "NEXinfra ONNX Civic Detector" });
 
       const rawDetections = Array.isArray(backendRes.detections) ? backendRes.detections : [];
-      
-      // Apply Filter if selected
       const filteredDetections = targetDefectFilter === "all"
         ? rawDetections
         : rawDetections.filter((d) => d.class === targetDefectFilter || d.category === targetDefectFilter);
 
       if (filteredDetections.length > 0) {
-        // Sort highest confidence first
         filteredDetections.sort((a, b) => (b.confidence || 0) - (a.confidence || 0));
         const top = filteredDetections[0];
+        const canonicalCategory = getCanonicalCategory(top.class || top.category || top.rawClass);
+        const taxMeta = getCanonicalMetadata(canonicalCategory);
 
-        // Multi-Frame Temporal Verification (Requires 3 consecutive frames with confidence >= 0.70)
-        if (top.confidence >= 0.70) {
-          if (trackedClassRef.current === top.class) {
-            consecutiveCountRef.current += 1;
+        // Spatial-Temporal Verification: Class + Confidence >= 0.70 + Bounding Box IoU >= 0.35
+        const IOU_THRESHOLD = 0.35;
+        const CONFIDENCE_THRESHOLD = 0.70;
+
+        let spatialIoU = 1.0;
+        let isSpatialMatch = false;
+
+        if (top.confidence >= CONFIDENCE_THRESHOLD) {
+          if (trackedDefectRef.current) {
+            spatialIoU = calculateBoxIoU(trackedDefectRef.current.box, top.box);
+            const isSameClass = trackedDefectRef.current.canonicalCategory === canonicalCategory;
+            const hasSufficientOverlap = spatialIoU >= IOU_THRESHOLD;
+
+            if (isSameClass && hasSufficientOverlap) {
+              consecutiveCountRef.current += 1;
+              isSpatialMatch = true;
+              trackedDefectRef.current = {
+                canonicalCategory,
+                box: top.box,
+                confidence: top.confidence,
+                lastIou: spatialIoU,
+                timestamp: Date.now()
+              };
+            } else {
+              // Reset verification if object moved significantly (IoU < 0.35) or class changed
+              console.log(`🔄 [SPATIAL RESET] Defect moved or changed (IoU: ${spatialIoU}, Class: ${canonicalCategory}). Resetting track.`);
+              consecutiveCountRef.current = 1;
+              trackedDefectRef.current = {
+                canonicalCategory,
+                box: top.box,
+                confidence: top.confidence,
+                lastIou: 1.0,
+                timestamp: Date.now()
+              };
+            }
           } else {
-            trackedClassRef.current = top.class;
+            // Initial first detection track
             consecutiveCountRef.current = 1;
+            trackedDefectRef.current = {
+              canonicalCategory,
+              box: top.box,
+              confidence: top.confidence,
+              lastIou: 1.0,
+              timestamp: Date.now()
+            };
           }
         } else {
+          // Confidence dropped below threshold - reset verification
           consecutiveCountRef.current = 0;
-          trackedClassRef.current = null;
+          trackedDefectRef.current = null;
         }
 
         const count = consecutiveCountRef.current;
         setConsecutiveCount(count);
+        setCurrentTrackingIou(spatialIoU);
 
         let vState = "WAITING";
         if (count === 1) vState = "VERIFYING (1/3)";
-        else if (count === 2) vState = "VERIFYING (2/3)";
+        else if (count === 2) vState = `VERIFYING (2/3 • IoU ${Math.round(spatialIoU * 100)}%)`;
         else if (count >= 3) vState = "AI VERIFIED";
         setVerificationState(vState);
-
-        const taxMeta = CIVIC_TAXONOMY_MAP[top.class] || CIVIC_TAXONOMY_MAP[top.category] || {
-          category: top.class || "Road Damage / Pothole",
-          defectName: top.class || "Civic Defect",
-          department: top.department || "Roads",
-          assignedDepartment: top.assignedDepartment || "Road Maintenance & Pavement Division",
-          severity: top.severity || "Critical",
-          priority: top.priority || "P1",
-          slaHours: top.slaHours || 4,
-          color: "#EF4444"
-        };
 
         const detectionPayload = {
           success: true,
           isDefect: true,
-          class: top.class,
-          category: taxMeta.category,
-          defectName: taxMeta.defectName || top.class,
+          class: canonicalCategory,
+          category: canonicalCategory,
+          defectName: taxMeta.defectName,
           confidence: top.confidence,
           confidencePercent: Math.round(top.confidence * 100),
           priority: taxMeta.priority || "P1",
@@ -370,7 +527,7 @@ export default function CCTVMonitor({ user, setActivePage }) {
           problemLevelLabel: `Level ${top.confidence > 0.85 ? 4 : 3} - Real ONNX Detection`,
           hazardScore: Math.round(top.confidence * 100),
           dimensions: top.box ? `${top.box.width || 240}px x ${top.box.height || 160}px` : "Spatial Anomaly Matrix",
-          labelMain: top.class,
+          labelMain: canonicalCategory,
           boundingBox: {
             x: top.box?.normX ?? 25,
             y: top.box?.normY ?? 25,
@@ -391,7 +548,6 @@ export default function CCTVMonitor({ user, setActivePage }) {
 
         setCurrentDetection(detectionPayload);
 
-        // Add to Live Surveillance Event Log
         setRecentDetections((prev) => {
           const isDup = prev[0]?.class === top.class && Date.now() - prev[0]?.time < 3000;
           if (isDup) return prev;
@@ -406,9 +562,9 @@ export default function CCTVMonitor({ user, setActivePage }) {
           ];
         });
 
-        // 8. AUTOMATIC INCIDENT CREATION UPON AI VERIFIED (with 60s Duplicate Cooldown)
+        // Auto-create incident on 3-frame verification with 60s cooldown
         if (count >= 3) {
-          const cooldownKey = `${camId}_${top.class}`;
+          const cooldownKey = `${camId}_${canonicalCategory}`;
           const now = Date.now();
           const lastCreated = cooldownMapRef.current[cooldownKey] || 0;
 
@@ -417,8 +573,8 @@ export default function CCTVMonitor({ user, setActivePage }) {
 
             const incident = {
               id: `CCTV-${Date.now()}`,
-              title: `[CCTV VERIFIED] ${taxMeta.defectName || top.class}`,
-              category: taxMeta.category || top.class,
+              title: `[CCTV VERIFIED] ${taxMeta.defectName}`,
+              category: canonicalCategory,
               description: `Real-time multi-frame verified civic defect detected by surveillance camera (${camName} • ${camLocation}). Verified across 3 consecutive YOLO frames with ${Math.round(top.confidence * 100)}% confidence. Ready for drone inspection & work order dispatch.`,
               priority: taxMeta.priority || "P1",
               priorityLabel: `${taxMeta.priority || "P1"} - Critical Hazard`,
@@ -451,17 +607,24 @@ export default function CCTVMonitor({ user, setActivePage }) {
               createdBy: "cctv.ai@nexinfra.gov"
             };
 
-            addCivicIssue(incident);
-            createDroneMissionFromIncident(incident);
+            const saveRes = await addCivicIssue(incident);
+            const firestoreId = saveRes?.id || incident.id;
+            createDroneMissionFromIncident({
+              ...incident,
+              id: firestoreId,
+              targetIncidentId: firestoreId
+            });
 
+            console.log(`✅ [CCTV INCIDENT FIRESTORE ID]: ${firestoreId}`);
             setLastLoggedIncident(taxMeta.defectName || top.class);
             setTimeout(() => setLastLoggedIncident(null), 5000);
           }
         }
       } else {
-        // No defects detected in frame
         consecutiveCountRef.current = 0;
         setConsecutiveCount(0);
+        trackedDefectRef.current = null;
+        setCurrentTrackingIou(null);
         setVerificationState("NO DEFECT");
         setCurrentDetection(null);
       }
@@ -471,7 +634,7 @@ export default function CCTVMonitor({ user, setActivePage }) {
     } finally {
       isInferencingRef.current = false;
     }
-  }, [selectedSourceType, activeChannel, targetDefectFilter, isMediaTypeImage, customVideoSrc]);
+  }, [selectedSourceType, activeChannel, targetDefectFilter, currentStreamStatus]);
 
   // Live Continuous Detection Interval
   useEffect(() => {
@@ -482,54 +645,37 @@ export default function CCTVMonitor({ user, setActivePage }) {
     return () => clearInterval(interval);
   }, [isDetecting, scanIntervalMs, captureAndDetect]);
 
-  // Handle Manual Gemini Multimodal Deep Scan
-  const [isGeminiScanning, setIsGeminiScanning] = useState(false);
-  const handleGeminiDeepScan = async () => {
-    const video = videoRef.current;
-    const canvas = canvasRef.current;
-    let frameBase64 = "";
-
+  // Single-Shot Demo Scan on Static Sample Image (Explicitly Labeled)
+  const handleSingleDemoScan = async () => {
+    if (!activeChannel?.sampleImage) return;
+    setIsSubmittingReport(true);
     try {
-      if (selectedSourceType === "file" && isMediaTypeImage && customVideoSrc) {
-        frameBase64 = customVideoSrc;
-      } else if (video && canvas) {
-        canvas.width = video.videoWidth || 640;
-        canvas.height = video.videoHeight || 360;
-        const ctx = canvas.getContext("2d", { willReadFrequently: true });
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        frameBase64 = canvas.toDataURL("image/jpeg", 0.90);
-      } else if (selectedSourceType === "channel" && activeChannel?.sampleImage) {
-        frameBase64 = activeChannel.sampleImage;
+      const res = await detectFrameWithBackend(activeChannel.sampleImage);
+      if (res && res.success && res.detections?.length > 0) {
+        const top = res.detections[0];
+        const tax = CIVIC_TAXONOMY_MAP[top.class] || { category: top.class, defectName: top.class, priority: "P1", severity: "Critical", department: "Roads", slaHours: 4 };
+        setCurrentDetection({
+          success: true,
+          isDefect: true,
+          class: canonicalCategory,
+          category: tax.category,
+          defectName: tax.defectName,
+          confidence: top.confidence,
+          confidencePercent: Math.round(top.confidence * 100),
+          priority: tax.priority,
+          priorityLabel: `${tax.priority} - Demo Detection`,
+          severity: tax.severity,
+          department: tax.department,
+          slaHours: tax.slaHours,
+          boundingBox: { x: top.box?.normX ?? 25, y: top.box?.normY ?? 25, w: top.box?.normW ?? 50, h: top.box?.normH ?? 40 },
+          labelMain: top.class
+        });
+        setVerificationState("DEMO MODE");
       }
     } catch (e) {
-      if (activeChannel?.sampleImage) frameBase64 = activeChannel.sampleImage;
-    }
-
-    if (!frameBase64) return;
-
-    setIsGeminiScanning(true);
-    try {
-      const geminiResult = await analyzeWithGeminiVision(frameBase64);
-      if (geminiResult && geminiResult.success) {
-        setCurrentDetection(geminiResult);
-        if (geminiResult.isDefect && geminiResult.category !== "Clear / Normal") {
-          setRecentDetections((prev) => [
-            {
-              ...geminiResult,
-              time: Date.now(),
-              channelId: selectedSourceType === "webcam" ? "LIVE-CAM-HD" : selectedSourceType === "file" ? "USER-MEDIA" : activeChannel.id,
-              channelName: selectedSourceType === "webcam" ? "Live Integrated Cam" : selectedSourceType === "file" ? "Uploaded Media" : activeChannel.name,
-              snapshot: frameBase64,
-              engineBadge: "Gemini 3.5 Flash"
-            },
-            ...prev.slice(0, 19)
-          ]);
-        }
-      }
-    } catch (err) {
-      console.warn("Gemini Deep Scan Error:", err);
+      console.warn("Demo Scan error:", e);
     } finally {
-      setIsGeminiScanning(false);
+      setIsSubmittingReport(false);
     }
   };
 
@@ -543,12 +689,13 @@ export default function CCTVMonitor({ user, setActivePage }) {
         setCustomVideoSrc(evt.target.result);
         setIsMediaTypeImage(isImg);
         setSelectedSourceType("file");
+        setCurrentStreamStatus(isImg ? "DEMO_SAMPLE" : "LIVE");
       };
       reader.readAsDataURL(file);
     }
   };
 
-  // Instant 1-Click Manual Dispatch
+  // Instant Manual Dispatch
   const handleAutoLogIncident = async (detectionItem) => {
     const item = detectionItem || currentDetection;
     if (!item) return;
@@ -556,7 +703,7 @@ export default function CCTVMonitor({ user, setActivePage }) {
     setIsSubmittingReport(true);
     try {
       const camId = selectedSourceType === "webcam" ? "CAM-LIVE" : selectedSourceType === "file" ? "CAM-USER" : activeChannel.id;
-      const camName = selectedSourceType === "webcam" ? "Live Integrated Camera" : selectedSourceType === "file" ? "Uploaded Media Stream" : activeChannel.name;
+      const camName = selectedSourceType === "webcam" ? "Live Integrated Camera" : selectedSourceType === "file" ? "Uploaded Video Stream" : activeChannel.name;
       const camLat = selectedSourceType === "channel" ? activeChannel.latitude : 28.6139;
       const camLng = selectedSourceType === "channel" ? activeChannel.longitude : 77.2090;
       const camLocation = selectedSourceType === "channel" ? activeChannel.location : "Central Command Hub";
@@ -566,14 +713,12 @@ export default function CCTVMonitor({ user, setActivePage }) {
         id: `CCTV-${Date.now()}`,
         title: `[CCTV AI DISPATCH] ${item.defectName || item.category}`,
         category: item.category,
-        description: `Automated detection triggered by CCTV surveillance camera (${camName} • ${camLocation}). Problem: ${item.defectName}. Severity: ${item.priorityLabel || item.priority}. Detected with ${item.confidencePercent || 90}% confidence via ONNX YOLO engine. Ready for drone inspection & work order dispatch.`,
+        description: `Manual dispatch from CCTV camera (${camName} • ${camLocation}). Problem: ${item.defectName}. Severity: ${item.priorityLabel || item.priority}. Detected with ${item.confidencePercent || 90}% confidence via ONNX YOLO engine.`,
         priority: item.priority || "P1",
         priorityLabel: item.priorityLabel || "P1 - Critical Hazard",
         severity: item.severity || "Critical",
-        problemLevel: item.problemLevel || 4,
-        hazardScore: item.hazardScore || 85,
         department: item.department || "Roads",
-        assignedDepartment: item.assignedDepartment || "Road Maintenance & Pavement Division",
+        assignedDepartment: item.assignedDepartment || "Road Maintenance Division",
         slaHours: item.slaHours || 4,
         latitude: camLat,
         longitude: camLng,
@@ -585,7 +730,7 @@ export default function CCTVMonitor({ user, setActivePage }) {
         status: "AI Verified",
         aiVerified: true,
         aiConfidence: (item.confidencePercent || 90) / 100,
-        verificationMethod: "3-frame consecutive YOLO verification",
+        verificationMethod: "Surveillance Stream ONNX YOLO",
         source: "REAL_TIME_CCTV",
         cameraId: camId,
         cameraName: camName,
@@ -593,12 +738,18 @@ export default function CCTVMonitor({ user, setActivePage }) {
         upvotes: 1,
         upvotedBy: ["cctv.ai@nexinfra.gov"],
         createdBy: "cctv.ai@nexinfra.gov",
-        imageUrl: item.snapshot || item.sampleImage || "https://images.unsplash.com/photo-1515162816999-a0c47dc192f7?w=800&auto=format&fit=crop&q=60"
+        imageUrl: item.snapshot || item.sampleImage || activeChannel.sampleImage
       };
 
-      addCivicIssue(newReport);
-      createDroneMissionFromIncident(newReport);
+      const saveRes = await addCivicIssue(newReport);
+      const firestoreId = saveRes?.id || newReport.id;
+      createDroneMissionFromIncident({
+        ...newReport,
+        id: firestoreId,
+        targetIncidentId: firestoreId
+      });
 
+      console.log(`✅ [MANUAL DISPATCH FIRESTORE ID]: ${firestoreId}`);
       setLastLoggedIncident(item.defectName || item.category);
       setTimeout(() => setLastLoggedIncident(null), 5000);
     } catch (err) {
@@ -608,20 +759,26 @@ export default function CCTVMonitor({ user, setActivePage }) {
     }
   };
 
-  // Snapshot Capture
-  const handleDownloadSnapshot = () => {
-    if (!canvasRef.current) return;
-    const link = document.createElement("a");
-    link.download = `nexinfra_cctv_${Date.now()}.jpg`;
-    link.href = canvasRef.current.toDataURL("image/jpeg");
-    link.click();
+  const handleRegisterRtspStream = () => {
+    if (!customRtspInput) return;
+    const updated = {
+      ...activeChannel,
+      rtspUrl: customRtspInput,
+      streamType: "rtsp",
+      status: "LIVE"
+    };
+    setCctvChannels((prev) => prev.map((c) => (c.id === activeChannel.id ? updated : c)));
+    setActiveChannel(updated);
+    setCurrentStreamStatus("LIVE");
+    setShowRtspConfigModal(false);
+    setCustomRtspInput("");
   };
 
   const currentCamId = selectedSourceType === "webcam" ? "CAM-LIVE" : selectedSourceType === "file" ? "CAM-USER" : activeChannel.id;
+  const statusBadge = getStreamStatusBadge(currentStreamStatus);
 
   return (
     <div className="flex-1 flex flex-col min-h-screen bg-[#070A12] text-slate-100 font-sans p-6 overflow-y-auto">
-      {/* Hidden Offscreen Processing Canvas */}
       <canvas ref={canvasRef} className="hidden" />
 
       {/* TOP COMMAND HEADER */}
@@ -635,19 +792,26 @@ export default function CCTVMonitor({ user, setActivePage }) {
               <h1 className="text-2xl font-extrabold text-white tracking-tight font-heading flex items-center gap-2">
                 NEXINFRA CCTV DEFECT INTELLIGENCE
                 <span className="px-2.5 py-0.5 rounded-full text-xs font-mono font-bold bg-cyan-950 border border-cyan-500/60 text-cyan-300">
-                  REAL ONNX YOLO
+                  RTSP • HLS • ONNX YOLO
                 </span>
               </h1>
               <p className="text-slate-400 text-xs mt-0.5">
-                Real-time optical frame ingestion, ONNX inference, 3-frame temporal verification & automated drone-ready dispatch
+                Real-time video stream ingestion, ONNX spatial defect localization, 3-frame temporal verification & UAV readiness
               </p>
             </div>
           </div>
         </div>
 
-        {/* Status Indicators: AI Engine, Detection, Camera, Verification */}
+        {/* Status Indicators */}
         <div className="flex flex-wrap items-center gap-2.5 font-mono text-xs">
-          {/* 1. AI ENGINE STATUS */}
+          {/* STREAM STATUS BADGE */}
+          <div className={`px-3 py-1.5 rounded-lg border flex items-center gap-2 ${statusBadge.color}`}>
+            <span className={`w-2 h-2 rounded-full ${statusBadge.dot}`} />
+            <span>STREAM:</span>
+            <strong>{statusBadge.label}</strong>
+          </div>
+
+          {/* AI ENGINE STATUS */}
           <div
             className={`px-3 py-1.5 rounded-lg border flex items-center gap-2 ${
               backendHealth.status === "online"
@@ -656,29 +820,20 @@ export default function CCTVMonitor({ user, setActivePage }) {
             }`}
           >
             <Server className="w-3.5 h-3.5 text-cyan-400" />
-            <span>AI ENGINE:</span>
+            <span>AI:</span>
             <strong className={backendHealth.status === "online" ? "text-emerald-400" : "text-red-400"}>
-              {backendHealth.status === "online" ? "● ONLINE" : "● OFFLINE"}
+              {backendHealth.status === "online" ? "ONLINE" : "OFFLINE"}
             </strong>
           </div>
 
-          {/* 2. DETECTION STATE */}
-          <div className="px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-slate-300 flex items-center gap-1.5">
-            <Cpu className="w-3.5 h-3.5 text-cyan-400" />
-            <span>DETECTION:</span>
-            <strong className={isDetecting ? "text-emerald-400" : "text-slate-400"}>
-              {isDetecting ? "● ACTIVE" : "● STOPPED"}
-            </strong>
-          </div>
-
-          {/* 3. ACTIVE CAMERA */}
+          {/* ACTIVE CAMERA */}
           <div className="px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-cyan-300 flex items-center gap-1.5">
             <Tv className="w-3.5 h-3.5 text-cyan-400" />
-            <span>CAMERA:</span>
+            <span>CAM:</span>
             <strong className="text-white">{currentCamId}</strong>
           </div>
 
-          {/* 4. VERIFICATION STATE */}
+          {/* VERIFICATION STATE */}
           <div
             className={`px-3 py-1.5 rounded-lg border flex items-center gap-1.5 ${
               verificationState === "AI VERIFIED"
@@ -696,16 +851,12 @@ export default function CCTVMonitor({ user, setActivePage }) {
           </div>
 
           <button
-            onClick={() => setAudioAlertsEnabled(!audioAlertsEnabled)}
-            className={`px-3 py-1.5 rounded-lg border flex items-center gap-1.5 transition-colors cursor-pointer ${
-              audioAlertsEnabled
-                ? "bg-amber-950/60 border-amber-500 text-amber-300"
-                : "bg-slate-900 border-slate-700 text-slate-400 hover:text-slate-200"
-            }`}
-            title="Toggle Audio Siren"
+            onClick={() => setShowRtspConfigModal(true)}
+            className="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-cyan-300 flex items-center gap-1.5 transition-colors cursor-pointer"
+            title="Configure RTSP / Media Gateway"
           >
-            {audioAlertsEnabled ? <Volume2 className="w-3.5 h-3.5 text-amber-400" /> : <VolumeX className="w-3.5 h-3.5" />}
-            <span>Siren {audioAlertsEnabled ? "ON" : "OFF"}</span>
+            <Settings className="w-3.5 h-3.5" />
+            <span>Gateway</span>
           </button>
 
           <button
@@ -742,24 +893,66 @@ export default function CCTVMonitor({ user, setActivePage }) {
         </div>
       )}
 
-      {/* CAMERA PERMISSION HELPER BANNER */}
-      {cameraPermissionDenied && (
-        <div className="mt-4 p-4 bg-amber-950/80 border border-amber-500/80 rounded-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-3 text-amber-200 text-xs shadow-xl">
-          <div className="flex items-center gap-3">
-            <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0" />
-            <div>
-              <strong className="text-white text-sm block">Camera Permission Required:</strong>
-              <span>
-                Your browser blocked webcam access. Click the <strong>Camera / Padlock 🔒 icon</strong> in your browser's address bar &rarr; choose <strong>"Allow"</strong> &rarr; then click Retry.
-              </span>
+      {/* RTSP GATEWAY CONFIG MODAL */}
+      {showRtspConfigModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#0B0F19] border border-cyan-500/40 rounded-xl p-6 max-w-lg w-full space-y-4 font-mono text-xs text-slate-200 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2 text-cyan-400 font-bold text-sm">
+                <Settings className="w-4 h-4" />
+                <span>RTSP Stream & Media Gateway Configuration</span>
+              </div>
+              <button onClick={() => setShowRtspConfigModal(false)} className="text-slate-400 hover:text-white">✕</button>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-slate-400 mb-1">Target Camera Channel</label>
+                <input
+                  type="text"
+                  disabled
+                  value={`${activeChannel.id} - ${activeChannel.name}`}
+                  className="w-full bg-[#05070D] border border-slate-800 rounded p-2 text-slate-300"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-400 mb-1">RTSP Stream Ingestion URL</label>
+                <input
+                  type="text"
+                  placeholder="rtsp://192.168.1.100:554/stream1"
+                  value={customRtspInput}
+                  onChange={(e) => setCustomRtspInput(e.target.value)}
+                  className="w-full bg-[#05070D] border border-cyan-500/50 rounded p-2 text-white focus:outline-none"
+                />
+                <p className="text-[10px] text-slate-500 mt-1">
+                  Supported Gateways: MediaMTX, FFmpeg RTSP-to-HLS, WebRTC WHEP.
+                </p>
+              </div>
+
+              <div className="p-3 bg-[#05070D] border border-slate-800 rounded text-[11px] text-cyan-300 space-y-1">
+                <p className="font-bold text-white">Media Gateway Pipeline:</p>
+                <p>• Ingestion: RTSP @ 8554 / WebRTC @ 8889</p>
+                <p>• Transcoding: FFmpeg HLS / LL-HLS</p>
+                <p>• AI Inference: 640x360 NCHW Tensor &rarr; ONNX YOLO</p>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                onClick={() => setShowRtspConfigModal(false)}
+                className="px-4 py-2 rounded bg-slate-900 border border-slate-700 text-slate-300"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleRegisterRtspStream}
+                className="px-4 py-2 rounded bg-cyan-500 hover:bg-cyan-400 text-black font-bold"
+              >
+                Connect Stream
+              </button>
             </div>
           </div>
-          <button
-            onClick={startWebcam}
-            className="px-3.5 py-1.5 bg-amber-500 hover:bg-amber-400 text-black font-bold rounded-lg shrink-0 transition-colors cursor-pointer shadow-md"
-          >
-            🔄 Retry Camera Access
-          </button>
         </div>
       )}
 
@@ -779,7 +972,7 @@ export default function CCTVMonitor({ user, setActivePage }) {
                 }`}
               >
                 <Video className="w-4 h-4 text-cyan-300" />
-                Live Integrated Camera
+                Live Integrated Camera (Webcam)
               </button>
 
               <button
@@ -791,7 +984,7 @@ export default function CCTVMonitor({ user, setActivePage }) {
                 }`}
               >
                 <Tv className="w-4 h-4 text-cyan-300" />
-                Municipal CCTV Grid
+                Municipal CCTV Stream Grid
               </button>
 
               <button
@@ -803,7 +996,7 @@ export default function CCTVMonitor({ user, setActivePage }) {
                 }`}
               >
                 <FolderOpen className="w-4 h-4 text-cyan-300" />
-                Upload CCTV Video / Photo
+                Upload Local Video for Dev
               </button>
               <input
                 ref={customFileInputRef}
@@ -814,37 +1007,36 @@ export default function CCTVMonitor({ user, setActivePage }) {
               />
             </div>
 
-            {/* Scan Controls: Filter & Frequency */}
+            {/* Target Filter & Interval */}
             <div className="flex flex-wrap items-center gap-3 font-mono text-xs text-slate-400">
               <div className="flex items-center gap-1.5">
                 <Filter className="w-3.5 h-3.5 text-cyan-400" />
-                <span>Target Focus:</span>
+                <span>Focus:</span>
                 <select
                   value={targetDefectFilter}
                   onChange={(e) => setTargetDefectFilter(e.target.value)}
-                  className="bg-slate-900 border border-slate-700 text-cyan-300 font-bold px-2.5 py-1 rounded-lg focus:outline-none focus:border-cyan-500 cursor-pointer"
+                  className="bg-slate-900 border border-slate-700 text-cyan-300 font-bold px-2.5 py-1 rounded-lg focus:outline-none"
                 >
                   <option value="all">⚡ All 6 Defect Categories</option>
-                  <option value="Road Damage / Pothole">🛣️ Road Damage, Potholes & Open Manholes</option>
-                  <option value="Water / Drainage Burst">💧 Water Main Bursts & Waterlogging</option>
-                  <option value="Solid Waste Overflow">🗑️ Solid Waste & Trash Dumps</option>
-                  <option value="Electrical & Streetlight">⚡ Electrical & Streetlight Hazards</option>
-                  <option value="Structural Anomaly / Bridge Crack">🧱 Structural & Bridge Cracks</option>
-                  <option value="Public Park & Greenery Hazard">🌳 Fallen Trees & Greenery Hazards</option>
+                  <option value="Road Damage / Pothole">🛣️ Road Damage & Potholes</option>
+                  <option value="Water / Drainage Burst">💧 Water Bursts & Waterlogging</option>
+                  <option value="Solid Waste Overflow">🗑️ Solid Waste Overflows</option>
+                  <option value="Electrical & Streetlight">⚡ Electrical Hazards</option>
+                  <option value="Structural Anomaly / Bridge Crack">🧱 Structural Cracks</option>
+                  <option value="Public Park & Greenery Hazard">🌳 Greenery Hazards</option>
                 </select>
               </div>
 
               <div className="flex items-center gap-1.5">
-                <span>Interval:</span>
+                <span>Rate:</span>
                 <select
                   value={scanIntervalMs}
                   onChange={(e) => setScanIntervalMs(Number(e.target.value))}
-                  className="bg-slate-900 border border-slate-700 text-slate-200 px-2.5 py-1 rounded-lg focus:outline-none focus:border-cyan-500 cursor-pointer"
+                  className="bg-slate-900 border border-slate-700 text-slate-200 px-2 py-1 rounded-lg"
                 >
-                  <option value={500}>500ms (Rapid)</option>
-                  <option value={800}>800ms (Recommended)</option>
-                  <option value={1000}>1000ms (Standard 1.0s)</option>
-                  <option value={1500}>1500ms (Eco Mode)</option>
+                  <option value={500}>500ms</option>
+                  <option value={800}>800ms</option>
+                  <option value={1200}>1200ms</option>
                 </select>
               </div>
             </div>
@@ -852,49 +1044,71 @@ export default function CCTVMonitor({ user, setActivePage }) {
 
           {/* VIDEO FEED CONTAINER WITH REAL-TIME HUD OVERLAYS */}
           <div className="relative rounded-2xl overflow-hidden bg-black border-2 border-slate-800 shadow-2xl aspect-video flex items-center justify-center group">
-            {/* Live Media Element */}
+            {/* Live Media Playback */}
             {selectedSourceType === "file" && isMediaTypeImage ? (
-              <img
-                src={customVideoSrc}
-                alt="Defect Scan"
-                className="w-full h-full object-contain"
-              />
-            ) : selectedSourceType === "webcam" ? (
-              <video
-                ref={videoRef}
-                autoPlay
-                muted
-                playsInline
-                crossOrigin="anonymous"
-                className="w-full h-full object-cover"
-              />
-            ) : selectedSourceType === "file" ? (
-              <video
-                ref={videoRef}
-                src={customVideoSrc}
-                autoPlay
-                loop
-                muted
-                playsInline
-                controls
-                crossOrigin="anonymous"
-                className="w-full h-full object-cover"
-              />
-            ) : activeChannel?.videoUrl ? (
-              <video
-                ref={videoRef}
-                src={activeChannel.videoUrl}
-                autoPlay
-                loop
-                muted
-                playsInline
-                crossOrigin="anonymous"
-                className="w-full h-full object-cover"
-              />
+              <div className="relative w-full h-full flex flex-col items-center justify-center">
+                <img src={customVideoSrc} alt="Demo Asset" className="w-full h-full object-contain opacity-70" />
+                <div className="absolute top-4 left-4 px-3 py-1 rounded bg-purple-950/90 border border-purple-500/80 text-purple-200 text-xs font-mono font-bold">
+                  DEMO MODE (STATIC SAMPLE IMAGE)
+                </div>
+              </div>
+            ) : currentStreamStatus === "NO_STREAM" ? (
+              <div className="flex flex-col items-center justify-center text-center p-8 space-y-3">
+                <Signal className="w-12 h-12 text-slate-600" />
+                <h4 className="text-sm font-bold text-slate-300 font-mono">NO STREAM CONFIGURED</h4>
+                <p className="text-xs text-slate-500 max-w-sm font-mono">
+                  This CCTV channel does not have an active RTSP or HLS stream URL configured.
+                </p>
+                <button
+                  onClick={() => setShowRtspConfigModal(true)}
+                  className="px-4 py-2 rounded bg-cyan-950 border border-cyan-500 text-cyan-300 text-xs font-mono font-bold"
+                >
+                  + Configure RTSP / HLS Stream
+                </button>
+              </div>
+            ) : currentStreamStatus === "OFFLINE" ? (
+              <div className="flex flex-col items-center justify-center text-center p-8 space-y-3">
+                <AlertTriangle className="w-12 h-12 text-red-500 animate-pulse" />
+                <h4 className="text-sm font-bold text-red-400 font-mono">STREAM OFFLINE</h4>
+                <p className="text-xs text-slate-400 max-w-sm font-mono">
+                  RTSP camera feed at {activeChannel.rtspUrl || "target IP"} is unreachable or media gateway is offline.
+                </p>
+                <button
+                  onClick={() => setShowRtspConfigModal(true)}
+                  className="px-4 py-2 rounded bg-red-950/60 border border-red-500/60 text-red-300 text-xs font-mono font-bold"
+                >
+                  Edit Stream Connection
+                </button>
+              </div>
+            ) : currentStreamStatus === "DEMO_SAMPLE" ? (
+              <div className="relative w-full h-full flex items-center justify-center">
+                <img src={activeChannel.sampleImage} alt="Demo Asset" className="w-full h-full object-cover opacity-75" />
+                <div className="absolute inset-0 bg-black/40 backdrop-blur-[1px] flex flex-col items-center justify-center space-y-3">
+                  <div className="px-3.5 py-1.5 rounded-full bg-purple-950/90 border border-purple-500/80 text-purple-200 text-xs font-mono font-bold flex items-center gap-2 shadow-2xl">
+                    <span className="w-2 h-2 rounded-full bg-purple-400 animate-ping" />
+                    DEMO MODE (STATIC SAMPLE IMAGE)
+                  </div>
+                  <p className="text-[11px] font-mono text-slate-300 max-w-md text-center">
+                    Real-time AI detection requires a live video stream or webcam. Click below to run a single demo analysis on this sample frame.
+                  </p>
+                  <button
+                    onClick={handleSingleDemoScan}
+                    disabled={isSubmittingReport}
+                    className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-mono font-bold flex items-center gap-2 shadow-lg shadow-purple-600/30 cursor-pointer"
+                  >
+                    <Sparkles className="w-4 h-4" />
+                    <span>Run Demo Single Scan</span>
+                  </button>
+                </div>
+              </div>
             ) : (
-              <img
-                src={activeChannel?.sampleImage}
-                alt={activeChannel?.name}
+              <video
+                ref={videoRef}
+                autoPlay
+                loop
+                muted
+                playsInline
+                crossOrigin="anonymous"
                 className="w-full h-full object-cover"
               />
             )}
@@ -902,9 +1116,9 @@ export default function CCTVMonitor({ user, setActivePage }) {
             {/* 1. TOP VIDEO TELEMETRY BAR */}
             <div className="absolute top-3 left-3 right-3 flex items-center justify-between pointer-events-none z-20">
               <div className="flex items-center gap-2 font-mono text-xs">
-                <div className="px-2.5 py-1 rounded bg-black/80 backdrop-blur-md border border-red-500/80 text-red-400 font-bold flex items-center gap-1.5 shadow-lg">
-                  <span className="w-2 h-2 rounded-full bg-red-500 animate-ping" />
-                  REC • LIVE
+                <div className={`px-2.5 py-1 rounded bg-black/80 backdrop-blur-md border font-bold flex items-center gap-1.5 shadow-lg ${statusBadge.color}`}>
+                  <span className={`w-2 h-2 rounded-full ${statusBadge.dot}`} />
+                  {statusBadge.label}
                 </div>
                 <div className="px-2.5 py-1 rounded bg-black/80 backdrop-blur-md border border-slate-700 text-cyan-300 font-bold">
                   {currentCamId}
@@ -928,8 +1142,8 @@ export default function CCTVMonitor({ user, setActivePage }) {
 
             {/* 2. DYNAMIC YOLO BOUNDING BOX & TARGETING HUD */}
             {(() => {
-              const activeBox = currentDetection?.boundingBox || currentDetection?.boundingBoxes?.[0];
-              const isDefect = isDetecting && currentDetection && (currentDetection.isDefect !== false) && activeBox;
+              const activeBox = currentDetection?.boundingBox;
+              const isDefect = isDetecting && currentDetection && currentDetection.isDefect && activeBox;
 
               if (!isDefect) {
                 return isDetecting && verificationState === "NO DEFECT" ? (
@@ -940,7 +1154,7 @@ export default function CCTVMonitor({ user, setActivePage }) {
                 ) : null;
               }
 
-              const boxColor = "#EF4444"; // Alert Red
+              const boxColor = "#EF4444";
 
               return (
                 <div
@@ -955,32 +1169,26 @@ export default function CCTVMonitor({ user, setActivePage }) {
                     backgroundColor: "rgba(239, 68, 68, 0.22)"
                   }}
                 >
-                  {/* Corner Targeting Brackets */}
                   <span className="absolute -top-1.5 -left-1.5 w-4 h-4 border-t-2 border-l-2 border-red-400 shadow-md shadow-red-500/50" />
                   <span className="absolute -top-1.5 -right-1.5 w-4 h-4 border-t-2 border-r-2 border-red-400 shadow-md shadow-red-500/50" />
                   <span className="absolute -bottom-1.5 -left-1.5 w-4 h-4 border-b-2 border-l-2 border-red-400 shadow-md shadow-red-500/50" />
                   <span className="absolute -bottom-1.5 -right-1.5 w-4 h-4 border-b-2 border-r-2 border-red-400 shadow-md shadow-red-500/50" />
 
-                  {/* Center Target Reticle */}
                   <div className="absolute inset-0 flex items-center justify-center opacity-60">
                     <Crosshair className="w-7 h-7 text-red-400 animate-spin" />
                   </div>
 
-                  {/* Floating YOLO AI Tag */}
-                  <div
-                    className="absolute -top-9 left-0 text-white text-[11px] font-bold px-2.5 py-1 rounded-md shadow-2xl flex items-center gap-1.5 whitespace-nowrap font-mono bg-red-600 border border-red-400"
-                  >
+                  <div className="absolute -top-9 left-0 text-white text-[11px] font-bold px-2.5 py-1 rounded-md shadow-2xl flex items-center gap-1.5 whitespace-nowrap font-mono bg-red-600 border border-red-400">
                     <span className="w-2 h-2 rounded-full bg-white animate-ping" />
                     <span>{currentDetection.labelMain || currentDetection.category}</span>
                     <span className="bg-black/50 px-1.5 py-0.2 rounded font-bold text-red-200">
                       {currentDetection.confidencePercent || 94}%
                     </span>
-                    <span className="bg-white/20 px-1 rounded text-[10px]">
-                      {verificationState}
+                    <span className="bg-white/20 px-1.5 py-0.5 rounded text-[10px]">
+                      {verificationState} {currentTrackingIou !== null ? `(IoU: ${Math.round(currentTrackingIou * 100)}%)` : ""}
                     </span>
                   </div>
 
-                  {/* Bottom Dimensions / Department Pill */}
                   <div className="absolute -bottom-7 left-0 bg-black/95 border border-red-500/60 text-red-200 text-[10px] px-2 py-0.5 rounded font-mono font-bold shadow-lg">
                     {currentDetection.dimensions || "Active Defect Zone"} • SLA: {currentDetection.slaHours || 4}h
                   </div>
@@ -988,30 +1196,19 @@ export default function CCTVMonitor({ user, setActivePage }) {
               );
             })()}
 
-            {/* 3. BOTTOM TIMESTAMP & CONTROLS */}
+            {/* 3. BOTTOM CONTROLS */}
             <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between pointer-events-none z-20 font-mono text-xs">
               <div className="px-2.5 py-1 rounded bg-black/80 backdrop-blur-md border border-slate-800 text-slate-400">
                 {currentTimeStr}
               </div>
 
-              {/* Quick Action Controls */}
               <div className="flex items-center gap-2 pointer-events-auto">
                 <button
-                  onClick={handleDownloadSnapshot}
+                  onClick={() => setShowRtspConfigModal(true)}
                   className="px-3 py-1.5 rounded-lg bg-black/80 hover:bg-slate-900 border border-slate-700 text-slate-200 text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
-                  title="Download Snapshot Evidence"
                 >
-                  <Download className="w-3.5 h-3.5 text-cyan-400" />
-                  <span>Snapshot</span>
-                </button>
-
-                <button
-                  onClick={handleGeminiDeepScan}
-                  disabled={isGeminiScanning}
-                  className="px-3 py-1.5 rounded-lg bg-purple-950/80 hover:bg-purple-900 border border-purple-500/60 text-purple-200 text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-lg"
-                >
-                  <Sparkles className={`w-3.5 h-3.5 text-purple-400 ${isGeminiScanning ? "animate-spin" : ""}`} />
-                  <span>{isGeminiScanning ? "Analyzing..." : "Gemini Deep Scan"}</span>
+                  <Link className="w-3.5 h-3.5 text-cyan-400" />
+                  <span>RTSP Config</span>
                 </button>
               </div>
             </div>
@@ -1020,8 +1217,9 @@ export default function CCTVMonitor({ user, setActivePage }) {
           {/* CCTV CHANNELS SELECTOR BAR */}
           {selectedSourceType === "channel" && (
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2.5">
-              {CCTV_CHANNELS.map((channel) => {
+              {cctvChannels.map((channel) => {
                 const isActive = activeChannel.id === channel.id;
+                const b = getStreamStatusBadge(channel.status);
                 return (
                   <button
                     key={channel.id}
@@ -1034,11 +1232,11 @@ export default function CCTVMonitor({ user, setActivePage }) {
                   >
                     <div className="flex items-center justify-between mb-1.5">
                       <span className="font-mono font-bold text-xs text-cyan-400">{channel.id}</span>
-                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                      <span className={`w-2 h-2 rounded-full ${b.dot}`} />
                     </div>
                     <p className="font-bold text-xs line-clamp-1 text-slate-200">{channel.category}</p>
                     <p className="text-[10px] font-mono text-slate-400 mt-1 truncate">
-                      GPS: {channel.latitude.toFixed(2)}, {channel.longitude.toFixed(2)}
+                      {channel.status} • {channel.streamType.toUpperCase()}
                     </p>
                   </button>
                 );
@@ -1054,7 +1252,7 @@ export default function CCTVMonitor({ user, setActivePage }) {
               <div className="flex items-center gap-2">
                 <Activity className="w-5 h-5 text-cyan-400" />
                 <h3 className="font-bold text-white font-heading text-sm">
-                  Live Surveillance Event Log
+                  Surveillance Verification Log
                 </h3>
               </div>
               <span className="text-xs font-mono text-slate-400">
@@ -1065,11 +1263,11 @@ export default function CCTVMonitor({ user, setActivePage }) {
             {/* Event Log Items */}
             <div className="flex-1 overflow-y-auto space-y-3 mt-4 max-h-[560px] pr-1">
               {recentDetections.length === 0 ? (
-                <div className="text-center py-12 text-slate-500 text-xs font-mono">
+                <div className="text-center py-12 text-slate-500 text-xs font-mono space-y-2">
                   <ShieldAlert className="w-8 h-8 mx-auto mb-2 text-slate-600 animate-pulse" />
                   <p>AWAITING DEFECT DETECTIONS...</p>
-                  <p className="text-[10px] text-slate-600 mt-1">
-                    Surveillance engine is active. Verified defects will be logged here.
+                  <p className="text-[10px] text-slate-600">
+                    Real-time detection runs continuously on live video streams and hardware cameras.
                   </p>
                 </div>
               ) : (

@@ -1,14 +1,22 @@
-// Comprehensive Civic Issue Database with spatial coordinates, AI verification metadata & SLA timers
+import {
+  collection,
+  addDoc,
+  setDoc,
+  doc,
+  serverTimestamp
+} from "firebase/firestore";
+import { db } from "../firebase";
+import { getCanonicalCategory, getCanonicalMetadata } from "./aiClassMapping";
 
 export const initialCivicIssues = [
   {
     id: "CIVIC-892A",
     title: "Critical Pothole & Road Cave-in",
     category: "Road Damage / Pothole",
-    priority: "P1", // P1, P2, P3
+    priority: "P1",
     priorityLabel: "P1 - Critical Hazard",
     severity: "Critical",
-    status: "AI Verified", // Reported, AI Verified, In Progress, Resolved
+    status: "AI Verified",
     address: "Intersection Sector 62 & Ring Road Expressway",
     ward: "Central District - Ward 4",
     latitude: 28.6139,
@@ -43,7 +51,7 @@ export const initialCivicIssues = [
     ward: "Sector 18 Ward - Zone A",
     latitude: 28.6220,
     longitude: 77.2140,
-    imageUrl: "https://images.unsplash.com/photo-1584467735815-f778f274e296?auto=format&fit=crop&w=800&q=80",
+    imageUrl: "https://images.unsplash.com/photo-1584467735871-8e85353a8413?auto=format&fit=crop&w=800&q=80",
     description: "300mm potable feeder line fractured underneath pavement. Active water flooding onto roadway at approx 80 liters/min.",
     aiVerified: true,
     aiConfidence: 0.982,
@@ -73,7 +81,7 @@ export const initialCivicIssues = [
     ward: "North Green Corridor - Ward 2",
     latitude: 28.6060,
     longitude: 77.1945,
-    imageUrl: "https://images.unsplash.com/photo-1530587191325-3db32d826c18?auto=format&fit=crop&w=800&q=80",
+    imageUrl: "https://images.unsplash.com/photo-1605600659908-0ef719419d41?auto=format&fit=crop&w=800&q=80",
     description: "Community waste bin at 160% capacity overflowing onto pedestrian walkway, causing hygiene hazard.",
     aiVerified: true,
     aiConfidence: 0.915,
@@ -103,7 +111,7 @@ export const initialCivicIssues = [
     ward: "Cyber Hub - Ward 12",
     latitude: 28.6185,
     longitude: 77.2210,
-    imageUrl: "https://images.unsplash.com/photo-1509198397868-475647b2a1e5?auto=format&fit=crop&w=800&q=80",
+    imageUrl: "https://images.unsplash.com/photo-1509390144018-8bc7f2868846?auto=format&fit=crop&w=800&q=80",
     description: "12 consecutive LED luminaire poles unpowered creating a pitch-black blind spot for evening commuters.",
     aiVerified: true,
     aiConfidence: 0.894,
@@ -133,7 +141,7 @@ export const initialCivicIssues = [
     ward: "East Ring - Ward 8",
     latitude: 28.6005,
     longitude: 77.2275,
-    imageUrl: "https://images.unsplash.com/photo-1545459720-aac8509eb02c?auto=format&fit=crop&w=800&q=80",
+    imageUrl: "https://images.unsplash.com/photo-1541888946425-d0fbb18086f6?auto=format&fit=crop&w=800&q=80",
     description: "Drone optical scan identified hairline diagonal shear fracture on concrete pier head cap.",
     aiVerified: true,
     aiConfidence: 0.978,
@@ -153,53 +161,52 @@ export const initialCivicIssues = [
   },
   {
     id: "CIVIC-721F",
-    title: "Traffic Signal Controller Timing Drift",
-    category: "Electrical & Streetlight",
-    priority: "P3",
-    priorityLabel: "P3 - Medium Priority",
-    severity: "Medium",
-    status: "Resolved",
-    address: "Technology Park Circular Junction",
-    ward: "Cyber Hub - Ward 12",
-    latitude: 28.6290,
-    longitude: 77.2020,
-    imageUrl: "https://images.unsplash.com/photo-1508873696983-2df5293cb325?auto=format&fit=crop&w=800&q=80",
-    description: "Signal cycle stuck on 180s red delay. Reprogrammed with adaptive timing profile.",
+    title: "Public Park Overhanging Fallen Branch",
+    category: "Public Park & Greenery Hazard",
+    priority: "P2",
+    priorityLabel: "P2 - High Priority",
+    severity: "High",
+    status: "Reported",
+    address: "Perimeter Park Road near Gate 4",
+    ward: "South Perimeter Parks - Ward 15",
+    latitude: 28.6065,
+    longitude: 77.1950,
+    imageUrl: "https://images.unsplash.com/photo-1448375240586-882707db888b?auto=format&fit=crop&w=800&q=80",
+    description: "Heavy storm damaged bough hanging over arterial lane obstructing bus transit.",
     aiVerified: true,
-    aiConfidence: 0.941,
-    defectTags: ["PLC Timing Error", "Traffic Queue"],
+    aiConfidence: 0.925,
+    defectTags: ["Fallen Tree", "Greenery Obstruction", "Traffic Blockade"],
     boundingBoxes: [
-      { label: "Signal Node (0.94)", x: 30, y: 20, w: 40, h: 60, severity: "Medium" }
+      { label: "Greenery Hazard (0.92)", x: 20, y: 25, w: 60, h: 50, severity: "High" }
     ],
-    estimatedDimensions: "Delay Reduction: 74%",
-    assignedDepartment: "Intelligent Traffic Management Unit",
-    slaHours: 24,
-    slaDeadline: new Date(Date.now() - 12 * 3600 * 1000).toISOString(),
-    upvotes: 11,
+    estimatedDimensions: "Branch Length: ~4.5m",
+    assignedDepartment: "Urban Forestry & Public Parks Department",
+    slaHours: 6,
+    slaDeadline: new Date(Date.now() + 4.5 * 3600 * 1000).toISOString(),
+    upvotes: 8,
     upvotedBy: [],
     reportCount: 2,
-    createdBy: "traffic.police@nexinfra.gov",
-    createdAt: new Date(Date.now() - 28 * 3600 * 1000).toISOString(),
+    createdBy: "park.warden@nexinfra.gov",
+    createdAt: new Date(Date.now() - 1.5 * 3600 * 1000).toISOString(),
   }
 ];
 
-// Distance Calculation using Haversine Formula (in meters)
 export function calculateDistanceMeters(lat1, lon1, lat2, lon2) {
   if (!lat1 || !lon1 || !lat2 || !lon2) return 999999;
-  const R = 6371e3; // Earth radius in meters
-  const φ1 = (lat1 * Math.PI) / 180;
-  const φ2 = (lat2 * Math.PI) / 180;
-  const Δφ = ((lat2 - lat1) * Math.PI) / 180;
-  const Δλ = ((lon2 - lon1) * Math.PI) / 180;
+  const R = 6371e3;
+  const phi1 = (lat1 * Math.PI) / 180;
+  const phi2 = (lat2 * Math.PI) / 180;
+  const deltaPhi = ((lat2 - lat1) * Math.PI) / 180;
+  const deltaLambda = ((lon2 - lon1) * Math.PI) / 180;
 
   const a =
-    Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
-    Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+    Math.sin(deltaPhi / 2) * Math.sin(deltaPhi / 2) +
+    Math.cos(phi1) * Math.cos(phi2) * Math.sin(deltaLambda / 2) * Math.sin(deltaLambda / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return Math.round(R * c);
 }
 
-// Local Storage In-Memory State
+// Local Storage Fallback Cache
 export function getLocalCivicIssues() {
   try {
     const saved = localStorage.getItem("nexinfra_civic_issues");
@@ -208,7 +215,7 @@ export function getLocalCivicIssues() {
       if (Array.isArray(parsed) && parsed.length > 0) return parsed;
     }
   } catch (e) {
-    console.error("Error reading civic issues:", e);
+    console.error("Error reading civic issues cache:", e);
   }
   localStorage.setItem("nexinfra_civic_issues", JSON.stringify(initialCivicIssues));
   return initialCivicIssues;
@@ -218,15 +225,115 @@ export function saveLocalCivicIssues(issues) {
   try {
     localStorage.setItem("nexinfra_civic_issues", JSON.stringify(issues));
   } catch (e) {
-    console.error("Error saving civic issues:", e);
+    console.error("Error saving civic issues cache:", e);
   }
 }
 
-export function addCivicIssue(issue) {
-  const existing = getLocalCivicIssues();
-  const updated = [issue, ...existing];
-  saveLocalCivicIssues(updated);
-  return updated;
+// Duplicate Write Prevention Tracking
+const writtenIncidentIds = new Set();
+const writtenCooldownKeys = new Map();
+
+/**
+ * Saves AI-Verified CCTV Incident directly to Firestore "complaints" collection
+ * Uses localStorage only as client fallback cache
+ * Returns the Firestore document ID
+ * Prevents duplicate writes
+ * Immediately broadcasts to Dashboard, Map, Officer, and Incident Log views
+ */
+export async function addCivicIssue(issue) {
+  if (!issue) return { success: false, error: "No issue payload" };
+
+  const rawId = issue.id || `CIVIC-${Date.now()}`;
+  const cooldownKey = `${issue.cameraId || "CAM-01"}_${issue.category || "def"}_${issue.title || "t"}`;
+  const now = Date.now();
+
+  // 1. Prevent duplicate writes
+  if (writtenIncidentIds.has(rawId)) {
+    console.log(`🛡️ [DUPLICATE BLOCKED] Incident ${rawId} already saved to Firestore.`);
+    return { success: true, id: rawId, cached: true };
+  }
+
+  const lastWrittenTime = writtenCooldownKeys.get(cooldownKey) || 0;
+  if (now - lastWrittenTime < 60000) {
+    console.log(`🛡️ [COOLDOWN ACTIVE] Incident for ${cooldownKey} created ${Math.round((now - lastWrittenTime) / 1000)}s ago.`);
+    return { success: true, id: rawId, cached: true };
+  }
+
+  writtenIncidentIds.add(rawId);
+  writtenCooldownKeys.set(cooldownKey, now);
+
+  const canonical = getCanonicalCategory(issue.category || issue.title);
+  const meta = getCanonicalMetadata(canonical);
+
+  // 2. Prepare payload for Firestore "complaints" collection
+  const firestorePayload = {
+    ...issue,
+    id: rawId,
+    title: issue.title || `[CCTV VERIFIED] ${meta.defectName}`,
+    category: canonical,
+    status: issue.status || "AI Verified",
+    priority: issue.priority || meta.priority || "P1",
+    priorityLabel: issue.priorityLabel || meta.priorityLabel || `${meta.priority || "P1"} - Critical Hazard`,
+    severity: issue.severity || meta.severity || "Critical",
+    department: issue.department || meta.department,
+    assignedDepartment: issue.assignedDepartment || meta.assignedDepartment,
+    slaHours: issue.slaHours || meta.slaHours || 4,
+    latitude: typeof issue.latitude === "number" ? issue.latitude : 28.6139,
+    longitude: typeof issue.longitude === "number" ? issue.longitude : 77.2090,
+    targetLatitude: typeof issue.targetLatitude === "number" ? issue.targetLatitude : (issue.latitude || 28.6139),
+    targetLongitude: typeof issue.targetLongitude === "number" ? issue.targetLongitude : (issue.longitude || 77.2090),
+    targetIncidentId: rawId,
+    address: issue.address || "Sector 4 Corridor",
+    ward: issue.ward || "Central District - Ward 4",
+    aiVerified: issue.aiVerified !== undefined ? issue.aiVerified : true,
+    aiConfidence: issue.aiConfidence || issue.confidence || 0.94,
+    verificationMethod: issue.verificationMethod || "3-frame consecutive YOLO verification",
+    source: issue.source || "REAL_TIME_CCTV",
+    cameraId: issue.cameraId || "CAM-01",
+    cameraName: issue.cameraName || "Municipal CCTV Camera",
+    detectionEngine: issue.detectionEngine || "NEXinfra ONNX Civic Detector",
+    imageUrl: issue.imageUrl || issue.snapshot || "",
+    boundingBoxes: issue.boundingBoxes || [],
+    createdAt: new Date().toISOString()
+  };
+
+  let firestoreDocId = rawId;
+
+  // 3. Save to Firestore "complaints" collection
+  try {
+    const docRef = await addDoc(collection(db, "complaints"), {
+      ...firestorePayload,
+      firestoreTimestamp: serverTimestamp()
+    });
+    firestoreDocId = docRef.id;
+    firestorePayload.id = docRef.id;
+    firestorePayload.firestoreId = docRef.id;
+    writtenIncidentIds.add(docRef.id);
+    console.log(`✅ [FIRESTORE SUCCESS] AI-verified CCTV incident saved to 'complaints' with ID: ${docRef.id}`);
+  } catch (firestoreErr) {
+    console.warn("⚠️ [FIRESTORE FALLBACK] Firestore write warning (cached locally):", firestoreErr.message);
+  }
+
+  // 4. Update LocalStorage as fallback cache
+  try {
+    const existing = getLocalCivicIssues();
+    const updated = [firestorePayload, ...existing.filter((i) => i.id !== firestoreDocId && i.id !== rawId)];
+    saveLocalCivicIssues(updated);
+  } catch (e) {}
+
+  // 5. Broadcast to immediately notify all views (Dashboard, Live Map, Officer View, Incident Log)
+  if (typeof window !== "undefined") {
+    try {
+      window.dispatchEvent(new CustomEvent("nexinfra_incident_created", { detail: firestorePayload }));
+      window.dispatchEvent(new Event("storage"));
+    } catch (e) {}
+  }
+
+  return {
+    success: true,
+    id: firestoreDocId,
+    incident: firestorePayload
+  };
 }
 
 // Proximity Duplicate Detection
@@ -291,5 +398,3 @@ export function deleteCivicIssue(issueId) {
   saveLocalCivicIssues(updated);
   return updated;
 }
-
-

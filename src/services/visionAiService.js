@@ -1,86 +1,15 @@
-/**
- * NEXINFRA REAL-TIME ONNX YOLO CIVIC DEFECT DETECTION ENGINE
- * 6-Class Municipal Defect Detection & SLA Taxonomy:
- * 0: Road Damage / Pothole (Roads, Critical, P1, 4h SLA)
- * 1: Water / Drainage Burst (Hydro / Water Supply, Critical, P1, 3h SLA)
- * 2: Solid Waste Overflow (Sanitation, High, P2, 8h SLA)
- * 3: Electrical / Streetlight Hazard (Power, Critical, P1, 2h SLA)
- * 4: Structural / Bridge Crack (Structural Engineering, Critical, P1, 4h SLA)
- * 5: Fallen Tree / Greenery Hazard (Forestry, High, P2, 6h SLA)
- */
+import {
+  getCanonicalCategory,
+  getCanonicalMetadata,
+  CANONICAL_METADATA,
+  AI_CLASS_MAPPING
+} from "./aiClassMapping";
 
 export const isLocalHost = typeof window !== "undefined" && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
 export const BACKEND_API_BASE = "http://127.0.0.1:4000";
 
 // Centralized 6-Tier Municipal Defect Taxonomy & SLA Mapping
-export const CIVIC_TAXONOMY_MAP = {
-  "Road Damage / Pothole": {
-    category: "Road Damage / Pothole",
-    defectName: "Road Damage & Asphalt Pothole Cavity",
-    department: "Roads",
-    assignedDepartment: "Road Maintenance & Pavement Division",
-    severity: "Critical",
-    priority: "P1",
-    slaHours: 4,
-    color: "#EF4444",
-    tags: ["Pothole", "Road Damage", "Asphalt Cavity", "Open Manhole / Chamber"]
-  },
-  "Water / Drainage Burst": {
-    category: "Water / Drainage Burst",
-    defectName: "Water / Drainage Burst & Waterlogging",
-    department: "Hydro / Water Supply",
-    assignedDepartment: "Municipal Hydro & Water Supply Grid",
-    severity: "Critical",
-    priority: "P1",
-    slaHours: 3,
-    color: "#00F0FF",
-    tags: ["Waterlogging", "Drainage Burst", "Water Main Leak", "Flooded Surface"]
-  },
-  "Solid Waste Overflow": {
-    category: "Solid Waste Overflow",
-    defectName: "Solid Waste & Plastic Debris Overflow",
-    department: "Sanitation",
-    assignedDepartment: "Sanitation & Solid Waste Logistics Unit",
-    severity: "High",
-    priority: "P2",
-    slaHours: 8,
-    color: "#F59E0B",
-    tags: ["Solid Waste", "Garbage Overflow", "Plastic Debris Heap"]
-  },
-  "Electrical & Streetlight": {
-    category: "Electrical & Streetlight",
-    defectName: "Electrical / Streetlight Hazard",
-    department: "Power",
-    assignedDepartment: "Municipal Power & Electrical Grid",
-    severity: "Critical",
-    priority: "P1",
-    slaHours: 2,
-    color: "#F97316",
-    tags: ["Exposed Wiring", "Streetlight Outage", "Transformer Spark"]
-  },
-  "Structural Anomaly / Bridge Crack": {
-    category: "Structural Anomaly / Bridge Crack",
-    defectName: "Structural Defect & Bridge Crack Anomaly",
-    department: "Structural Engineering",
-    assignedDepartment: "Structural Engineering & Bridge Safety Division",
-    severity: "Critical",
-    priority: "P1",
-    slaHours: 4,
-    color: "#8B5CF6",
-    tags: ["Wall Crack", "Bridge Shear", "Pillar Fracture", "Structural Defect"]
-  },
-  "Public Park & Greenery Hazard": {
-    category: "Public Park & Greenery Hazard",
-    defectName: "Fallen Tree & Greenery Roadway Blockade",
-    department: "Forestry",
-    assignedDepartment: "Urban Forestry & Public Parks Department",
-    severity: "High",
-    priority: "P2",
-    slaHours: 6,
-    color: "#10B981",
-    tags: ["Fallen Tree", "Overhanging Branch", "Greenery Obstruction"]
-  }
-};
+export const CIVIC_TAXONOMY_MAP = CANONICAL_METADATA;
 
 /**
  * Checks if the Node.js ONNX backend is online and model is active
@@ -108,6 +37,7 @@ export async function checkYoloBackendHealth() {
 
 /**
  * Sends live captured frame to real backend ONNX inference endpoint
+ * Converts raw ONNX model classes to Canonical Civic Categories
  * Never fabricates fake detections when inference fails
  */
 export async function detectFrameWithBackend(frameBase64) {
@@ -132,9 +62,30 @@ export async function detectFrameWithBackend(frameBase64) {
       if (response.ok) {
         const data = await response.json();
         if (data.success) {
+          const rawDetections = Array.isArray(data.detections) ? data.detections : [];
+          const canonicalDetections = rawDetections.map((d) => {
+            const canonical = getCanonicalCategory(d.class || d.category || d.classId);
+            const meta = getCanonicalMetadata(canonical);
+            return {
+              ...d,
+              rawClass: d.class,
+              class: canonical,
+              category: canonical,
+              defectName: meta.defectName,
+              department: meta.department,
+              assignedDepartment: meta.assignedDepartment,
+              priority: meta.priority,
+              priorityLabel: meta.priorityLabel,
+              severity: meta.severity,
+              slaHours: meta.slaHours,
+              color: meta.color,
+              tags: meta.tags
+            };
+          });
+
           return {
             success: true,
-            detections: data.detections || [],
+            detections: canonicalDetections,
             timestamp: data.timestamp || new Date().toISOString(),
             engine: data.engine || "NEXinfra ONNX Civic Detector"
           };

@@ -1,7 +1,4 @@
-/**
- * NEXINFRA AUTONOMOUS UAV / DRONE MISSION DISPATCH SERVICE
- * Prepares AI-verified CCTV defect incidents for drone telemetry dispatch
- */
+import { getCanonicalCategory, getCanonicalMetadata } from "./aiClassMapping";
 
 /**
  * Creates a clean UAV mission payload from an AI-verified incident
@@ -14,6 +11,8 @@ export function createDroneMissionFromIncident(incident) {
   const targetLat = incident.targetLatitude ?? incident.latitude ?? 28.6139;
   const targetLng = incident.targetLongitude ?? incident.longitude ?? 77.2090;
   const incidentId = incident.targetIncidentId ?? incident.id ?? ("CIVIC-" + Date.now());
+  const canonical = getCanonicalCategory(incident.defectCategory || incident.category || incident.title);
+  const meta = getCanonicalMetadata(canonical);
 
   const mission = {
     missionId: "UAV-MISSION-" + Date.now(),
@@ -22,18 +21,22 @@ export function createDroneMissionFromIncident(incident) {
     targetLongitude: targetLng,
     targetCoordinates: `${targetLat.toFixed(4)}° N, ${targetLng.toFixed(4)}° E`,
     targetSector: incident.address || incident.ward || "Sector 4 Corridor",
-    defectCategory: incident.category || "Road Damage / Pothole",
-    defectTitle: incident.title || "Verified Civic Defect",
+    defectCategory: canonical,
+    defectTitle: incident.title || meta.defectName,
+    department: incident.department || meta.department,
+    assignedDepartment: incident.assignedDepartment || meta.assignedDepartment,
     aiConfidence: incident.aiConfidence || incident.confidence || 0.94,
     aiVerified: Boolean(incident.aiVerified),
     verificationMethod: incident.verificationMethod || "3-frame consecutive YOLO verification",
     source: incident.source || "REAL_TIME_CCTV",
     cameraId: incident.cameraId || "CAM-01",
     assignedDroneUnit: "UAV-ALPHA-09 (LiDAR + Thermal Sensor Array)",
+    missionProfile: meta.droneMissionType || "Autonomous UAV Spatial Survey",
     flightAltitudeMeters: 120,
     sensorPayload: ["4K Optical Zoom", "FLIR Thermal Infrared", "LiDAR Surface Profiler"],
-    priority: incident.priority || "P1",
-    severity: incident.severity || "Critical",
+    priority: incident.priority || meta.priority || "P1",
+    severity: incident.severity || meta.severity || "Critical",
+    slaHours: incident.slaHours || meta.slaHours || 4,
     status: "MISSION_STAGED",
     createdAt: new Date().toISOString()
   };

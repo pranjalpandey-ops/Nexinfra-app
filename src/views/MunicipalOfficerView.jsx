@@ -45,6 +45,7 @@ import {
 
 import { getLocalCivicIssues, updateCivicIssueStatus } from "../services/civicDb";
 import { updateComplaintStatus } from "../services/updateComplaintStatus";
+import { subscribeToComplaints } from "../services/getComplaints";
 
 export default function MunicipalOfficerView({
   user,
@@ -85,14 +86,30 @@ export default function MunicipalOfficerView({
       setIncidents(getLocalCivicIssues());
     };
 
+    // 1. Listen for local state events
     window.addEventListener("municipal_teams_updated", refreshData);
     window.addEventListener("civic_issue_updated", refreshData);
+    window.addEventListener("nexinfra_incident_created", refreshData);
     window.addEventListener("storage", refreshData);
+
+    // 2. Real-time Firestore complaints subscription
+    const unsubscribeFirestore = subscribeToComplaints((firestoreComplaints) => {
+      if (Array.isArray(firestoreComplaints) && firestoreComplaints.length > 0) {
+        const local = getLocalCivicIssues();
+        const merged = [
+          ...firestoreComplaints,
+          ...local.filter((l) => !firestoreComplaints.some((f) => f.id === l.id))
+        ];
+        setIncidents(merged);
+      }
+    });
 
     return () => {
       window.removeEventListener("municipal_teams_updated", refreshData);
       window.removeEventListener("civic_issue_updated", refreshData);
+      window.removeEventListener("nexinfra_incident_created", refreshData);
       window.removeEventListener("storage", refreshData);
+      if (typeof unsubscribeFirestore === "function") unsubscribeFirestore();
     };
   }, []);
 
