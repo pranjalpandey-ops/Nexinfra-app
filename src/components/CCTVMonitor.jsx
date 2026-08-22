@@ -28,19 +28,29 @@ import {
   ChevronRight,
   FolderOpen,
   Filter,
-  Sparkles
+  Sparkles,
+  Plane,
+  ShieldCheck
 } from "lucide-react";
-import { analyzeImageWithAI, processDirectVideoFrame, checkYoloBackendHealth, YOLO_API_BASE } from "../services/visionAiService";
+import {
+  checkYoloBackendHealth,
+  detectFrameWithBackend,
+  CIVIC_TAXONOMY_MAP
+} from "../services/visionAiService";
 import { analyzeWithGeminiVision } from "../services/geminiVisionService";
 import { addCivicIssue } from "../services/civicDb";
+import { createDroneMissionFromIncident } from "../services/droneMissionService";
 
-// Sample Municipal CCTV Feeds for Smart City Grid
+// Fixed Municipal CCTV Feeds for Smart City Grid with Exact GPS Telemetry
 const CCTV_CHANNELS = [
   {
     id: "CAM-01",
     name: "Western Expressway - Sector 4",
     location: "Ward 4 • Km 14.2 Flyover Approach",
     category: "Road Damage / Pothole",
+    latitude: 28.6139,
+    longitude: 77.2090,
+    ward: "Central District - Ward 4",
     resolution: "1080p @ 30fps",
     bitrate: "5.4 Mbps",
     videoUrl: "",
@@ -51,6 +61,9 @@ const CCTV_CHANNELS = [
     name: "Hydro Main Junction - Sector 7",
     location: "Ward 7 • Subsurface Pipeline Grid",
     category: "Water / Drainage Burst",
+    latitude: 28.6220,
+    longitude: 77.2140,
+    ward: "Sector 18 Ward - Zone A",
     resolution: "1080p @ 30fps",
     bitrate: "4.8 Mbps",
     videoUrl: "",
@@ -61,6 +74,9 @@ const CCTV_CHANNELS = [
     name: "Civic Market Center - South Ward",
     location: "Ward 9 • Central Commercial Plaza",
     category: "Solid Waste Overflow",
+    latitude: 28.6060,
+    longitude: 77.1945,
+    ward: "North Green Corridor - Ward 2",
     resolution: "720p @ 30fps",
     bitrate: "3.2 Mbps",
     videoUrl: "",
@@ -71,6 +87,9 @@ const CCTV_CHANNELS = [
     name: "Metro Viaduct Pillar #42",
     location: "Ward 12 • Ring Road Transit Corridor",
     category: "Structural Anomaly / Bridge Crack",
+    latitude: 28.6290,
+    longitude: 77.2020,
+    ward: "Cyber Hub Transit Corridor - Ward 12",
     resolution: "4K UHD @ 60fps",
     bitrate: "12.0 Mbps",
     videoUrl: "",
@@ -81,16 +100,32 @@ const CCTV_CHANNELS = [
     name: "High-Tension Grid Substation 3",
     location: "Ward 2 • Industrial Power Ring",
     category: "Electrical & Streetlight",
+    latitude: 28.6010,
+    longitude: 77.2280,
+    ward: "East Ring Ward 8",
     resolution: "1080p @ 30fps",
     bitrate: "6.1 Mbps",
     videoUrl: "",
     sampleImage: "https://images.unsplash.com/photo-1509390144018-8bc7f2868846?w=1200&auto=format&fit=crop&q=80"
+  },
+  {
+    id: "CAM-06",
+    name: "City Botanical Green Corridor",
+    location: "Ward 15 • Public Park Expressway Perimeter",
+    category: "Public Park & Greenery Hazard",
+    latitude: 28.6065,
+    longitude: 77.1950,
+    ward: "South Perimeter Parks - Ward 15",
+    resolution: "1080p @ 30fps",
+    bitrate: "5.8 Mbps",
+    videoUrl: "",
+    sampleImage: "https://images.unsplash.com/photo-1448375240586-882707db888b?w=1200&auto=format&fit=crop&q=80"
   }
 ];
 
 export default function CCTVMonitor({ user, setActivePage }) {
   // Feed & Video State
-  const [selectedSourceType, setSelectedSourceType] = useState("channel"); // default to channel for instant feed, user can click webcam
+  const [selectedSourceType, setSelectedSourceType] = useState("channel");
   const [activeChannel, setActiveChannel] = useState(CCTV_CHANNELS[0]);
   const [customVideoSrc, setCustomVideoSrc] = useState(null);
   const [isMediaTypeImage, setIsMediaTypeImage] = useState(false);
@@ -99,20 +134,30 @@ export default function CCTVMonitor({ user, setActivePage }) {
 
   const [targetDefectFilter, setTargetDefectFilter] = useState("all");
 
-  // Camera Refs
+  // Camera & Canvas Refs
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const customFileInputRef = useRef(null);
 
-  // AI & Detection States
+  // AI & Multi-Frame Temporal Verification States
   const [isDetecting, setIsDetecting] = useState(true);
-  const [scanIntervalMs, setScanIntervalMs] = useState(250); // High-speed 250ms YOLO loop
+  const [scanIntervalMs, setScanIntervalMs] = useState(800); // 800ms controlled loop
   const [currentDetection, setCurrentDetection] = useState(null);
   const [recentDetections, setRecentDetections] = useState([]);
-  const [backendHealth, setBackendHealth] = useState({ status: "checking", engine: "YOLOv9 CivicNet Engine (best.pt)" });
+  const [backendHealth, setBackendHealth] = useState({ status: "checking", engine: "NEXinfra ONNX Civic Detector" });
   const [audioAlertsEnabled, setAudioAlertsEnabled] = useState(false);
   const [lastLoggedIncident, setLastLoggedIncident] = useState(null);
   const [isSubmittingReport, setIsSubmittingReport] = useState(false);
+
+  // Verification Pipeline States
+  const [verificationState, setVerificationState] = useState("WAITING"); // WAITING, VERIFYING (1/3), VERIFYING (2/3), AI VERIFIED, NO DEFECT, AI DETECTION OFFLINE
+  const [consecutiveCount, setConsecutiveCount] = useState(0);
+
+  // Concurrency and Multi-Frame Ref Guards
+  const isInferencingRef = useRef(false);
+  const consecutiveCountRef = useRef(0);
+  const trackedClassRef = useRef(null);
+  const cooldownMapRef = useRef({}); // Prevents duplicate spam within 60s: { "[camId]_[defectClass]": timestamp }
 
   // Performance Telemetry
   const [fps, setFps] = useState(30);
@@ -133,12 +178,18 @@ export default function CCTVMonitor({ user, setActivePage }) {
     return () => clearInterval(timer);
   }, []);
 
-  // Check YOLO Backend Health on Mount
-  useEffect(() => {
+  // Check ONNX Backend Health on Mount & Periodically
+  const checkBackend = useCallback(() => {
     checkYoloBackendHealth().then((res) => {
       setBackendHealth(res);
     });
   }, []);
+
+  useEffect(() => {
+    checkBackend();
+    const timer = setInterval(checkBackend, 5000);
+    return () => clearInterval(timer);
+  }, [checkBackend]);
 
   // WebCam Stream Initializer
   const startWebcam = useCallback(async () => {
@@ -192,8 +243,12 @@ export default function CCTVMonitor({ user, setActivePage }) {
     }
   }, [selectedSourceType, startWebcam]);
 
-  // Frame Capture & YOLO Detection Loop
+  // Real-Time Frame Capture & Multi-Frame ONNX Detection Loop
   const captureAndDetect = useCallback(async () => {
+    if (isInferencingRef.current) {
+      return; // Skip frame if previous inference is still in flight
+    }
+
     const video = videoRef.current;
     const canvas = canvasRef.current;
     let frameBase64 = "";
@@ -202,12 +257,12 @@ export default function CCTVMonitor({ user, setActivePage }) {
       if (selectedSourceType === "file" && isMediaTypeImage && customVideoSrc) {
         frameBase64 = customVideoSrc;
       } else if (video && video.readyState >= 2 && video.videoWidth > 0 && canvas) {
-        canvas.width = video.videoWidth || 640;
-        canvas.height = video.videoHeight || 360;
+        canvas.width = 640;
+        canvas.height = 360;
         const ctx = canvas.getContext("2d", { willReadFrequently: true });
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        ctx.drawImage(video, 0, 0, 640, 360);
         try {
-          frameBase64 = canvas.toDataURL("image/jpeg", 0.85);
+          frameBase64 = canvas.toDataURL("image/jpeg", 0.75);
         } catch (taintErr) {
           if (selectedSourceType === "channel" && activeChannel?.sampleImage) {
             frameBase64 = activeChannel.sampleImage;
@@ -222,183 +277,203 @@ export default function CCTVMonitor({ user, setActivePage }) {
       }
     }
 
+    if (!frameBase64) return;
+
+    isInferencingRef.current = true;
     const startTime = performance.now();
+
     try {
-      let result = null;
-
-      if (selectedSourceType === "channel") {
-        const cat = activeChannel.category;
-        const confidence = 0.94 + Math.sin(Date.now() / 1200) * 0.03;
-        const channelDefectMap = {
-          "Road Damage / Pothole": {
-            defectName: "Critical Asphalt Road Pothole & Cavity Breach",
-            priority: "P1",
-            priorityLabel: "P1 - Critical Safety Hazard",
-            severity: "Critical",
-            department: "Road Works & Asphalt Pavement Division",
-            slaHours: 4,
-            problemLevel: 4,
-            problemLevelLabel: "Level 4 - Major Infrastructure Breach",
-            hazardScore: 88,
-            dimensions: "Length: 1.8m • Width: 1.3m • Depth: ~14cm (0.35m³ Volume)",
-            riskIndicators: ["Vehicle Axle Rupture Risk", "Expressway Traffic Bottleneck"],
-            urgencyLevel: "Critical Action Required (4 Hours SLA)",
-            labelMain: "Pothole Defect Void",
-            box: { x: 26, y: 32, w: 48, h: 42 }
-          },
-          "Water / Drainage Burst": {
-            defectName: "Pressurized Water Main Pipe Rupture & Inundation",
-            priority: "P1",
-            priorityLabel: "P1 - Critical Safety Hazard",
-            severity: "Critical",
-            department: "Municipal Hydro & Water Supply Grid",
-            slaHours: 3,
-            problemLevel: 4,
-            problemLevelLabel: "Level 4 - Major Infrastructure Breach",
-            hazardScore: 89,
-            dimensions: "Flow: ~85 L/min • Inundation: ~9.2m² Area",
-            riskIndicators: ["Hydro Grid Depressurization", "Subsurface Soil Liquefaction"],
-            urgencyLevel: "Critical Action Required (3 Hours SLA)",
-            labelMain: "Water Plume Breach",
-            box: { x: 22, y: 28, w: 52, h: 46 }
-          },
-          "Solid Waste Overflow": {
-            defectName: "Unattended Solid Waste, Plastic Debris & Landfill Spill",
-            priority: "P2",
-            priorityLabel: "P2 - High Municipal Priority",
-            severity: "High",
-            department: "Sanitation & Solid Waste Logistics Unit",
-            slaHours: 8,
-            problemLevel: 3,
-            problemLevelLabel: "Level 3 - Significant Municipal Hazard",
-            hazardScore: 78,
-            dimensions: "Estimated Volume: ~4.2m³ • Spill Area: ~16.5m²",
-            riskIndicators: ["Public Health & Biowaste Risk", "Plastic Degradation Hazard"],
-            urgencyLevel: "Elevated Priority (8 Hours SLA)",
-            labelMain: "Solid Waste Heap Cluster",
-            box: { x: 20, y: 30, w: 56, h: 44 }
-          },
-          "Structural Anomaly / Bridge Crack": {
-            defectName: "Reinforced Concrete Wall Fracture & Masonry Shear Damage",
-            priority: "P1",
-            priorityLabel: "P1 - Critical Structural Hazard",
-            severity: "Critical",
-            department: "Structural Engineering & Bridge Safety Division",
-            slaHours: 4,
-            problemLevel: 4,
-            problemLevelLabel: "Level 4 - Major Structural Integrity Breach",
-            hazardScore: 93,
-            dimensions: "Crack Propagation: 2.8m • Fissure Depth: ~8.5cm",
-            riskIndicators: ["Load-Bearing Integrity Compromise", "Masonry Plaster Collapse Hazard"],
-            urgencyLevel: "Critical Engineering Inspection (4 Hours SLA)",
-            labelMain: "Structural Wall Fracture",
-            box: { x: 28, y: 24, w: 46, h: 50 }
-          },
-          "Electrical & Streetlight": {
-            defectName: "High-Tension Grid Exposure & Streetlight Transformer Hazard",
-            priority: "P1",
-            priorityLabel: "P1 - Critical Safety Hazard",
-            severity: "Critical",
-            department: "Municipal Power & Street Lighting Grid",
-            slaHours: 2,
-            problemLevel: 5,
-            problemLevelLabel: "Level 5 - Catastrophic Emergency Hazard",
-            hazardScore: 96,
-            dimensions: "Voltage Hazard: 240V Line Exposure • Luminaire Inactive",
-            riskIndicators: ["Live Current Electrocution Hazard", "Pedestrian Fatal Contact Risk"],
-            urgencyLevel: "Immediate Emergency Dispatch (1-2 Hours SLA)",
-            labelMain: "Electrical Hazard Zone",
-            box: { x: 25, y: 22, w: 50, h: 52 }
-          }
-        };
-
-        const meta = channelDefectMap[cat] || {
-          defectName: `${cat} Breach Detected`,
-          priority: "P1",
-          priorityLabel: "P1 - Critical Hazard",
-          severity: "Critical",
-          department: "Municipal Operations",
-          slaHours: 4,
-          problemLevel: 4,
-          problemLevelLabel: "Level 4 - Active Defect",
-          hazardScore: 85,
-          dimensions: "Active Municipal Defect Zone",
-          riskIndicators: ["Public Safety Hazard"],
-          urgencyLevel: "Immediate Field Dispatch",
-          labelMain: cat,
-          box: { x: 25, y: 25, w: 50, h: 50 }
-        };
-
-        result = {
-          success: true,
-          isDefect: true,
-          category: cat,
-          defectName: meta.defectName,
-          confidence: Number(confidence.toFixed(2)),
-          confidencePercent: Math.round(confidence * 100),
-          priority: meta.priority,
-          priorityLabel: meta.priorityLabel,
-          severity: meta.severity,
-          problemLevel: meta.problemLevel,
-          problemLevelLabel: meta.problemLevelLabel,
-          hazardScore: meta.hazardScore,
-          riskIndicators: meta.riskIndicators,
-          urgencyLevel: meta.urgencyLevel,
-          department: meta.department,
-          assignedDepartment: meta.department,
-          slaHours: meta.slaHours,
-          dimensions: meta.dimensions,
-          labelMain: meta.labelMain,
-          boundingBox: meta.box,
-          boundingBoxes: [{ id: 1, label: `${meta.labelMain} (${Math.round(confidence * 100)}%)`, ...meta.box }]
-        };
-      } else if (selectedSourceType === "webcam" && video && video.readyState >= 2) {
-        // Real-time YOLO detection on live camera stream
-        result = processDirectVideoFrame(video);
-      } else {
-        result = await analyzeImageWithAI(frameBase64);
-      }
-
+      // 1. Send frame to ONNX backend detector (Zero Fake Pothole Heuristics)
+      const backendRes = await detectFrameWithBackend(frameBase64);
       const elapsed = Math.round(performance.now() - startTime);
       setInferenceLatencyMs(elapsed);
 
-      if (result) {
-        // Apply Target Defect Filter if user specified one
-        if (targetDefectFilter !== "all" && result.category !== targetDefectFilter) {
-          result = {
-            ...result,
-            isDefect: false,
-            category: "Clear / Normal",
-            labelMain: `Filter Active: Scanning for ${targetDefectFilter}`
-          };
+      // Determine active camera identifiers and coordinates
+      const camId = selectedSourceType === "webcam" ? "CAM-LIVE" : selectedSourceType === "file" ? "CAM-USER" : activeChannel.id;
+      const camName = selectedSourceType === "webcam" ? "Live Integrated Camera" : selectedSourceType === "file" ? "Uploaded Media Stream" : activeChannel.name;
+      const camLat = selectedSourceType === "channel" ? activeChannel.latitude : 28.6139;
+      const camLng = selectedSourceType === "channel" ? activeChannel.longitude : 77.2090;
+      const camLocation = selectedSourceType === "channel" ? activeChannel.location : "Central Command Hub";
+      const camWard = selectedSourceType === "channel" ? activeChannel.ward : "Central Command Ward";
+
+      if (!backendRes || !backendRes.success || backendRes.error) {
+        setBackendHealth({ status: "offline", modelLoaded: false, engine: "AI DETECTION OFFLINE" });
+        setVerificationState("AI DETECTION OFFLINE");
+        consecutiveCountRef.current = 0;
+        setConsecutiveCount(0);
+        setCurrentDetection(null);
+        return;
+      }
+
+      setBackendHealth({ status: "online", modelLoaded: true, engine: backendRes.engine || "NEXinfra ONNX Civic Detector" });
+
+      const rawDetections = Array.isArray(backendRes.detections) ? backendRes.detections : [];
+      
+      // Apply Filter if selected
+      const filteredDetections = targetDefectFilter === "all"
+        ? rawDetections
+        : rawDetections.filter((d) => d.class === targetDefectFilter || d.category === targetDefectFilter);
+
+      if (filteredDetections.length > 0) {
+        // Sort highest confidence first
+        filteredDetections.sort((a, b) => (b.confidence || 0) - (a.confidence || 0));
+        const top = filteredDetections[0];
+
+        // Multi-Frame Temporal Verification (Requires 3 consecutive frames with confidence >= 0.70)
+        if (top.confidence >= 0.70) {
+          if (trackedClassRef.current === top.class) {
+            consecutiveCountRef.current += 1;
+          } else {
+            trackedClassRef.current = top.class;
+            consecutiveCountRef.current = 1;
+          }
+        } else {
+          consecutiveCountRef.current = 0;
+          trackedClassRef.current = null;
         }
 
-        setCurrentDetection(result);
+        const count = consecutiveCountRef.current;
+        setConsecutiveCount(count);
 
-        // Add to recent detections feed if genuine defect
-        if (result.isDefect && result.category !== "Clear / Normal" && result.confidence >= 0.70) {
-          setRecentDetections((prev) => {
-            const isDuplicate = prev[0]?.category === result.category && Date.now() - prev[0]?.time < 6000;
-            if (isDuplicate) return prev;
-            return [
-              {
-                ...result,
-                time: Date.now(),
-                channelId: selectedSourceType === "webcam" ? "LIVE-CAM-HD" : selectedSourceType === "file" ? "USER-MEDIA" : activeChannel.id,
-                channelName: selectedSourceType === "webcam" ? "Live Integrated Camera" : selectedSourceType === "file" ? "Uploaded Media" : activeChannel.name,
-                snapshot: frameBase64
-              },
-              ...prev.slice(0, 19)
-            ];
-          });
+        let vState = "WAITING";
+        if (count === 1) vState = "VERIFYING (1/3)";
+        else if (count === 2) vState = "VERIFYING (2/3)";
+        else if (count >= 3) vState = "AI VERIFIED";
+        setVerificationState(vState);
+
+        const taxMeta = CIVIC_TAXONOMY_MAP[top.class] || CIVIC_TAXONOMY_MAP[top.category] || {
+          category: top.class || "Road Damage / Pothole",
+          defectName: top.class || "Civic Defect",
+          department: top.department || "Roads",
+          assignedDepartment: top.assignedDepartment || "Road Maintenance & Pavement Division",
+          severity: top.severity || "Critical",
+          priority: top.priority || "P1",
+          slaHours: top.slaHours || 4,
+          color: "#EF4444"
+        };
+
+        const detectionPayload = {
+          success: true,
+          isDefect: true,
+          class: top.class,
+          category: taxMeta.category,
+          defectName: taxMeta.defectName || top.class,
+          confidence: top.confidence,
+          confidencePercent: Math.round(top.confidence * 100),
+          priority: taxMeta.priority || "P1",
+          priorityLabel: `${taxMeta.priority || "P1"} - Critical Hazard`,
+          severity: taxMeta.severity || "Critical",
+          department: taxMeta.department,
+          assignedDepartment: taxMeta.assignedDepartment,
+          slaHours: taxMeta.slaHours,
+          problemLevel: top.confidence > 0.85 ? 4 : 3,
+          problemLevelLabel: `Level ${top.confidence > 0.85 ? 4 : 3} - Real ONNX Detection`,
+          hazardScore: Math.round(top.confidence * 100),
+          dimensions: top.box ? `${top.box.width || 240}px x ${top.box.height || 160}px` : "Spatial Anomaly Matrix",
+          labelMain: top.class,
+          boundingBox: {
+            x: top.box?.normX ?? 25,
+            y: top.box?.normY ?? 25,
+            w: top.box?.normW ?? 50,
+            h: top.box?.normH ?? 40
+          },
+          boundingBoxes: filteredDetections.map((d, idx) => ({
+            id: idx + 1,
+            label: `${d.class} (${Math.round(d.confidence * 100)}%)`,
+            x: d.box?.normX ?? 25,
+            y: d.box?.normY ?? 25,
+            w: d.box?.normW ?? 50,
+            h: d.box?.normH ?? 40
+          })),
+          engine: backendRes.engine,
+          time: Date.now()
+        };
+
+        setCurrentDetection(detectionPayload);
+
+        // Add to Live Surveillance Event Log
+        setRecentDetections((prev) => {
+          const isDup = prev[0]?.class === top.class && Date.now() - prev[0]?.time < 3000;
+          if (isDup) return prev;
+          return [
+            {
+              ...detectionPayload,
+              channelId: camId,
+              channelName: camName,
+              snapshot: frameBase64
+            },
+            ...prev.slice(0, 19)
+          ];
+        });
+
+        // 8. AUTOMATIC INCIDENT CREATION UPON AI VERIFIED (with 60s Duplicate Cooldown)
+        if (count >= 3) {
+          const cooldownKey = `${camId}_${top.class}`;
+          const now = Date.now();
+          const lastCreated = cooldownMapRef.current[cooldownKey] || 0;
+
+          if (now - lastCreated > 60000) {
+            cooldownMapRef.current[cooldownKey] = now;
+
+            const incident = {
+              id: `CCTV-${Date.now()}`,
+              title: `[CCTV VERIFIED] ${taxMeta.defectName || top.class}`,
+              category: taxMeta.category || top.class,
+              description: `Real-time multi-frame verified civic defect detected by surveillance camera (${camName} • ${camLocation}). Verified across 3 consecutive YOLO frames with ${Math.round(top.confidence * 100)}% confidence. Ready for drone inspection & work order dispatch.`,
+              priority: taxMeta.priority || "P1",
+              priorityLabel: `${taxMeta.priority || "P1"} - Critical Hazard`,
+              severity: taxMeta.severity || "Critical",
+              problemLevel: 4,
+              hazardScore: Math.round(top.confidence * 100),
+              department: taxMeta.department || "Roads",
+              assignedDepartment: taxMeta.assignedDepartment || "Road Maintenance & Pavement Division",
+              slaHours: taxMeta.slaHours || 4,
+              latitude: camLat,
+              longitude: camLng,
+              targetLatitude: camLat,
+              targetLongitude: camLng,
+              targetIncidentId: `CCTV-${Date.now()}`,
+              address: camLocation,
+              ward: camWard,
+              status: "AI Verified",
+              aiVerified: true,
+              aiConfidence: top.confidence,
+              verificationMethod: "3-frame consecutive YOLO verification",
+              source: "REAL_TIME_CCTV",
+              cameraId: camId,
+              cameraName: camName,
+              detectionEngine: backendRes.engine || "NEXinfra ONNX Civic Detector",
+              imageUrl: frameBase64,
+              boundingBoxes: detectionPayload.boundingBoxes,
+              createdAt: new Date().toISOString(),
+              upvotes: 1,
+              upvotedBy: ["cctv.ai@nexinfra.gov"],
+              createdBy: "cctv.ai@nexinfra.gov"
+            };
+
+            addCivicIssue(incident);
+            createDroneMissionFromIncident(incident);
+
+            setLastLoggedIncident(taxMeta.defectName || top.class);
+            setTimeout(() => setLastLoggedIncident(null), 5000);
+          }
         }
+      } else {
+        // No defects detected in frame
+        consecutiveCountRef.current = 0;
+        setConsecutiveCount(0);
+        setVerificationState("NO DEFECT");
+        setCurrentDetection(null);
       }
     } catch (err) {
       console.warn("CCTV Frame Analysis Exception:", err);
+      setVerificationState("MODEL INFERENCE ERROR");
+    } finally {
+      isInferencingRef.current = false;
     }
   }, [selectedSourceType, activeChannel, targetDefectFilter, isMediaTypeImage, customVideoSrc]);
 
-  // Live Continuous Loop
+  // Live Continuous Detection Interval
   useEffect(() => {
     if (!isDetecting) return;
     const interval = setInterval(() => {
@@ -407,7 +482,7 @@ export default function CCTVMonitor({ user, setActivePage }) {
     return () => clearInterval(interval);
   }, [isDetecting, scanIntervalMs, captureAndDetect]);
 
-  // Handle Manual/One-Click Gemini 3.5 Multimodal Deep Scan
+  // Handle Manual Gemini Multimodal Deep Scan
   const [isGeminiScanning, setIsGeminiScanning] = useState(false);
   const handleGeminiDeepScan = async () => {
     const video = videoRef.current;
@@ -458,7 +533,7 @@ export default function CCTVMonitor({ user, setActivePage }) {
     }
   };
 
-  // Handle Custom Video/Photo Upload
+  // Handle Custom Media Upload
   const handleCustomMediaUpload = (e) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -473,37 +548,47 @@ export default function CCTVMonitor({ user, setActivePage }) {
     }
   };
 
-  // Instant 1-Click Ticket / Incident Creation
+  // Instant 1-Click Manual Dispatch
   const handleAutoLogIncident = async (detectionItem) => {
     const item = detectionItem || currentDetection;
     if (!item) return;
 
     setIsSubmittingReport(true);
     try {
+      const camId = selectedSourceType === "webcam" ? "CAM-LIVE" : selectedSourceType === "file" ? "CAM-USER" : activeChannel.id;
+      const camName = selectedSourceType === "webcam" ? "Live Integrated Camera" : selectedSourceType === "file" ? "Uploaded Media Stream" : activeChannel.name;
+      const camLat = selectedSourceType === "channel" ? activeChannel.latitude : 28.6139;
+      const camLng = selectedSourceType === "channel" ? activeChannel.longitude : 77.2090;
+      const camLocation = selectedSourceType === "channel" ? activeChannel.location : "Central Command Hub";
+      const camWard = selectedSourceType === "channel" ? activeChannel.ward : "Central Command Ward";
+
       const newReport = {
-        id: `CIVIC-${Math.floor(1000 + Math.random() * 9000)}${String.fromCharCode(65 + Math.floor(Math.random() * 26))}`,
-        title: `[CCTV AI AUTO-DISPATCH] ${item.defectName || item.category}`,
+        id: `CCTV-${Date.now()}`,
+        title: `[CCTV AI DISPATCH] ${item.defectName || item.category}`,
         category: item.category,
-        description: `Automated detection triggered by CCTV surveillance camera (${
-          item.channelName || activeChannel.name
-        }). Problem: ${item.defectName}. Severity: ${item.priorityLabel || item.priority}. Detected with ${
-          item.confidencePercent || 90
-        }% confidence via YOLOv8/v9 CivicNet engine.`,
+        description: `Automated detection triggered by CCTV surveillance camera (${camName} • ${camLocation}). Problem: ${item.defectName}. Severity: ${item.priorityLabel || item.priority}. Detected with ${item.confidencePercent || 90}% confidence via ONNX YOLO engine. Ready for drone inspection & work order dispatch.`,
         priority: item.priority || "P1",
         priorityLabel: item.priorityLabel || "P1 - Critical Hazard",
         severity: item.severity || "Critical",
         problemLevel: item.problemLevel || 4,
         hazardScore: item.hazardScore || 85,
-        department: item.department || "Municipal Operations",
-        assignedDepartment: item.department || "Municipal Operations",
+        department: item.department || "Roads",
+        assignedDepartment: item.assignedDepartment || "Road Maintenance & Pavement Division",
         slaHours: item.slaHours || 4,
-        latitude: 28.6139 + (Math.random() - 0.5) * 0.05,
-        longitude: 77.209 + (Math.random() - 0.5) * 0.05,
-        address: item.channelName ? `${item.channelName} Sector` : "Sector 4 Expressway Corridor",
-        ward: "Central District - Ward 4",
-        status: "Reported",
+        latitude: camLat,
+        longitude: camLng,
+        targetLatitude: camLat,
+        targetLongitude: camLng,
+        targetIncidentId: `CCTV-${Date.now()}`,
+        address: camLocation,
+        ward: camWard,
+        status: "AI Verified",
         aiVerified: true,
         aiConfidence: (item.confidencePercent || 90) / 100,
+        verificationMethod: "3-frame consecutive YOLO verification",
+        source: "REAL_TIME_CCTV",
+        cameraId: camId,
+        cameraName: camName,
         createdAt: new Date().toISOString(),
         upvotes: 1,
         upvotedBy: ["cctv.ai@nexinfra.gov"],
@@ -512,8 +597,10 @@ export default function CCTVMonitor({ user, setActivePage }) {
       };
 
       addCivicIssue(newReport);
+      createDroneMissionFromIncident(newReport);
+
       setLastLoggedIncident(item.defectName || item.category);
-      setTimeout(() => setLastLoggedIncident(null), 4000);
+      setTimeout(() => setLastLoggedIncident(null), 5000);
     } catch (err) {
       console.error("Auto incident logging error:", err);
     } finally {
@@ -529,6 +616,8 @@ export default function CCTVMonitor({ user, setActivePage }) {
     link.href = canvasRef.current.toDataURL("image/jpeg");
     link.click();
   };
+
+  const currentCamId = selectedSourceType === "webcam" ? "CAM-LIVE" : selectedSourceType === "file" ? "CAM-USER" : activeChannel.id;
 
   return (
     <div className="flex-1 flex flex-col min-h-screen bg-[#070A12] text-slate-100 font-sans p-6 overflow-y-auto">
@@ -546,34 +635,64 @@ export default function CCTVMonitor({ user, setActivePage }) {
               <h1 className="text-2xl font-extrabold text-white tracking-tight font-heading flex items-center gap-2">
                 NEXINFRA CCTV DEFECT INTELLIGENCE
                 <span className="px-2.5 py-0.5 rounded-full text-xs font-mono font-bold bg-cyan-950 border border-cyan-500/60 text-cyan-300">
-                  LIVE AI GRID
+                  REAL ONNX YOLO
                 </span>
               </h1>
               <p className="text-slate-400 text-xs mt-0.5">
-                Real-time optical defect ingestion, automated YOLO spatial localization & instant municipal dispatch
+                Real-time optical frame ingestion, ONNX inference, 3-frame temporal verification & automated drone-ready dispatch
               </p>
             </div>
           </div>
         </div>
 
-        {/* Backend Status & Global Controls */}
-        <div className="flex flex-wrap items-center gap-3 font-mono text-xs">
+        {/* Status Indicators: AI Engine, Detection, Camera, Verification */}
+        <div className="flex flex-wrap items-center gap-2.5 font-mono text-xs">
+          {/* 1. AI ENGINE STATUS */}
           <div
             className={`px-3 py-1.5 rounded-lg border flex items-center gap-2 ${
               backendHealth.status === "online"
                 ? "bg-emerald-950/60 border-emerald-500/40 text-emerald-300"
-                : "bg-cyan-950/60 border-cyan-500/40 text-cyan-300"
+                : "bg-red-950/60 border-red-500/50 text-red-300"
             }`}
           >
-            <Server className="w-4 h-4 text-cyan-400" />
-            <span>
-              YOLO Model: <strong className="text-white">best.pt (Trained CivicNet)</strong>
-            </span>
+            <Server className="w-3.5 h-3.5 text-cyan-400" />
+            <span>AI ENGINE:</span>
+            <strong className={backendHealth.status === "online" ? "text-emerald-400" : "text-red-400"}>
+              {backendHealth.status === "online" ? "● ONLINE" : "● OFFLINE"}
+            </strong>
           </div>
 
-          <div className="px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-slate-300 flex items-center gap-2">
-            <Cpu className="w-4 h-4 text-emerald-400" />
-            <span>Engine: <strong>YOLOv9 Real-Time</strong></span>
+          {/* 2. DETECTION STATE */}
+          <div className="px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-slate-300 flex items-center gap-1.5">
+            <Cpu className="w-3.5 h-3.5 text-cyan-400" />
+            <span>DETECTION:</span>
+            <strong className={isDetecting ? "text-emerald-400" : "text-slate-400"}>
+              {isDetecting ? "● ACTIVE" : "● STOPPED"}
+            </strong>
+          </div>
+
+          {/* 3. ACTIVE CAMERA */}
+          <div className="px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-cyan-300 flex items-center gap-1.5">
+            <Tv className="w-3.5 h-3.5 text-cyan-400" />
+            <span>CAMERA:</span>
+            <strong className="text-white">{currentCamId}</strong>
+          </div>
+
+          {/* 4. VERIFICATION STATE */}
+          <div
+            className={`px-3 py-1.5 rounded-lg border flex items-center gap-1.5 ${
+              verificationState === "AI VERIFIED"
+                ? "bg-red-950/80 border-red-500 text-red-300 font-bold animate-pulse"
+                : verificationState.startsWith("VERIFYING")
+                ? "bg-amber-950/60 border-amber-500/50 text-amber-300"
+                : "bg-slate-900 border-slate-700 text-slate-300"
+            }`}
+          >
+            <ShieldCheck className="w-3.5 h-3.5 text-cyan-400" />
+            <span>VERIFICATION:</span>
+            <strong className={verificationState === "AI VERIFIED" ? "text-red-400 font-extrabold" : "text-cyan-300"}>
+              {verificationState}
+            </strong>
           </div>
 
           <button
@@ -585,13 +704,13 @@ export default function CCTVMonitor({ user, setActivePage }) {
             }`}
             title="Toggle Audio Siren"
           >
-            {audioAlertsEnabled ? <Volume2 className="w-4 h-4 text-amber-400" /> : <VolumeX className="w-4 h-4" />}
+            {audioAlertsEnabled ? <Volume2 className="w-3.5 h-3.5 text-amber-400" /> : <VolumeX className="w-3.5 h-3.5" />}
             <span>Siren {audioAlertsEnabled ? "ON" : "OFF"}</span>
           </button>
 
           <button
             onClick={() => setIsDetecting(!isDetecting)}
-            className={`px-4 py-1.5 rounded-lg font-bold flex items-center gap-2 transition-all cursor-pointer ${
+            className={`px-3.5 py-1.5 rounded-lg font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
               isDetecting
                 ? "bg-red-600 hover:bg-red-500 text-white shadow-lg shadow-red-600/30"
                 : "bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-600/30"
@@ -599,27 +718,27 @@ export default function CCTVMonitor({ user, setActivePage }) {
           >
             {isDetecting ? (
               <>
-                <Pause className="w-4 h-4" /> Pause Detection
+                <Pause className="w-3.5 h-3.5" /> Pause
               </>
             ) : (
               <>
-                <Play className="w-4 h-4" /> Resume Detection
+                <Play className="w-3.5 h-3.5" /> Resume
               </>
             )}
           </button>
         </div>
       </div>
 
-      {/* LAST LOGGED SUCCESS TOAST */}
+      {/* AUTO-LOGGED SUCCESS TOAST */}
       {lastLoggedIncident && (
         <div className="mt-4 p-3.5 bg-emerald-950/90 border border-emerald-500 rounded-xl flex items-center justify-between text-emerald-200 text-sm shadow-xl animate-bounce">
           <div className="flex items-center gap-2.5">
             <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
             <span>
-              <strong>Incident Dispatched:</strong> Successfully logged <em>"{lastLoggedIncident}"</em> to Municipal Work Queue!
+              <strong>AI Verified Incident Created:</strong> Automatically saved <em>"{lastLoggedIncident}"</em> with Fixed GPS & staged for UAV drone inspection!
             </span>
           </div>
-          <span className="text-xs bg-emerald-900/80 px-2.5 py-1 rounded font-mono">STATUS: QUEUED</span>
+          <span className="text-xs bg-emerald-900/80 px-2.5 py-1 rounded font-mono">AI VERIFIED • DRONE READY</span>
         </div>
       )}
 
@@ -631,7 +750,7 @@ export default function CCTVMonitor({ user, setActivePage }) {
             <div>
               <strong className="text-white text-sm block">Camera Permission Required:</strong>
               <span>
-                Your browser blocked webcam access. Click the <strong>Camera / Padlock 🔒 icon</strong> in your browser's address bar (near the URL) &rarr; choose <strong>"Allow"</strong> &rarr; then click Retry.
+                Your browser blocked webcam access. Click the <strong>Camera / Padlock 🔒 icon</strong> in your browser's address bar &rarr; choose <strong>"Allow"</strong> &rarr; then click Retry.
               </span>
             </div>
           </div>
@@ -705,26 +824,27 @@ export default function CCTVMonitor({ user, setActivePage }) {
                   onChange={(e) => setTargetDefectFilter(e.target.value)}
                   className="bg-slate-900 border border-slate-700 text-cyan-300 font-bold px-2.5 py-1 rounded-lg focus:outline-none focus:border-cyan-500 cursor-pointer"
                 >
-                  <option value="all">⚡ All Hazards (Auto)</option>
-                  <option value="Road Damage / Pothole">🛣️ Potholes & Craters Only</option>
-                  <option value="Solid Waste Overflow">🗑️ Solid Waste & Trash Dumps Only</option>
-                  <option value="Structural Anomaly / Bridge Crack">🧱 Wall & Bridge Cracks Only</option>
-                  <option value="Water / Drainage Burst">💧 Water Leaks & Floods Only</option>
-                  <option value="Electrical & Streetlight">⚡ Electrical & Streetlights Only</option>
+                  <option value="all">⚡ All 6 Defect Categories</option>
+                  <option value="Road Damage / Pothole">🛣️ Road Damage, Potholes & Open Manholes</option>
+                  <option value="Water / Drainage Burst">💧 Water Main Bursts & Waterlogging</option>
+                  <option value="Solid Waste Overflow">🗑️ Solid Waste & Trash Dumps</option>
+                  <option value="Electrical & Streetlight">⚡ Electrical & Streetlight Hazards</option>
+                  <option value="Structural Anomaly / Bridge Crack">🧱 Structural & Bridge Cracks</option>
+                  <option value="Public Park & Greenery Hazard">🌳 Fallen Trees & Greenery Hazards</option>
                 </select>
               </div>
 
               <div className="flex items-center gap-1.5">
-                <span>Speed:</span>
+                <span>Interval:</span>
                 <select
                   value={scanIntervalMs}
                   onChange={(e) => setScanIntervalMs(Number(e.target.value))}
                   className="bg-slate-900 border border-slate-700 text-slate-200 px-2.5 py-1 rounded-lg focus:outline-none focus:border-cyan-500 cursor-pointer"
                 >
-                  <option value={150}>150ms (Real-Time 30 FPS)</option>
-                  <option value={300}>300ms (High Speed)</option>
-                  <option value={500}>500ms (Balanced)</option>
-                  <option value={1000}>1.0s (Standard)</option>
+                  <option value={500}>500ms (Rapid)</option>
+                  <option value={800}>800ms (Recommended)</option>
+                  <option value={1000}>1000ms (Standard 1.0s)</option>
+                  <option value={1500}>1500ms (Eco Mode)</option>
                 </select>
               </div>
             </div>
@@ -787,14 +907,12 @@ export default function CCTVMonitor({ user, setActivePage }) {
                   REC • LIVE
                 </div>
                 <div className="px-2.5 py-1 rounded bg-black/80 backdrop-blur-md border border-slate-700 text-cyan-300 font-bold">
-                  {selectedSourceType === "webcam"
-                    ? "HARDWARE-CAM-01"
-                    : selectedSourceType === "file"
-                    ? "RAW-CCTV-STREAM"
-                    : activeChannel.id}
+                  {currentCamId}
                 </div>
                 <div className="px-2.5 py-1 rounded bg-black/80 backdrop-blur-md border border-slate-700 text-slate-300">
-                  {selectedSourceType === "channel" ? activeChannel.location : "Active Sensor Matrix"}
+                  {selectedSourceType === "channel"
+                    ? `GPS: ${activeChannel.latitude.toFixed(4)}°N, ${activeChannel.longitude.toFixed(4)}°E`
+                    : "GPS: 28.6139°N, 77.2090°E"}
                 </div>
               </div>
 
@@ -803,7 +921,7 @@ export default function CCTVMonitor({ user, setActivePage }) {
                   LATENCY: <span className="text-cyan-400 font-bold">{inferenceLatencyMs}ms</span>
                 </div>
                 <div className="px-2.5 py-1 rounded bg-black/80 backdrop-blur-md border border-slate-700 text-emerald-400 font-bold">
-                  30 FPS
+                  ONNX YOLO
                 </div>
               </div>
             </div>
@@ -811,10 +929,10 @@ export default function CCTVMonitor({ user, setActivePage }) {
             {/* 2. DYNAMIC YOLO BOUNDING BOX & TARGETING HUD */}
             {(() => {
               const activeBox = currentDetection?.boundingBox || currentDetection?.boundingBoxes?.[0];
-              const isDefect = isDetecting && currentDetection && (currentDetection.isDefect !== false) && (currentDetection.category !== "Clear / Normal") && activeBox;
+              const isDefect = isDetecting && currentDetection && (currentDetection.isDefect !== false) && activeBox;
 
               if (!isDefect) {
-                return isDetecting && currentDetection && (currentDetection.category === "Clear / Normal" || currentDetection.isDefect === false) ? (
+                return isDetecting && verificationState === "NO DEFECT" ? (
                   <div className="absolute bottom-16 left-1/2 -translate-x-1/2 px-4 py-1.5 rounded-full bg-emerald-950/80 border border-emerald-500/60 backdrop-blur-md text-emerald-300 text-xs font-mono font-bold flex items-center gap-2 pointer-events-none z-20 shadow-xl animate-pulse">
                     <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
                     <span>SURVEILLANCE SCAN: NOMINAL • NO HAZARDS DETECTED</span>
@@ -822,7 +940,7 @@ export default function CCTVMonitor({ user, setActivePage }) {
                 ) : null;
               }
 
-              const boxColor = "#EF4444"; // Vibrant Alert Red for all detected civic defects
+              const boxColor = "#EF4444"; // Alert Red
 
               return (
                 <div
@@ -837,7 +955,7 @@ export default function CCTVMonitor({ user, setActivePage }) {
                     backgroundColor: "rgba(239, 68, 68, 0.22)"
                   }}
                 >
-                  {/* Corner Targeting Brackets in Bright Red/White */}
+                  {/* Corner Targeting Brackets */}
                   <span className="absolute -top-1.5 -left-1.5 w-4 h-4 border-t-2 border-l-2 border-red-400 shadow-md shadow-red-500/50" />
                   <span className="absolute -top-1.5 -right-1.5 w-4 h-4 border-t-2 border-r-2 border-red-400 shadow-md shadow-red-500/50" />
                   <span className="absolute -bottom-1.5 -left-1.5 w-4 h-4 border-b-2 border-l-2 border-red-400 shadow-md shadow-red-500/50" />
@@ -858,7 +976,7 @@ export default function CCTVMonitor({ user, setActivePage }) {
                       {currentDetection.confidencePercent || 94}%
                     </span>
                     <span className="bg-white/20 px-1 rounded text-[10px]">
-                      {currentDetection.problemLevelLabel?.split(" - ")[0] || "Level 4"}
+                      {verificationState}
                     </span>
                   </div>
 
@@ -870,198 +988,134 @@ export default function CCTVMonitor({ user, setActivePage }) {
               );
             })()}
 
-            {/* 3. BOTTOM TIMESTAMP & CAMERA OVERLAY */}
+            {/* 3. BOTTOM TIMESTAMP & CONTROLS */}
             <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between pointer-events-none z-20 font-mono text-xs">
               <div className="px-2.5 py-1 rounded bg-black/80 backdrop-blur-md border border-slate-800 text-slate-400">
                 {currentTimeStr}
               </div>
 
-              {/* Quick Action Floating Controls */}
+              {/* Quick Action Controls */}
               <div className="flex items-center gap-2 pointer-events-auto">
                 <button
                   onClick={handleDownloadSnapshot}
-                  className="p-2 rounded-lg bg-black/80 hover:bg-slate-800 border border-slate-700 text-slate-300 hover:text-white transition-colors cursor-pointer"
-                  title="Take High-Res Snapshot"
+                  className="px-3 py-1.5 rounded-lg bg-black/80 hover:bg-slate-900 border border-slate-700 text-slate-200 text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+                  title="Download Snapshot Evidence"
                 >
-                  <Download className="w-4 h-4" />
+                  <Download className="w-3.5 h-3.5 text-cyan-400" />
+                  <span>Snapshot</span>
                 </button>
+
                 <button
-                  onClick={() => handleAutoLogIncident()}
-                  disabled={isSubmittingReport}
-                  className="px-3 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-bold flex items-center gap-1.5 shadow-lg shadow-cyan-600/30 transition-all cursor-pointer disabled:opacity-50"
-                  title="Dispatch Incident to Municipal Desk"
+                  onClick={handleGeminiDeepScan}
+                  disabled={isGeminiScanning}
+                  className="px-3 py-1.5 rounded-lg bg-purple-950/80 hover:bg-purple-900 border border-purple-500/60 text-purple-200 text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-lg"
                 >
-                  <PlusCircle className="w-4 h-4" />
-                  {isSubmittingReport ? "Logging..." : "Dispatch Incident"}
+                  <Sparkles className={`w-3.5 h-3.5 text-purple-400 ${isGeminiScanning ? "animate-spin" : ""}`} />
+                  <span>{isGeminiScanning ? "Analyzing..." : "Gemini Deep Scan"}</span>
                 </button>
               </div>
             </div>
           </div>
 
-          {/* CCTV GRID CHANNEL SWITCHER */}
+          {/* CCTV CHANNELS SELECTOR BAR */}
           {selectedSourceType === "channel" && (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
-              {CCTV_CHANNELS.map((ch) => (
-                <button
-                  key={ch.id}
-                  onClick={() => setActiveChannel(ch)}
-                  className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
-                    activeChannel.id === ch.id
-                      ? "bg-cyan-950/60 border-cyan-500 text-white shadow-lg shadow-cyan-500/10"
-                      : "bg-[#0D121F] border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-200"
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="font-mono text-xs font-bold text-cyan-400">{ch.id}</span>
-                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                  </div>
-                  <div className="text-xs font-bold text-white truncate">{ch.name}</div>
-                  <div className="text-[10px] text-slate-400 truncate mt-0.5">{ch.category}</div>
-                </button>
-              ))}
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2.5">
+              {CCTV_CHANNELS.map((channel) => {
+                const isActive = activeChannel.id === channel.id;
+                return (
+                  <button
+                    key={channel.id}
+                    onClick={() => setActiveChannel(channel)}
+                    className={`p-2.5 rounded-xl border text-left flex flex-col justify-between transition-all cursor-pointer ${
+                      isActive
+                        ? "bg-cyan-950/60 border-cyan-500 text-white shadow-lg shadow-cyan-500/20"
+                        : "bg-[#0D121F] border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-200"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="font-mono font-bold text-xs text-cyan-400">{channel.id}</span>
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                    </div>
+                    <p className="font-bold text-xs line-clamp-1 text-slate-200">{channel.category}</p>
+                    <p className="text-[10px] font-mono text-slate-400 mt-1 truncate">
+                      GPS: {channel.latitude.toFixed(2)}, {channel.longitude.toFixed(2)}
+                    </p>
+                  </button>
+                );
+              })}
             </div>
           )}
         </div>
 
-        {/* RIGHT COLUMN: LIVE DEFECT EVENT LOG & ACTION CENTER */}
+        {/* RIGHT COLUMN: LIVE RECENT DETECTIONS FEED & EVENT LOG */}
         <div className="flex flex-col gap-4">
-          {/* CURRENT ANOMALY CARD */}
-          <div className="bg-[#0D121F] border border-slate-800 rounded-2xl p-5 shadow-xl">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-800/80">
+          <div className="bg-[#0D121F] border border-slate-800 rounded-2xl p-5 flex flex-col h-full">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-800">
               <div className="flex items-center gap-2">
-                <ShieldAlert className="w-5 h-5 text-amber-400" />
-                <h3 className="font-bold text-white text-sm">Active AI Defect Focus</h3>
-              </div>
-              <span className="text-[11px] font-mono font-bold bg-amber-950 text-amber-300 border border-amber-500/40 px-2 py-0.5 rounded">
-                YOLO MATCH
-              </span>
-            </div>
-
-            {currentDetection ? (
-              <div className="mt-4 space-y-3 font-sans text-xs">
-                <div>
-                  <div className="text-slate-400 font-mono text-[10px]">DETECTED ANOMALY</div>
-                  <div className="text-base font-extrabold text-white mt-0.5 font-heading">
-                    {currentDetection.defectName || currentDetection.category}
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2 font-mono">
-                  <div className="bg-slate-900/90 border border-slate-800 p-2.5 rounded-lg">
-                    <span className="text-slate-500 block text-[10px]">SEVERITY / SLA</span>
-                    <span className="text-red-400 font-bold">
-                      {currentDetection.priority || "P1"} ({currentDetection.slaHours || 4}h SLA)
-                    </span>
-                  </div>
-                  <div className="bg-slate-900/90 border border-slate-800 p-2.5 rounded-lg">
-                    <span className="text-slate-500 block text-[10px]">CONFIDENCE</span>
-                    <span className="text-cyan-400 font-bold">
-                      {currentDetection.confidencePercent || 92}% Probability
-                    </span>
-                  </div>
-                </div>
-
-                <div className="bg-slate-900/90 border border-slate-800 p-3 rounded-lg space-y-1.5">
-                  <div className="text-slate-400 font-mono text-[10px]">ALLOTTED DEPARTMENT</div>
-                  <div className="text-slate-200 font-bold">{currentDetection.department}</div>
-                  <div className="text-slate-400 text-[11px] mt-1">
-                    {currentDetection.riskIndicators?.join(" • ") || "Immediate field remediation required."}
-                  </div>
-                </div>
-
-                <button
-                  onClick={() => handleAutoLogIncident()}
-                  disabled={isSubmittingReport}
-                  className="w-full py-2.5 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-bold rounded-xl shadow-lg shadow-cyan-600/25 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-                >
-                  <PlusCircle className="w-4 h-4" />
-                  {isSubmittingReport ? "Processing Dispatch..." : "Auto-Dispatch to Municipal Crews"}
-                </button>
-              </div>
-            ) : (
-              <div className="py-8 text-center text-slate-500 text-xs">
-                <RefreshCw className="w-6 h-6 mx-auto mb-2 animate-spin text-slate-600" />
-                Scanning live frames for infrastructure anomalies...
-              </div>
-            )}
-          </div>
-
-          {/* LIVE DEFECT AUDIT TRAIL / DETECTION HISTORY */}
-          <div className="bg-[#0D121F] border border-slate-800 rounded-2xl p-5 shadow-xl flex-1 flex flex-col min-h-[300px]">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-800/80 mb-3">
-              <div className="flex items-center gap-2">
-                <Activity className="w-4 h-4 text-cyan-400" />
-                <h3 className="font-bold text-white text-sm">Surveillance Event Log</h3>
+                <Activity className="w-5 h-5 text-cyan-400" />
+                <h3 className="font-bold text-white font-heading text-sm">
+                  Live Surveillance Event Log
+                </h3>
               </div>
               <span className="text-xs font-mono text-slate-400">
-                {recentDetections.length} Events
+                {recentDetections.length} Events Logged
               </span>
             </div>
 
-            <div className="flex-1 overflow-y-auto space-y-2.5 pr-1">
-              {recentDetections.length > 0 ? (
-                recentDetections.map((item, idx) => (
+            {/* Event Log Items */}
+            <div className="flex-1 overflow-y-auto space-y-3 mt-4 max-h-[560px] pr-1">
+              {recentDetections.length === 0 ? (
+                <div className="text-center py-12 text-slate-500 text-xs font-mono">
+                  <ShieldAlert className="w-8 h-8 mx-auto mb-2 text-slate-600 animate-pulse" />
+                  <p>AWAITING DEFECT DETECTIONS...</p>
+                  <p className="text-[10px] text-slate-600 mt-1">
+                    Surveillance engine is active. Verified defects will be logged here.
+                  </p>
+                </div>
+              ) : (
+                recentDetections.map((event, idx) => (
                   <div
                     key={idx}
-                    className="p-3 bg-slate-900/90 hover:bg-slate-850 border border-slate-800 rounded-xl flex items-start justify-between gap-3 transition-colors shadow-md"
+                    className="p-3 rounded-xl bg-slate-900/80 border border-slate-800 hover:border-slate-700 transition-all space-y-2"
                   >
-                    <div className="flex items-start gap-3 min-w-0 flex-1">
-                      {item.snapshot && (
-                        <img
-                          src={item.snapshot}
-                          alt="Violation Thumbnail"
-                          className="w-14 h-14 rounded-lg object-cover border border-slate-700 shrink-0 bg-black"
-                        />
-                      )}
-                      <div className="space-y-1 min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-1.5 font-mono text-[10px]">
-                          <span
-                            className={`px-1.5 py-0.5 rounded font-bold ${
-                              item.priority === "P1"
-                                ? "bg-red-950 text-red-300 border border-red-500/40"
-                                : "bg-amber-950 text-amber-300 border border-amber-500/40"
-                            }`}
-                          >
-                            {item.priority || "P1"} ({item.slaHours || 4}h SLA)
-                          </span>
-                          <span className="px-1.5 py-0.5 rounded bg-cyan-950 text-cyan-300 border border-cyan-500/40 font-bold">
-                            {item.confidencePercent || 92}%
-                          </span>
-                          {item.engineBadge && (
-                            <span className="px-1.5 py-0.5 rounded bg-indigo-950 text-indigo-300 border border-indigo-500/40 font-bold">
-                              {item.engineBadge}
-                            </span>
-                          )}
-                          <span className="text-slate-400">
-                            {new Date(item.time).toLocaleTimeString()}
-                          </span>
-                        </div>
-                        <div className="text-xs font-bold text-white truncate font-heading">
-                          {item.defectName || item.category}
-                        </div>
-                        {item.dimensions && (
-                          <div className="text-[10px] text-cyan-300/90 font-mono truncate">
-                            📏 {item.dimensions}
-                          </div>
-                        )}
-                        <div className="text-[10px] text-slate-400 truncate">
-                          🏢 {item.department || "Municipal Operations"} • {item.channelName}
-                        </div>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-red-500 animate-ping" />
+                        <span className="font-mono font-bold text-xs text-white">
+                          {event.channelId}
+                        </span>
+                        <span className="text-[10px] text-slate-400 font-mono">
+                          {new Date(event.time).toLocaleTimeString()}
+                        </span>
                       </div>
+                      <span className="text-xs font-mono font-bold text-red-400 bg-red-950/60 px-2 py-0.5 rounded border border-red-500/40">
+                        {event.confidencePercent || 94}% CONF
+                      </span>
                     </div>
 
-                    <button
-                      onClick={() => handleAutoLogIncident(item)}
-                      className="px-3 py-1.5 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white rounded-lg text-xs font-bold shrink-0 transition-colors shadow-md shadow-cyan-600/20 cursor-pointer"
-                    >
-                      Dispatch
-                    </button>
+                    <p className="font-bold text-xs text-slate-200 line-clamp-1">
+                      {event.defectName || event.category}
+                    </p>
+
+                    <div className="flex items-center justify-between text-[11px] font-mono text-slate-400 pt-1">
+                      <span>{event.department || "Roads"}</span>
+                      <span className="text-cyan-400 font-bold">
+                        SLA: {event.slaHours || 4}h
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2 pt-1">
+                      <button
+                        onClick={() => handleAutoLogIncident(event)}
+                        disabled={isSubmittingReport}
+                        className="w-full py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-mono text-xs font-bold transition-colors cursor-pointer flex items-center justify-center gap-1.5 shadow-md shadow-cyan-600/20"
+                      >
+                        <Plane className="w-3.5 h-3.5" />
+                        <span>Dispatch Drone & Log</span>
+                      </button>
+                    </div>
                   </div>
                 ))
-              ) : (
-                <div className="py-12 text-center text-slate-500 text-xs font-mono">
-                  No critical violations captured yet. Surveillance loop active.
-                </div>
               )}
             </div>
           </div>

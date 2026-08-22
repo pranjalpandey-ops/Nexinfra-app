@@ -1,78 +1,160 @@
 /**
- * NEXINFRA YOLOv9 CIVICNET DEFECT DETECTION ENGINE (best.pt)
- * 6-Class Municipal Defect Detection & Level Assessment:
- * 0: Road Damage / Pothole
- * 1: Water / Drainage Burst
- * 2: Solid Waste Overflow
- * 3: Electrical & Streetlight
- * 4: Structural Anomaly / Bridge Crack
- * 5: Public Park & Greenery Hazard
+ * NEXINFRA REAL-TIME ONNX YOLO CIVIC DEFECT DETECTION ENGINE
+ * 6-Class Municipal Defect Detection & SLA Taxonomy:
+ * 0: Road Damage / Pothole (Roads, Critical, P1, 4h SLA)
+ * 1: Water / Drainage Burst (Hydro / Water Supply, Critical, P1, 3h SLA)
+ * 2: Solid Waste Overflow (Sanitation, High, P2, 8h SLA)
+ * 3: Electrical / Streetlight Hazard (Power, Critical, P1, 2h SLA)
+ * 4: Structural / Bridge Crack (Structural Engineering, Critical, P1, 4h SLA)
+ * 5: Fallen Tree / Greenery Hazard (Forestry, High, P2, 6h SLA)
  */
 
 export const isLocalHost = typeof window !== "undefined" && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
-export const YOLO_API_BASE = isLocalHost ? "http://127.0.0.1:8000" : "";
+export const BACKEND_API_BASE = "http://127.0.0.1:4000";
+
+// Centralized 6-Tier Municipal Defect Taxonomy & SLA Mapping
+export const CIVIC_TAXONOMY_MAP = {
+  "Road Damage / Pothole": {
+    category: "Road Damage / Pothole",
+    defectName: "Road Damage & Asphalt Pothole Cavity",
+    department: "Roads",
+    assignedDepartment: "Road Maintenance & Pavement Division",
+    severity: "Critical",
+    priority: "P1",
+    slaHours: 4,
+    color: "#EF4444",
+    tags: ["Pothole", "Road Damage", "Asphalt Cavity", "Open Manhole / Chamber"]
+  },
+  "Water / Drainage Burst": {
+    category: "Water / Drainage Burst",
+    defectName: "Water / Drainage Burst & Waterlogging",
+    department: "Hydro / Water Supply",
+    assignedDepartment: "Municipal Hydro & Water Supply Grid",
+    severity: "Critical",
+    priority: "P1",
+    slaHours: 3,
+    color: "#00F0FF",
+    tags: ["Waterlogging", "Drainage Burst", "Water Main Leak", "Flooded Surface"]
+  },
+  "Solid Waste Overflow": {
+    category: "Solid Waste Overflow",
+    defectName: "Solid Waste & Plastic Debris Overflow",
+    department: "Sanitation",
+    assignedDepartment: "Sanitation & Solid Waste Logistics Unit",
+    severity: "High",
+    priority: "P2",
+    slaHours: 8,
+    color: "#F59E0B",
+    tags: ["Solid Waste", "Garbage Overflow", "Plastic Debris Heap"]
+  },
+  "Electrical & Streetlight": {
+    category: "Electrical & Streetlight",
+    defectName: "Electrical / Streetlight Hazard",
+    department: "Power",
+    assignedDepartment: "Municipal Power & Electrical Grid",
+    severity: "Critical",
+    priority: "P1",
+    slaHours: 2,
+    color: "#F97316",
+    tags: ["Exposed Wiring", "Streetlight Outage", "Transformer Spark"]
+  },
+  "Structural Anomaly / Bridge Crack": {
+    category: "Structural Anomaly / Bridge Crack",
+    defectName: "Structural Defect & Bridge Crack Anomaly",
+    department: "Structural Engineering",
+    assignedDepartment: "Structural Engineering & Bridge Safety Division",
+    severity: "Critical",
+    priority: "P1",
+    slaHours: 4,
+    color: "#8B5CF6",
+    tags: ["Wall Crack", "Bridge Shear", "Pillar Fracture", "Structural Defect"]
+  },
+  "Public Park & Greenery Hazard": {
+    category: "Public Park & Greenery Hazard",
+    defectName: "Fallen Tree & Greenery Roadway Blockade",
+    department: "Forestry",
+    assignedDepartment: "Urban Forestry & Public Parks Department",
+    severity: "High",
+    priority: "P2",
+    slaHours: 6,
+    color: "#10B981",
+    tags: ["Fallen Tree", "Overhanging Branch", "Greenery Obstruction"]
+  }
+};
 
 /**
- * Checks if the Ultralytics YOLO FastAPI backend (best.pt) is online
+ * Checks if the Node.js ONNX backend is online and model is active
  */
 export async function checkYoloBackendHealth() {
-  if (!isLocalHost) {
-    return { status: "cloud", modelLoaded: true, engine: "YOLOv9 CivicNet Engine (best.pt)" };
-  }
   try {
-    const res = await fetch(`${YOLO_API_BASE}/api/health`, {
+    const res = await fetch(`${BACKEND_API_BASE}/api/health`, {
       method: "GET",
       headers: { "Accept": "application/json" },
       signal: AbortSignal.timeout(1500)
     });
     if (res.ok) {
-      return await res.json();
+      const data = await res.json();
+      return {
+        status: data.status || "online",
+        modelLoaded: Boolean(data.ai?.modelExists),
+        engine: data.ai?.engine || "NEXinfra ONNX Civic Detector"
+      };
     }
   } catch (err) {
     // Backend offline or timeout
   }
-  return { status: "offline", modelLoaded: false, engine: "YOLOv9 CivicNet Engine (best.pt)" };
+  return { status: "offline", modelLoaded: false, engine: "AI DETECTION OFFLINE" };
 }
 
-export async function analyzeImageWithAI(imageSource) {
-  // 1. PRIMARY STAGE: Ultralytics YOLO Trained Model (best.pt)
-  if (isLocalHost && YOLO_API_BASE) {
+/**
+ * Sends live captured frame to real backend ONNX inference endpoint
+ * Never fabricates fake detections when inference fails
+ */
+export async function detectFrameWithBackend(frameBase64) {
+  if (!frameBase64) {
+    return { success: false, error: "NO_FRAME", detections: [] };
+  }
+
+  const endpoints = [
+    `${BACKEND_API_BASE}/api/detect-frame`,
+    "http://localhost:4000/api/detect-frame"
+  ];
+
+  for (const ep of endpoints) {
     try {
-      let base64String = "";
-      if (typeof imageSource === "string" && imageSource.startsWith("data:image")) {
-        base64String = imageSource;
-      } else if (imageSource instanceof File || imageSource instanceof Blob) {
-        base64String = await new Promise((resolve) => {
-          const reader = new FileReader();
-          reader.onload = (e) => resolve(e.target.result);
-          reader.readAsDataURL(imageSource);
-        });
-      }
+      const response = await fetch(ep, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ image: frameBase64 }),
+        signal: AbortSignal.timeout(2200)
+      });
 
-      if (base64String) {
-        const response = await fetch(`${YOLO_API_BASE}/api/detect-base64`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ image: base64String }),
-          signal: AbortSignal.timeout(2000)
-        });
-
-        if (response.ok) {
-          const yoloResult = await response.json();
-          if (yoloResult && yoloResult.success) {
-            return {
-              ...yoloResult,
-              engine: "Ultralytics YOLO (best.pt)"
-            };
-          }
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          return {
+            success: true,
+            detections: data.detections || [],
+            timestamp: data.timestamp || new Date().toISOString(),
+            engine: data.engine || "NEXinfra ONNX Civic Detector"
+          };
         }
       }
-    } catch (backendErr) {
-      // Graceful fallback to client-side neural pixel analyzer
+    } catch (e) {
+      // try next endpoint
     }
   }
 
-  // 2. High-Fidelity Client-Side Neural Vision Engine Fallback
+  return {
+    success: false,
+    error: "AI DETECTION OFFLINE",
+    message: "ONNX backend offline or unreachable",
+    detections: []
+  };
+}
+
+export async function analyzeImageWithAI(imageSource) {
+  // High-Fidelity Client-Side Neural Vision Engine Fallback
   return new Promise((resolve) => {
     const img = new Image();
     img.crossOrigin = "anonymous";

@@ -1,12 +1,12 @@
 task: detect
 mode: train
-model: yolo11n.pt
+model: yolov8n.pt
 data: data.yaml
-epochs: 1
+epochs: 10
 time: null
 patience: 100
-batch: 4
-imgsz: 640
+batch: 8
+imgsz: 320
 save: true
 save_period: -1
 cache: false
@@ -113,4 +113,4 @@ auto_augment: randaugment
 erasing: 0.4
 cfg: null
 tracker: tracktrack.yaml
-save_dir: C:\Users\Divyansh\Desktop\sih\Nexinfra-app\nexinfra-ai\runs\detect\runs\train\nexinfra_civic_detector
+save_dir: C:\Users\PRANJAL\.gemini\antigravity\scratch\nexinfra-app\nexinfra-ai\runs\detect\runs\train\nexinfra_civic_detector

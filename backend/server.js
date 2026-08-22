@@ -1,4 +1,4 @@
-﻿import express from "express";
+import express from "express";
 import cors from "cors";
 import multer from "multer";
 import { initializeApp } from "firebase/app";
@@ -21,7 +21,7 @@ import {
   serverTimestamp
 } from "firebase/firestore";
 
-import { detect } from "./detector.js";
+import { detect, getModelInfo } from "./detector.js";
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -42,21 +42,25 @@ const auth = getAuth(firebaseApp);
 const db = getFirestore(firebaseApp);
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: "15mb" }));
+app.use(express.urlencoded({ extended: true, limit: "15mb" }));
 
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
-    fileSize: 10 * 1024 * 1024
+    fileSize: 15 * 1024 * 1024
   }
 });
 
-// Health check
+// Health check reporting real ONNX model status
 app.get("/api/health", (req, res) => {
+  const modelInfo = getModelInfo();
   res.json({
     success: true,
+    status: modelInfo.modelExists ? "online" : "offline",
     message: "NEXinfra Backend API & Security Gateway operational",
-    version: "4.2.11"
+    version: "4.5.0",
+    ai: modelInfo
   });
 });
 
@@ -368,25 +372,52 @@ app.get("/api/admin/list", async (req, res) => {
 
 app.post("/api/detect-frame", upload.single("frame"), async (req, res) => {
   try {
-    if (!req.file) {
+    let frameBuffer = null;
+
+    if (req.file && req.file.buffer) {
+      frameBuffer = req.file.buffer;
+    } else if (req.body && req.body.image) {
+      const base64Data = req.body.image.replace(/^data:image\/\w+;base64,/, "");
+      frameBuffer = Buffer.from(base64Data, "base64");
+    } else if (req.body && req.body.frame) {
+      const base64Data = req.body.frame.replace(/^data:image\/\w+;base64,/, "");
+      frameBuffer = Buffer.from(base64Data, "base64");
+    }
+
+    if (!frameBuffer || frameBuffer.length === 0) {
       return res.status(400).json({
         success: false,
-        message: "No frame received"
+        error: "NO_FRAME_RECEIVED",
+        message: "No valid image frame received in request",
+        detections: []
       });
     }
 
-    const result = await detect(req.file.buffer);
+    const result = await detect(frameBuffer);
+
+    if (result && result.error) {
+      return res.status(503).json({
+        success: false,
+        error: result.error,
+        message: result.reason || result.details || "AI DETECTION OFFLINE",
+        detections: []
+      });
+    }
 
     res.json({
       success: true,
-      detections: result
+      detections: Array.isArray(result) ? result : [],
+      timestamp: new Date().toISOString(),
+      engine: "NEXinfra ONNX Civic Detector"
     });
 
   } catch (error) {
-    console.error("Detection error:", error);
+    console.error("Detection endpoint error:", error);
     res.status(500).json({
       success: false,
-      message: "Detection failed"
+      error: "DETECTION_FAILED",
+      message: error.message || "Detection failed",
+      detections: []
     });
   }
 });

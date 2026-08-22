@@ -15,42 +15,126 @@ try {
   console.warn("⚠️ onnxruntime-node not loaded or failed to import:", e.message);
 }
 
-const MODEL_PATH = path.join(process.cwd(), "models", "model.onnx");
+function resolveModelPath() {
+  const candidates = [
+    path.join(process.cwd(), "backend", "models", "model.onnx"),
+    path.join(process.cwd(), "models", "model.onnx"),
+    path.join(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1")), "models", "model.onnx"),
+    path.join(process.cwd(), "..", "backend", "models", "model.onnx")
+  ];
+  for (const p of candidates) {
+    if (fs.existsSync(p)) return p;
+  }
+  return path.join(process.cwd(), "models", "model.onnx");
+}
 
-// Nexinfra 6-Class Municipal Defect Taxonomy
-const CLASS_METADATA = {
-  0: { label: "Road Damage / Pothole", color: "#EF4444", severity: "Critical", dept: "Roads" },
-  1: { label: "Water / Drainage Burst", color: "#00F0FF", severity: "Critical", dept: "Hydro" },
-  2: { label: "Solid Waste Overflow", color: "#F59E0B", severity: "High", dept: "Sanitation" },
-  3: { label: "Electrical & Streetlight Hazard", color: "#F97316", severity: "Critical", dept: "Power" },
-  4: { label: "Structural Anomaly / Bridge Crack", color: "#8B5CF6", severity: "Critical", dept: "Structures" },
-  5: { label: "Fallen Tree & Greenery Hazard", color: "#10B981", severity: "High", dept: "Forestry" }
+const MODEL_PATH = resolveModelPath();
+
+// Nexinfra 6-Class Municipal Defect Taxonomy & Specialized Civic Checks
+export const CLASS_METADATA = {
+  0: {
+    label: "Road Damage / Pothole",
+    category: "Road Damage / Pothole",
+    color: "#EF4444",
+    severity: "Critical",
+    priority: "P1",
+    department: "Roads",
+    assignedDepartment: "Road Maintenance & Pavement Division",
+    slaHours: 4,
+    tags: ["Pothole", "Road Damage", "Asphalt Cavity", "Open Manhole / Chamber"]
+  },
+  1: {
+    label: "Water / Drainage Burst",
+    category: "Water / Drainage Burst",
+    color: "#00F0FF",
+    severity: "Critical",
+    priority: "P1",
+    department: "Hydro / Water Supply",
+    assignedDepartment: "Municipal Hydro & Water Supply Grid",
+    slaHours: 3,
+    tags: ["Waterlogging", "Drainage Burst", "Water Main Leak", "Flooded Surface"]
+  },
+  2: {
+    label: "Solid Waste Overflow",
+    category: "Solid Waste Overflow",
+    color: "#F59E0B",
+    severity: "High",
+    priority: "P2",
+    department: "Sanitation",
+    assignedDepartment: "Sanitation & Solid Waste Logistics Unit",
+    slaHours: 8,
+    tags: ["Solid Waste", "Garbage Overflow", "Plastic Debris Heap"]
+  },
+  3: {
+    label: "Electrical & Streetlight Hazard",
+    category: "Electrical & Streetlight",
+    color: "#F97316",
+    severity: "Critical",
+    priority: "P1",
+    department: "Power",
+    assignedDepartment: "Municipal Power & Electrical Grid",
+    slaHours: 2,
+    tags: ["Exposed Wiring", "Streetlight Outage", "Transformer Spark"]
+  },
+  4: {
+    label: "Structural Anomaly / Bridge Crack",
+    category: "Structural Anomaly / Bridge Crack",
+    color: "#8B5CF6",
+    severity: "Critical",
+    priority: "P1",
+    department: "Structural Engineering",
+    assignedDepartment: "Structural Engineering & Bridge Safety Division",
+    slaHours: 4,
+    tags: ["Wall Crack", "Bridge Shear", "Pillar Fracture", "Structural Defect"]
+  },
+  5: {
+    label: "Fallen Tree & Greenery Hazard",
+    category: "Public Park & Greenery Hazard",
+    color: "#10B981",
+    severity: "High",
+    priority: "P2",
+    department: "Forestry",
+    assignedDepartment: "Urban Forestry & Public Parks Department",
+    slaHours: 6,
+    tags: ["Fallen Tree", "Overhanging Branch", "Greenery Obstruction"]
+  }
 };
 
-// Fallback human labels for general COCO/custom models
-const FALLBACK_LABELS = [
-  "road_defect",
-  "water_burst",
-  "waste_overflow",
-  "electrical_hazard",
-  "bridge_crack",
-  "tree_hazard"
-];
+/**
+ * Checks if ONNX runtime and model file are active
+ */
+export function getModelInfo() {
+  const modelExists = fs.existsSync(MODEL_PATH);
+  let modelSize = 0;
+  if (modelExists) {
+    try {
+      modelSize = fs.statSync(MODEL_PATH).size;
+    } catch (e) {}
+  }
+  return {
+    ortAvailable: isOrtAvailable,
+    modelExists,
+    modelPath: MODEL_PATH,
+    modelSizeBytes: modelSize,
+    sessionReady: Boolean(session),
+    engine: "NEXinfra ONNX Civic Detector"
+  };
+}
 
 /**
  * Loads and caches the ONNX Inference Session
  */
-async function getInferenceSession() {
+export async function getInferenceSession() {
   if (session) return session;
   if (!isOrtAvailable || !fs.existsSync(MODEL_PATH)) return null;
 
   try {
-    console.log(`⚡ [NEXINFRA YOLO] Loading ONNX model from ${MODEL_PATH}...`);
+    console.log(`⚡ [NEXINFRA ONNX] Initializing Inference Session from ${MODEL_PATH}...`);
     session = await ort.InferenceSession.create(MODEL_PATH, {
       executionProviders: ["cpu"],
       graphOptimizationLevel: "all"
     });
-    console.log("✅ [NEXINFRA YOLO] ONNX Inference Session initialized successfully!");
+    console.log("✅ [NEXINFRA ONNX] Model loaded successfully!");
     return session;
   } catch (err) {
     console.error("❌ Failed to initialize ONNX session:", err.message);
@@ -203,9 +287,14 @@ function parseYoloOutput(outputTensor, origWidth, origHeight, modelInputSize = 6
         const boxHeight = Math.min(origHeight - yMin, h * scaleY);
 
         const classInfo = CLASS_METADATA[bestClass] || {
-          label: FALLBACK_LABELS[bestClass] || `Defect Class ${bestClass}`,
-          color: "#00F0FF",
-          severity: "Medium"
+          label: `Civic Defect ${bestClass}`,
+          category: "Civic Infrastructure Defect",
+          color: "#EF4444",
+          severity: "Critical",
+          priority: "P1",
+          department: "Roads",
+          assignedDepartment: "Road Maintenance & Pavement Division",
+          slaHours: 4
         };
 
         const normX = parseFloat(((xMin / origWidth) * 100).toFixed(2));
@@ -216,9 +305,16 @@ function parseYoloOutput(outputTensor, origWidth, origHeight, modelInputSize = 6
         detections.push({
           classId: bestClass,
           class: classInfo.label,
+          category: classInfo.category || classInfo.label,
           confidence: parseFloat(maxScore.toFixed(3)),
+          confidencePercent: Math.round(maxScore * 100),
           color: classInfo.color,
           severity: classInfo.severity,
+          priority: classInfo.priority,
+          department: classInfo.department,
+          assignedDepartment: classInfo.assignedDepartment,
+          slaHours: classInfo.slaHours,
+          tags: classInfo.tags || [],
           box: {
             x: Math.round(xMin),
             y: Math.round(yMin),
@@ -239,45 +335,34 @@ function parseYoloOutput(outputTensor, origWidth, origHeight, modelInputSize = 6
 
 /**
  * Main Detection Interface called by /api/detect-frame
+ * Strictly executes ONNX inference. Returns real detections or null on failure. Never returns fake potholes.
  */
 export async function detect(frameBuffer) {
   try {
     const activeSession = await getInferenceSession();
 
-    if (activeSession) {
-      const { tensor, origWidth, origHeight } = await preprocessFrame(frameBuffer, 640);
-      const inputName = activeSession.inputNames[0];
-      const feeds = { [inputName]: tensor };
-
-      const results = await activeSession.run(feeds);
-      const outputName = activeSession.outputNames[0];
-      const outputTensor = results[outputName];
-
-      const detections = parseYoloOutput(outputTensor, origWidth, origHeight, 640, 0.35);
-      return detections;
+    if (!activeSession) {
+      return {
+        error: "AI DETECTION OFFLINE",
+        reason: "ONNX inference session not initialized"
+      };
     }
+
+    const { tensor, origWidth, origHeight } = await preprocessFrame(frameBuffer, 640);
+    const inputName = activeSession.inputNames[0];
+    const feeds = { [inputName]: tensor };
+
+    const results = await activeSession.run(feeds);
+    const outputName = activeSession.outputNames[0];
+    const outputTensor = results[outputName];
+
+    const detections = parseYoloOutput(outputTensor, origWidth, origHeight, 640, 0.25);
+    return detections;
   } catch (err) {
-    console.warn("⚠️ Real ONNX Inference encountered an issue, using fallback:", err.message);
+    console.error("❌ ONNX Inference Exception:", err.message);
+    return {
+      error: "MODEL INFERENCE ERROR",
+      details: err.message
+    };
   }
-
-  // Graceful Demo / Heuristic Fallback when model.onnx is not yet trained or loaded
-  return [
-    {
-      classId: 0,
-      class: "Road Damage / Pothole",
-      confidence: 0.94,
-      color: "#EF4444",
-      severity: "Critical",
-      box: {
-        x: 40,
-        y: 60,
-        width: 240,
-        height: 160,
-        normX: 15,
-        normY: 20,
-        normW: 45,
-        normH: 40
-      }
-    }
-  ];
 }
