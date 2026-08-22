@@ -146,7 +146,16 @@ CLASS_METADATA = {
 }
 
 yolo_model = None
-possible_paths = ["server/best.pt", "best.pt", os.path.join(os.path.dirname(__file__), "best.pt"), "yolov8s.pt"]
+downloads_path = os.path.expanduser("~/Downloads/best.pt")
+possible_paths = [
+    "server/best.pt",
+    "best.pt",
+    os.path.join(os.path.dirname(__file__), "best.pt"),
+    downloads_path,
+    "yolov10n.pt",
+    "yolov8s.pt"
+]
+
 model_path = os.environ.get("YOLO_MODEL_PATH")
 if not model_path:
     for p in possible_paths:
@@ -162,7 +171,7 @@ def get_yolo_model():
         try:
             print(f"[INFO] Loading trained YOLO weights: {model_path}...")
             yolo_model = YOLO(model_path)
-            print(f"[INFO] SUCCESS: Model loaded from {model_path}!")
+            print(f"[INFO] SUCCESS: Real YOLO Neural Network active from: {model_path}!")
         except Exception as e:
             print(f"[WARN] Could not load {model_path}: {e}")
             yolo_model = None
@@ -180,9 +189,9 @@ def health_check():
     model = get_yolo_model()
     return {
         "status": "online",
-        "engine": "YOLO Multi-Spectral Anomaly Pipeline v4.5",
+        "engine": f"Ultralytics YOLO Engine ({os.path.basename(model_path)})" if model else "OpenCV Spatial Gradient Classifier",
         "modelLoaded": model is not None,
-        "modelName": model_path if model else "OpenCV Spatial Gradient Classifier",
+        "modelPath": model_path,
         "classesCount": len(CLASS_METADATA),
         "supportedCategories": list(CLASS_METADATA.keys()),
         "timestamp": time.time()
@@ -190,16 +199,104 @@ def health_check():
 
 def analyze_image_with_yolo(pil_image: Image.Image):
     width, height = pil_image.size
+    model = get_yolo_model()
+
+    # 1. RUN REAL YOLO NEURAL NETWORK INFERENCE IF WEIGHTS ARE LOADED
+    if model is not None:
+        try:
+            results = model.predict(pil_image, conf=0.35, verbose=False)
+            boxes = results[0].boxes
+            if len(boxes) > 0:
+                # Pick detection with highest confidence
+                best_box_idx = int(np.argmax(boxes.conf.cpu().numpy()))
+                best_box = boxes[best_box_idx]
+                
+                cls_id = int(best_box.cls.cpu().item())
+                confidence = float(best_box.conf.cpu().item())
+                
+                # Class name from model
+                cls_name = model.names.get(cls_id, "Road Damage / Pothole")
+                
+                # Normalize bounding box to percentages (0-100%)
+                xyxy = best_box.xyxy.cpu().numpy()[0]
+                x1, y1, x2, y2 = xyxy
+                box_x = max(0.0, (x1 / width) * 100)
+                box_y = max(0.0, (y1 / height) * 100)
+                box_w = min(100.0 - box_x, ((x2 - x1) / width) * 100)
+                box_h = min(100.0 - box_y, ((y2 - y1) / height) * 100)
+
+                # Match with metadata
+                matched_category = cls_name
+                for key in CLASS_METADATA.keys():
+                    if key.lower() in cls_name.lower() or cls_name.lower() in key.lower():
+                        matched_category = key
+                        break
+                
+                meta = CLASS_METADATA.get(matched_category, CLASS_METADATA["Road Damage / Pothole"])
+                return {
+                    "success": True,
+                    "isDefect": True,
+                    "engine": f"Real YOLO Neural Net ({os.path.basename(model_path)})",
+                    "category": meta["category"],
+                    "defectName": meta["defectName"],
+                    "confidence": round(confidence, 3),
+                    "confidencePercent": int(confidence * 100),
+                    "priority": meta["priority"],
+                    "priorityLabel": meta["priorityLabel"],
+                    "severity": meta["severity"],
+                    "department": meta["department"],
+                    "slaHours": meta["slaHours"],
+                    "problemLevel": meta["problemLevel"],
+                    "problemLevelLabel": meta["problemLevelLabel"],
+                    "hazardScore": meta["hazardScore"],
+                    "riskIndicators": meta["riskIndicators"],
+                    "urgencyLevel": meta["urgencyLevel"],
+                    "labelMain": meta["labelMain"],
+                    "boundingBox": {
+                        "x": round(box_x, 1),
+                        "y": round(box_y, 1),
+                        "w": round(box_w, 1),
+                        "h": round(box_h, 1)
+                    },
+                    "timestamp": time.time()
+                }
+            else:
+                # Model evaluated frame and found NO defects (Nominal)
+                meta = CLASS_METADATA["Clear / Normal"]
+                return {
+                    "success": True,
+                    "isDefect": False,
+                    "engine": f"Real YOLO Neural Net ({os.path.basename(model_path)})",
+                    "category": meta["category"],
+                    "defectName": meta["defectName"],
+                    "confidence": 0.95,
+                    "confidencePercent": 95,
+                    "priority": meta["priority"],
+                    "priorityLabel": meta["priorityLabel"],
+                    "severity": meta["severity"],
+                    "department": meta["department"],
+                    "slaHours": meta["slaHours"],
+                    "problemLevel": meta["problemLevel"],
+                    "problemLevelLabel": meta["problemLevelLabel"],
+                    "hazardScore": meta["hazardScore"],
+                    "riskIndicators": meta["riskIndicators"],
+                    "urgencyLevel": meta["urgencyLevel"],
+                    "labelMain": meta["labelMain"],
+                    "boundingBox": None,
+                    "timestamp": time.time()
+                }
+        except Exception as e:
+            print(f"[WARN] YOLO prediction exception: {e}, falling back to spatial classifier")
+
+    # 2. FALLBACK TO OPENCV MULTI-SPECTRAL ENGINE
     img_cv = cv2.cvtColor(np.array(pil_image), cv2.COLOR_RGB2BGR)
 
-    # 1. Edge & Directional Gradient Convolutions
     gray = cv2.cvtColor(img_cv, cv2.COLOR_BGR2GRAY)
     sobel_x = cv2.Sobel(gray, cv2.CV_64F, 1, 0, ksize=3)
     sobel_y = cv2.Sobel(gray, cv2.CV_64F, 0, 1, ksize=3)
     gradient_mag = np.sqrt(sobel_x**2 + sobel_y**2)
     edge_density = float(np.mean(gradient_mag > 45))
 
-    # 2. HSV Color Space Analysis
     hsv = cv2.cvtColor(img_cv, cv2.COLOR_BGR2HSV)
     h_channel = hsv[:, :, 0]
     s_channel = hsv[:, :, 1]
@@ -220,22 +317,21 @@ def analyze_image_with_yolo(pil_image: Image.Image):
     sat_std = float(np.std(s_channel))
     hue_std = float(np.std(h_channel))
 
-    # Dynamic Bounding Box Locator
     resized_mag = cv2.resize(gradient_mag, (16, 16), interpolation=cv2.INTER_AREA)
     max_idx = np.unravel_index(np.argmax(resized_mag), (16, 16))
     grid_y, grid_x = max_idx[0], max_idx[1]
     
     box_x = max(10.0, min(75.0, (grid_x / 16.0) * 100))
-    box_y = max(10.0, min(75.0, (grid_y / 16.0) * 100))
-    box_w = 48.0
-    box_h = 44.0
+    skin_mask = cv2.inRange(hsv, (0, 25, 50), (35, 175, 255))
+    skin_ratio = float(np.sum(skin_mask > 0) / (width * height))
+    is_human_present = skin_ratio > 0.025
 
-    detected_class = "Clear / Normal"
-    confidence = 0.94
-    is_anomaly = False
-
-    # 3. High-Precision Physical Separation Rules
-    if orange_ratio > 0.08:
+    if is_human_present:
+        # Human / indoor subject present in frame -> Nominal Scene
+        detected_class = "Clear / Normal"
+        confidence = 0.98
+        is_anomaly = False
+    elif orange_ratio > 0.08:
         detected_class = "Electrical & Streetlight"
         confidence = round(min(0.98, 0.82 + orange_ratio), 2)
         is_anomaly = True
@@ -247,18 +343,16 @@ def analyze_image_with_yolo(pil_image: Image.Image):
         detected_class = "Water / Drainage Burst"
         confidence = round(min(0.97, 0.80 + blue_ratio), 2)
         is_anomaly = True
-    elif edge_density > 0.06 and sat_std < 42:
-        # Concrete/Plaster/Masonry Wall Damage & Structural Cracks (Low color saturation, linear fissures)
+    elif edge_density > 0.08 and sat_std < 38 and dark_void_ratio > 0.04:
+        # Genuine Concrete/Wall Fracture
         detected_class = "Structural Anomaly / Bridge Crack"
         confidence = round(min(0.96, 0.78 + edge_density * 1.5), 2)
         is_anomaly = True
     elif sat_std > 46 and hue_std > 42 and edge_density > 0.08:
-        # Solid Waste & Plastic Debris Dumps (High multi-color saturation entropy)
         detected_class = "Solid Waste Overflow"
         confidence = round(min(0.95, 0.76 + (sat_std / 120)), 2)
         is_anomaly = True
     elif edge_density > 0.10 and dark_void_ratio > 0.06:
-        # Asphalt Pothole (Dark cavity void on asphalt)
         detected_class = "Road Damage / Pothole"
         confidence = round(min(0.96, 0.79 + edge_density), 2)
         is_anomaly = True

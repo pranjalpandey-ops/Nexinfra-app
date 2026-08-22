@@ -120,6 +120,7 @@ function processImagePixels(img) {
   let vegetationGreenCount = 0;
   let electricalOrangeCount = 0;
   let darkVoidPixels = 0;
+  let skinPixelCount = 0;
 
   let chromaticTransitions = 0;
   let prevHue = -1;
@@ -207,11 +208,17 @@ function processImagePixels(img) {
       }
 
       // Electrical / Fire Sparks (High orange/yellow)
-      if (r > 190 && g > 110 && b < 60 && sat > 0.55) {
-        electricalOrangeCount++;
+      // Human Face / Skin Tone Chromatic Locus
+      const isSkinTone = (r > 60 && g > 35 && b > 20 && r > g && (r - g) >= 8 && (r - b) >= 10 && luma > 40 && luma < 240 && sat > 0.10 && sat < 0.70) ||
+                         ((hue <= 38 || hue >= 340) && sat >= 0.14 && sat <= 0.68 && luma > 45);
+      if (isSkinTone) {
+        skinPixelCount++;
       }
     }
   }
+
+  const skinRatio = skinPixelCount / totalPixels;
+  const isHumanPresent = skinRatio > 0.025; // Human face, skin or subject in frame
 
   const activeHueBinCount = hueBins.filter((count) => count > totalPixels * 0.015).length;
   const wastePlasticRatio = brightPlasticPixels / totalPixels;
@@ -287,24 +294,25 @@ function processImagePixels(img) {
   // =========================================================
 
   // 1. ELECTRICAL & STREETLIGHT (High localized orange/yellow spark luminance)
-  const isElectrical = (electricalOrangeCount / totalPixels > 0.08);
+  const isElectrical = !isHumanPresent && (electricalOrangeCount / totalPixels > 0.08);
 
-  // 2. STRUCTURAL WALL DAMAGE & BRIDGE CRACK (Neutral concrete/masonry, directional fissure lines, low color saturation)
-  const isStructuralCrack = (concreteRatio > 0.16 || asphaltRatio > 0.20 || (saturatedPixelCount / totalPixels < 0.22)) &&
-                            (horizontalLinearEdges > 700 || verticalLinearEdges > 700 || totalEdgeEnergy > 16000) &&
-                            (brightPlasticPixels < 300 || activeHueBinCount <= 2);
+  // 2. STRUCTURAL WALL DAMAGE & BRIDGE CRACK (Neutral concrete/masonry, deep fissure lines, NOT a human face)
+  const isStructuralCrack = !isHumanPresent &&
+                            (concreteRatio > 0.32 || (darkVoidPixels > 1400 && (horizontalLinearEdges > 1200 || verticalLinearEdges > 1200))) &&
+                            totalEdgeEnergy > 26000 &&
+                            (brightPlasticPixels < 250 || activeHueBinCount <= 2);
 
   // 3. GREENERY / FALLEN TREE (High chlorophyll green dominance)
-  const isGreenery = greenRatio > 0.26 && activeHueBinCount <= 2 && !isStructuralCrack;
+  const isGreenery = !isHumanPresent && greenRatio > 0.28 && activeHueBinCount <= 2 && !isStructuralCrack;
 
   // 4. WATER / DRAINAGE BURST (Hydrostatic blue/cyan sheen)
-  const isWaterBurst = waterRatio > 0.30 && asphaltRatio < 0.35 && !isStructuralCrack && !isGreenery;
+  const isWaterBurst = !isHumanPresent && waterRatio > 0.32 && asphaltRatio < 0.35 && !isStructuralCrack && !isGreenery;
 
   // 5. SOLID WASTE OVERFLOW (Multi-colored diverse plastic fragments, high saturation scatter)
-  const isGarbageDump = !isStructuralCrack && (
-    (activeHueBinCount >= 3 && brightPlasticPixels > 300) ||
-    (chromaticEntropy > 0.012 && wastePlasticRatio > 0.02) ||
-    (activeHueBinCount >= 4 && totalEdgeEnergy > 14000)
+  const isGarbageDump = !isHumanPresent && !isStructuralCrack && (
+    (activeHueBinCount >= 3 && brightPlasticPixels > 350) ||
+    (chromaticEntropy > 0.014 && wastePlasticRatio > 0.025) ||
+    (activeHueBinCount >= 4 && totalEdgeEnergy > 16000)
   );
 
   const isPothole = (darkVoidPixels > 1000 || (waterRatio > 0.08 && asphaltRatio > 0.15)) &&
