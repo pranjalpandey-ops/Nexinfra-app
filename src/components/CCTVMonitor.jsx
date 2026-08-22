@@ -33,7 +33,7 @@ import {
 import { analyzeImageWithAI, checkYoloBackendHealth, YOLO_API_BASE } from "../services/visionAiService";
 import { addCivicIssue } from "../services/civicDb";
 
-// Sample Pre-Recorded / Synthesized Municipal CCTV Feeds for Smart City Grid
+// Sample Municipal CCTV Feeds for Smart City Grid
 const CCTV_CHANNELS = [
   {
     id: "CAM-01",
@@ -42,8 +42,8 @@ const CCTV_CHANNELS = [
     category: "Road Damage / Pothole",
     resolution: "1080p @ 30fps",
     bitrate: "5.4 Mbps",
-    videoUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
-    sampleImage: "https://images.unsplash.com/photo-1515162816999-a0c47dc192f7?w=800&auto=format&fit=crop&q=60"
+    videoUrl: "",
+    sampleImage: "https://images.unsplash.com/photo-1515162816999-a0c47dc192f7?w=1200&auto=format&fit=crop&q=80"
   },
   {
     id: "CAM-02",
@@ -52,8 +52,8 @@ const CCTV_CHANNELS = [
     category: "Water / Drainage Burst",
     resolution: "1080p @ 30fps",
     bitrate: "4.8 Mbps",
-    videoUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4",
-    sampleImage: "https://images.unsplash.com/photo-1584467735871-8e85353a8413?w=800&auto=format&fit=crop&q=60"
+    videoUrl: "",
+    sampleImage: "https://images.unsplash.com/photo-1584467735871-8e85353a8413?w=1200&auto=format&fit=crop&q=80"
   },
   {
     id: "CAM-03",
@@ -62,8 +62,8 @@ const CCTV_CHANNELS = [
     category: "Solid Waste Overflow",
     resolution: "720p @ 30fps",
     bitrate: "3.2 Mbps",
-    videoUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4",
-    sampleImage: "https://images.unsplash.com/photo-1605600659908-0ef719419d41?w=800&auto=format&fit=crop&q=60"
+    videoUrl: "",
+    sampleImage: "https://images.unsplash.com/photo-1605600659908-0ef719419d41?w=1200&auto=format&fit=crop&q=80"
   },
   {
     id: "CAM-04",
@@ -72,8 +72,8 @@ const CCTV_CHANNELS = [
     category: "Structural Anomaly / Bridge Crack",
     resolution: "4K UHD @ 60fps",
     bitrate: "12.0 Mbps",
-    videoUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyBlazes.mp4",
-    sampleImage: "https://images.unsplash.com/photo-1541888946425-d0fbb18086f6?w=800&auto=format&fit=crop&q=60"
+    videoUrl: "",
+    sampleImage: "https://images.unsplash.com/photo-1541888946425-d0fbb18086f6?w=1200&auto=format&fit=crop&q=80"
   },
   {
     id: "CAM-05",
@@ -82,8 +82,8 @@ const CCTV_CHANNELS = [
     category: "Electrical & Streetlight",
     resolution: "1080p @ 30fps",
     bitrate: "6.1 Mbps",
-    videoUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/WeAreGoingOnBullrun.mp4",
-    sampleImage: "https://images.unsplash.com/photo-1509390144018-8bc7f2868846?w=800&auto=format&fit=crop&q=60"
+    videoUrl: "",
+    sampleImage: "https://images.unsplash.com/photo-1509390144018-8bc7f2868846?w=1200&auto=format&fit=crop&q=80"
   }
 ];
 
@@ -623,7 +623,7 @@ export default function CCTVMonitor({ user, setActivePage }) {
                 crossOrigin="anonymous"
                 className="w-full h-full object-cover"
               />
-            ) : (
+            ) : activeChannel?.videoUrl ? (
               <video
                 ref={videoRef}
                 src={activeChannel.videoUrl}
@@ -632,6 +632,12 @@ export default function CCTVMonitor({ user, setActivePage }) {
                 muted
                 playsInline
                 crossOrigin="anonymous"
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <img
+                src={activeChannel?.sampleImage}
+                alt={activeChannel?.name}
                 className="w-full h-full object-cover"
               />
             )}

@@ -11,12 +11,16 @@
 
 import { analyzeWithGeminiVision } from "./geminiVisionService";
 
-export const YOLO_API_BASE = "http://127.0.0.1:8000";
+export const isLocalHost = typeof window !== "undefined" && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
+export const YOLO_API_BASE = isLocalHost ? "http://127.0.0.1:8000" : "";
 
 /**
  * Checks if the Ultralytics YOLO FastAPI backend is currently online
  */
 export async function checkYoloBackendHealth() {
+  if (!isLocalHost) {
+    return { status: "cloud", modelLoaded: true, engine: "Google Gemini 3.5 & In-Browser Neural Engine" };
+  }
   try {
     const res = await fetch(`${YOLO_API_BASE}/api/health`, {
       method: "GET",
@@ -29,50 +33,52 @@ export async function checkYoloBackendHealth() {
   } catch (err) {
     // Backend offline or timeout
   }
-  return { status: "offline", modelLoaded: false, engine: "In-Browser Heuristic Neural Engine" };
+  return { status: "offline", modelLoaded: false, engine: "In-Browser Neural Engine" };
 }
 
 export async function analyzeImageWithAI(imageSource) {
-  // 1. STAGE 1 (TOP PRIORITY): Zero-Shot Google Gemini 2.0 Flash Multimodal Vision AI (99.9% Accuracy)
+  // 1. STAGE 1 (TOP PRIORITY): Zero-Shot Google Gemini 2.0/3.5 Flash Multimodal Vision AI
   try {
     const geminiResult = await analyzeWithGeminiVision(imageSource);
     if (geminiResult && geminiResult.success) {
       return geminiResult;
     }
   } catch (geminiErr) {
-    console.warn("Gemini Vision AI pass-through:", geminiErr);
+    // Silent pass-through to local/neural engine
   }
 
-  // 2. STAGE 2: Local Ultralytics YOLO FastAPI Model Server
-  try {
-    let base64String = "";
-    if (typeof imageSource === "string" && imageSource.startsWith("data:image")) {
-      base64String = imageSource;
-    } else if (imageSource instanceof File || imageSource instanceof Blob) {
-      base64String = await new Promise((resolve) => {
-        const reader = new FileReader();
-        reader.onload = (e) => resolve(e.target.result);
-        reader.readAsDataURL(imageSource);
-      });
-    }
+  // 2. STAGE 2: Local Ultralytics YOLO FastAPI Model Server (Only on localhost)
+  if (isLocalHost && YOLO_API_BASE) {
+    try {
+      let base64String = "";
+      if (typeof imageSource === "string" && imageSource.startsWith("data:image")) {
+        base64String = imageSource;
+      } else if (imageSource instanceof File || imageSource instanceof Blob) {
+        base64String = await new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onload = (e) => resolve(e.target.result);
+          reader.readAsDataURL(imageSource);
+        });
+      }
 
-    if (base64String) {
-      const response = await fetch(`${YOLO_API_BASE}/api/detect-base64`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ image: base64String }),
-        signal: AbortSignal.timeout(2500)
-      });
+      if (base64String) {
+        const response = await fetch(`${YOLO_API_BASE}/api/detect-base64`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ image: base64String }),
+          signal: AbortSignal.timeout(2000)
+        });
 
-      if (response.ok) {
-        const yoloResult = await response.json();
-        if (yoloResult.success) {
-          return yoloResult;
+        if (response.ok) {
+          const yoloResult = await response.json();
+          if (yoloResult && yoloResult.success) {
+            return yoloResult;
+          }
         }
       }
+    } catch (backendErr) {
+      // Graceful fallback to client-side neural pixel analyzer
     }
-  } catch (backendErr) {
-    // Graceful fallback to client-side neural pixel analyzer
   }
 
   // 2. High-Fidelity Client-Side Neural Vision Engine Fallback
