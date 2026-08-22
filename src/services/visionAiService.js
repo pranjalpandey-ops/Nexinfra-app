@@ -286,10 +286,12 @@ function processImagePixels(img) {
   // 3. 6-CLASS NEURAL MULTI-DEFECT DISCRIMINATOR
   // =========================================================
 
-  // 1. SOLID WASTE DUMP
-  const isGarbageDump = (activeHueBinCount >= 3 && wastePlasticRatio > 0.04) ||
-                        (chromaticEntropy > 0.018 && wastePlasticRatio > 0.03) ||
-                        (activeHueBinCount >= 4);
+  // 1. SOLID WASTE DUMP (Multi-colored debris, scattered plastic, chromatic entropy & rubble edges)
+  const isGarbageDump = (activeHueBinCount >= 2 && (wastePlasticRatio > 0.015 || chromaticEntropy > 0.006)) ||
+                        (brightPlasticPixels > 400 && totalEdgeEnergy > 15000) ||
+                        (activeHueBinCount >= 3 && totalEdgeEnergy > 18000) ||
+                        (chromaticEntropy > 0.010 && totalEdgeEnergy > 20000) ||
+                        (wastePlasticRatio > 0.020);
 
   // 2. GREENERY / FALLEN TREE
   const isGreenery = greenRatio > 0.28 && activeHueBinCount <= 2;
@@ -336,7 +338,7 @@ function processImagePixels(img) {
     labelMain = "Solid Waste Heap Cluster";
     problemLevel = 3;
     problemLevelLabel = "Level 3 - Significant Municipal Hazard";
-    hazardScore = 74;
+    hazardScore = 78;
     riskIndicators = ["Public Health & Biowaste Risk", "Pedestrian Right-of-Way Obstruction", "Plastic Degradation Hazard"];
     urgencyLevel = "Elevated Priority (8 Hours SLA)";
   } else if (isGreenery) {
@@ -441,9 +443,12 @@ function processImagePixels(img) {
   const confidence = parseFloat((0.965 + Math.min(0.028, (totalEdgeEnergy / 3500000))).toFixed(3));
 
   return {
+    success: true,
+    isDefect: true,
     category: detectedCategory,
     defectName,
     confidence,
+    confidencePercent: Math.round(confidence * 100),
     priority,
     priorityLabel,
     severity,
@@ -452,11 +457,19 @@ function processImagePixels(img) {
     hazardScore,
     riskIndicators,
     urgencyLevel,
+    department,
     assignedDepartment: department,
     slaHours,
     dimensions,
     defectTags,
+    labelMain,
     suggestedTitle: `${defectName}`,
+    boundingBox: {
+      x: Math.round(boxX),
+      y: Math.round(boxY),
+      w: Math.round(boxW),
+      h: Math.round(boxH)
+    },
     boundingBoxes: [
       {
         id: 1,
@@ -470,16 +483,6 @@ function processImagePixels(img) {
                detectedCategory === "Public Park & Greenery Hazard" ? "#10B981" :
                detectedCategory === "Water / Drainage Burst" ? "#00F0FF" :
                "#EF4444",
-      },
-      {
-        id: 2,
-        label: "Hazard Perimeter Zone",
-        score: parseFloat((confidence - 0.05).toFixed(2)),
-        x: Math.max(2, Math.round(boxX - 6)),
-        y: Math.max(2, Math.round(boxY - 6)),
-        w: Math.min(96, Math.round(boxW + 12)),
-        h: Math.min(96, Math.round(boxH + 12)),
-        color: "#10B981",
       }
     ],
     telemetryAnalysis: {

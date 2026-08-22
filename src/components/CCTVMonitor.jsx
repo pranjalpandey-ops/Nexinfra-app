@@ -541,70 +541,74 @@ export default function CCTVMonitor({ user, setActivePage }) {
             </div>
 
             {/* 2. DYNAMIC YOLO BOUNDING BOX & TARGETING HUD */}
-            {isDetecting && currentDetection && currentDetection.isDefect && currentDetection.boundingBox && (
-              <div
-                className="absolute border-2 transition-all duration-300 pointer-events-none z-30"
-                style={{
-                  left: `${currentDetection.boundingBox.x}%`,
-                  top: `${currentDetection.boundingBox.y}%`,
-                  width: `${currentDetection.boundingBox.w}%`,
-                  height: `${currentDetection.boundingBox.h}%`,
-                  borderColor:
-                    currentDetection.problemLevel >= 4
-                      ? "#EF4444"
-                      : currentDetection.problemLevel === 3
-                      ? "#F59E0B"
-                      : "#06B6D4",
-                  boxShadow: `0 0 20px ${
-                    currentDetection.problemLevel >= 4 ? "#EF444460" : "#06B6D460"
-                  }`,
-                  backgroundColor: `${
-                    currentDetection.problemLevel >= 4 ? "#EF444415" : "#06B6D415"
-                  }`
-                }}
-              >
-                {/* Corner Targeting Brackets */}
-                <span className="absolute -top-1.5 -left-1.5 w-3 h-3 border-t-2 border-l-2 border-white" />
-                <span className="absolute -top-1.5 -right-1.5 w-3 h-3 border-t-2 border-r-2 border-white" />
-                <span className="absolute -bottom-1.5 -left-1.5 w-3 h-3 border-b-2 border-l-2 border-white" />
-                <span className="absolute -bottom-1.5 -right-1.5 w-3 h-3 border-b-2 border-r-2 border-white" />
+            {(() => {
+              const activeBox = currentDetection?.boundingBox || currentDetection?.boundingBoxes?.[0];
+              const isDefect = isDetecting && currentDetection && (currentDetection.isDefect !== false) && (currentDetection.category !== "Clear / Normal") && activeBox;
 
-                {/* Floating YOLO AI Tag */}
+              if (!isDefect) {
+                return isDetecting && currentDetection && (currentDetection.category === "Clear / Normal" || currentDetection.isDefect === false) ? (
+                  <div className="absolute bottom-16 left-1/2 -translate-x-1/2 px-4 py-1.5 rounded-full bg-emerald-950/80 border border-emerald-500/60 backdrop-blur-md text-emerald-300 text-xs font-mono font-bold flex items-center gap-2 pointer-events-none z-20 shadow-xl animate-pulse">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                    <span>SURVEILLANCE SCAN: NOMINAL • NO HAZARDS DETECTED</span>
+                  </div>
+                ) : null;
+              }
+
+              const boxColor =
+                currentDetection.category === "Solid Waste Overflow"
+                  ? "#F59E0B"
+                  : currentDetection.problemLevel >= 4
+                  ? "#EF4444"
+                  : currentDetection.problemLevel === 3
+                  ? "#F59E0B"
+                  : "#06B6D4";
+
+              return (
                 <div
-                  className="absolute -top-9 left-0 text-white text-[11px] font-bold px-2.5 py-1 rounded-md shadow-2xl flex items-center gap-1.5 whitespace-nowrap font-mono"
+                  className="absolute border-2 transition-all duration-300 pointer-events-none z-30 animate-pulse"
                   style={{
-                    backgroundColor:
-                      currentDetection.problemLevel >= 4
-                        ? "#DC2626"
-                        : currentDetection.problemLevel === 3
-                        ? "#D97706"
-                        : "#0891B2"
+                    left: `${activeBox.x}%`,
+                    top: `${activeBox.y}%`,
+                    width: `${activeBox.w}%`,
+                    height: `${activeBox.h}%`,
+                    borderColor: boxColor,
+                    boxShadow: `0 0 25px ${boxColor}90, inset 0 0 15px ${boxColor}30`,
+                    backgroundColor: `${boxColor}18`
                   }}
                 >
-                  <Crosshair className="w-3.5 h-3.5 animate-spin" />
-                  <span>{currentDetection.labelMain || currentDetection.category}</span>
-                  <span className="bg-black/40 px-1.5 py-0.2 rounded font-bold">
-                    {currentDetection.confidencePercent || 92}%
-                  </span>
-                  <span className="bg-white/20 px-1 rounded text-[10px]">
-                    {currentDetection.problemLevelLabel?.split(" - ")[0] || "Level 4"}
-                  </span>
-                </div>
+                  {/* Corner Targeting Brackets */}
+                  <span className="absolute -top-1.5 -left-1.5 w-3.5 h-3.5 border-t-2 border-l-2 border-white" />
+                  <span className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 border-t-2 border-r-2 border-white" />
+                  <span className="absolute -bottom-1.5 -left-1.5 w-3.5 h-3.5 border-b-2 border-l-2 border-white" />
+                  <span className="absolute -bottom-1.5 -right-1.5 w-3.5 h-3.5 border-b-2 border-r-2 border-white" />
 
-                {/* Bottom Dimensions / Department Pill */}
-                <div className="absolute -bottom-7 left-0 bg-black/85 border border-slate-700 text-slate-300 text-[10px] px-2 py-0.5 rounded font-mono">
-                  Dept: {currentDetection.department || "Municipal Operations"} • SLA: {currentDetection.slaHours || 4}h
-                </div>
-              </div>
-            )}
+                  {/* Center Target Reticle */}
+                  <div className="absolute inset-0 flex items-center justify-center opacity-40">
+                    <Crosshair className="w-6 h-6 text-white" />
+                  </div>
 
-            {/* Nominal State Overlay */}
-            {isDetecting && currentDetection && !currentDetection.isDefect && (
-              <div className="absolute bottom-16 left-1/2 -translate-x-1/2 px-4 py-1.5 rounded-full bg-emerald-950/80 border border-emerald-500/60 backdrop-blur-md text-emerald-300 text-xs font-mono font-bold flex items-center gap-2 pointer-events-none z-20 shadow-xl animate-pulse">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-                <span>SURVEILLANCE SCAN: NOMINAL • NO HAZARDS DETECTED</span>
-              </div>
-            )}
+                  {/* Floating YOLO AI Tag */}
+                  <div
+                    className="absolute -top-9 left-0 text-white text-[11px] font-bold px-2.5 py-1 rounded-md shadow-2xl flex items-center gap-1.5 whitespace-nowrap font-mono"
+                    style={{ backgroundColor: boxColor }}
+                  >
+                    <Crosshair className="w-3.5 h-3.5 animate-spin" />
+                    <span>{currentDetection.labelMain || currentDetection.category}</span>
+                    <span className="bg-black/40 px-1.5 py-0.2 rounded font-bold">
+                      {currentDetection.confidencePercent || 92}%
+                    </span>
+                    <span className="bg-white/20 px-1 rounded text-[10px]">
+                      {currentDetection.problemLevelLabel?.split(" - ")[0] || "Level 3"}
+                    </span>
+                  </div>
+
+                  {/* Bottom Dimensions / Department Pill */}
+                  <div className="absolute -bottom-7 left-0 bg-black/90 border border-slate-700 text-slate-200 text-[10px] px-2 py-0.5 rounded font-mono font-bold shadow-lg">
+                    Dept: {currentDetection.department || currentDetection.assignedDepartment || "Municipal Operations"} • SLA: {currentDetection.slaHours || 4}h
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* 3. BOTTOM TIMESTAMP & CAMERA OVERLAY */}
             <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between pointer-events-none z-20 font-mono text-xs">
