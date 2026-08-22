@@ -58,7 +58,7 @@ export async function checkYoloBackendHealth() {
       const res = await fetch(`${baseUrl}/api/health`, {
         method: "GET",
         headers: { "Accept": "application/json" },
-        signal: AbortSignal.timeout(1800)
+        signal: AbortSignal.timeout(15000)
       });
       if (res.ok) {
         const data = await res.json();
@@ -101,7 +101,7 @@ export async function detectFrameWithBackend(frameBase64) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ image: frameBase64 }),
-        signal: AbortSignal.timeout(2800)
+        signal: AbortSignal.timeout(10000)
       });
 
       if (response.ok) {

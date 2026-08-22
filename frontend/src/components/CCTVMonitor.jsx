@@ -237,6 +237,7 @@ export default function CCTVMonitor({ user, setActivePage }) {
   const [currentDetection, setCurrentDetection] = useState(null);
   const [recentDetections, setRecentDetections] = useState([]);
   const [backendHealth, setBackendHealth] = useState({ status: "checking", engine: "NEXinfra ONNX Civic Detector" });
+  const [isCheckingBackend, setIsCheckingBackend] = useState(false);
   const [audioAlertsEnabled, setAudioAlertsEnabled] = useState(false);
   const [lastLoggedIncident, setLastLoggedIncident] = useState(null);
   const [isSubmittingReport, setIsSubmittingReport] = useState(false);
@@ -260,13 +261,8 @@ export default function CCTVMonitor({ user, setActivePage }) {
   // Live Timestamp Clock
   useEffect(() => {
     const timer = setInterval(() => {
-      const now = new Date();
-      setCurrentTimeStr(
-        now.toISOString().replace("T", " ").substring(0, 19) +
-          "." +
-          String(now.getMilliseconds()).padStart(3, "0") +
-          " UTC"
-      );
+      const d = new Date();
+      setCurrentTimeStr(d.toLocaleTimeString("en-US", { hour12: false }));
     }, 100);
     return () => clearInterval(timer);
   }, []);
@@ -283,14 +279,16 @@ export default function CCTVMonitor({ user, setActivePage }) {
 
   // Check ONNX Backend Health
   const checkBackend = useCallback(() => {
+    setIsCheckingBackend(true);
     checkYoloBackendHealth().then((res) => {
       setBackendHealth(res);
+      setIsCheckingBackend(false);
     });
   }, []);
 
   useEffect(() => {
     checkBackend();
-    const timer = setInterval(checkBackend, 5000);
+    const timer = setInterval(checkBackend, 10000);
     return () => clearInterval(timer);
   }, [checkBackend]);
 
@@ -834,15 +832,33 @@ export default function CCTVMonitor({ user, setActivePage }) {
             className={`px-3 py-1.5 rounded-lg border flex items-center gap-2 cursor-pointer transition ${
               backendHealth.status === "online" && backendHealth.modelLoaded
                 ? "bg-emerald-950/60 border-emerald-500/40 text-emerald-300 hover:bg-emerald-900/60"
+                : isCheckingBackend
+                ? "bg-amber-950/60 border-amber-500/50 text-amber-300 animate-pulse"
                 : "bg-red-950/60 border-red-500/50 text-red-300 hover:bg-red-900/60 animate-pulse"
             }`}
             title="Click to test & reconnect Central AI Vision Engine"
           >
-            <Server className="w-3.5 h-3.5 text-cyan-400" />
+            <Server className={`w-3.5 h-3.5 ${isCheckingBackend ? "animate-spin text-amber-400" : "text-cyan-400"}`} />
             <span>AI ENGINE:</span>
-            <span className={`w-2 h-2 rounded-full ${backendHealth.status === "online" && backendHealth.modelLoaded ? "bg-emerald-400 animate-pulse" : "bg-red-400"}`} />
-            <strong className={backendHealth.status === "online" && backendHealth.modelLoaded ? "text-emerald-400" : "text-red-400"}>
-              {backendHealth.status === "online" && backendHealth.modelLoaded ? "ONLINE" : "RECONNECT"}
+            <span className={`w-2 h-2 rounded-full ${
+              backendHealth.status === "online" && backendHealth.modelLoaded
+                ? "bg-emerald-400 animate-pulse"
+                : isCheckingBackend
+                ? "bg-amber-400 animate-ping"
+                : "bg-red-400"
+            }`} />
+            <strong className={
+              backendHealth.status === "online" && backendHealth.modelLoaded
+                ? "text-emerald-400"
+                : isCheckingBackend
+                ? "text-amber-400"
+                : "text-red-400"
+            }>
+              {backendHealth.status === "online" && backendHealth.modelLoaded
+                ? "ONLINE"
+                : isCheckingBackend
+                ? "CONNECTING..."
+                : "RECONNECT"}
             </strong>
           </button>
 
