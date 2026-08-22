@@ -53,14 +53,10 @@ export default function Sidebar({
   ];
 
   const officerMenuItems = [
-    { id: 'municipal-dashboard', label: 'Officer Operations', icon: Building },
-    { id: 'dashboard', label: 'City Complaints Feed', icon: LayoutDashboard },
-    { id: 'citysync-map', label: 'Zonal Map', icon: MapPin },
-    { id: 'cctv', label: 'CCTV Surveillance', icon: Camera },
-    { id: 'maintenance', label: 'Incident Triage', icon: FileText },
-    { id: 'analytics', label: 'Zonal Analytics', icon: BarChart3 },
-    { id: 'report-issue', label: 'Log On-Site Defect', icon: Sparkles },
-    { id: 'incident-detail', label: 'Track Complaint', icon: AlertCircle },
+    { id: 'municipal-dashboard', label: 'Officer Dashboard & Teams', icon: Building },
+    { id: 'maintenance', label: 'Incident Logs', icon: FileText },
+    { id: 'live-map', label: 'Live Map', icon: MapPin },
+    { id: 'cctv', label: 'CCTV Monitor', icon: Camera },
   ];
 
   const publicMenuItems = [
@@ -77,7 +73,10 @@ export default function Sidebar({
     { id: 'incident-detail', label: 'Incident Inspector', icon: AlertCircle },
   ];
 
-  const menuToRender = isAdmin ? adminMenuItems : isOfficer ? officerMenuItems : publicMenuItems;
+  const isOfficerContext = isOfficer || activePage === 'municipal-dashboard';
+  const showAdminControls = isAdmin && !isOfficerContext;
+
+  const menuToRender = showAdminControls ? adminMenuItems : isOfficerContext ? officerMenuItems : publicMenuItems;
 
   return (
     <aside className="w-64 bg-[#0B0F19] border-r border-slate-800/80 flex flex-col justify-between shrink-0 min-h-screen text-slate-300 font-mono-tech select-none overflow-y-auto">
@@ -88,31 +87,31 @@ export default function Sidebar({
             <Logo size="sm" theme={theme} />
             <div>
               <h2 className="text-xl font-extrabold text-white tracking-wide font-sans">Nexinfra</h2>
-              <p className="text-[11px] text-cyan-400 font-mono-tech tracking-widest uppercase">
-                {isAdmin ? "Admin Authority" : isOfficer ? "Municipal Officer" : "Citizen Portal"}
+              <p className={`text-[11px] font-mono-tech tracking-widest uppercase ${isOfficerContext ? "text-amber-400" : showAdminControls ? "text-cyan-400" : "text-emerald-400"}`}>
+                {isOfficerContext ? "Municipal Officer" : showAdminControls ? "Admin Authority" : "Citizen Portal"}
               </p>
             </div>
           </div>
 
           <div className="mt-2 w-full flex items-center justify-between px-2.5 py-1.5 rounded-md bg-[#070A10] border border-slate-800 text-[11px]">
             <span className="flex items-center gap-1.5 text-slate-400">
-              {isAdmin ? (
-                <ShieldCheck className="w-3.5 h-3.5 text-cyan-400" />
-              ) : isOfficer ? (
+              {isOfficerContext ? (
                 <Building className="w-3.5 h-3.5 text-amber-400" />
+              ) : showAdminControls ? (
+                <ShieldCheck className="w-3.5 h-3.5 text-cyan-400" />
               ) : (
                 <UserCheck className="w-3.5 h-3.5 text-emerald-400" />
               )}
-              <span>{isAdmin ? "ADMIN" : isOfficer ? "OFFICER" : "CITIZEN"}</span>
+              <span>{isOfficerContext ? "OFFICER" : showAdminControls ? "ADMIN" : "CITIZEN"}</span>
             </span>
-            <span className={`font-bold ${isAdmin ? "text-cyan-400" : isOfficer ? "text-amber-400" : "text-emerald-400"}`}>
-              {isAdmin ? "EXECUTIVE" : isOfficer ? "ZONAL LEAD" : "VERIFIED"}
+            <span className={`font-bold ${isOfficerContext ? "text-amber-400" : showAdminControls ? "text-cyan-400" : "text-emerald-400"}`}>
+              {isOfficerContext ? "ZONAL DESK" : showAdminControls ? "EXECUTIVE" : "VERIFIED"}
             </span>
           </div>
         </div>
 
-        {/* Admin UAV Dispatch & Access Approval Queue */}
-        {isAdmin && (
+        {/* Admin UAV Dispatch & Access Approval Queue (STRICTLY HIDDEN FOR OFFICERS) */}
+        {showAdminControls && (
           <div className="p-4 space-y-2">
             <button
               onClick={onOpenDispatchModal}
@@ -143,7 +142,7 @@ export default function Sidebar({
         {/* Navigation Menu */}
         <nav className="px-3 py-2 space-y-1">
           <div className="px-3 py-1.5 text-xs text-slate-400 font-bold uppercase tracking-widest">
-            {isAdmin ? "Command Center" : isOfficer ? "Municipal Operations" : "Citizen Services"}
+            {isOfficerContext ? "Municipal Operations" : showAdminControls ? "Command Center" : "Citizen Services"}
           </div>
 
           {menuToRender.map((item) => {
@@ -156,19 +155,21 @@ export default function Sidebar({
                 onClick={() => setActivePage(item.id)}
                 className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-xs tracking-wider transition-all cursor-pointer ${
                   isActive
-                    ? 'bg-slate-800/80 text-cyan-400 border-r-2 border-cyan-400 font-bold'
+                    ? isOfficerContext
+                      ? 'bg-amber-950/40 text-amber-300 border-r-2 border-amber-400 font-bold'
+                      : 'bg-slate-800/80 text-cyan-400 border-r-2 border-cyan-400 font-bold'
                     : 'text-slate-300 hover:text-white hover:bg-slate-800/40'
                 }`}
               >
-                <Icon className={`w-4 h-4 ${isActive ? 'text-cyan-400' : 'text-slate-400'}`} />
+                <Icon className={`w-4 h-4 ${isActive ? (isOfficerContext ? 'text-amber-400' : 'text-cyan-400') : 'text-slate-400'}`} />
                 <span className="font-medium text-sm">{item.label}</span>
               </button>
             );
           })}
         </nav>
 
-        {/* CitySync AI Section for Admin */}
-        {isAdmin && (
+        {/* CitySync AI Section (ONLY FOR ADMIN CONSOLE) */}
+        {showAdminControls && (
           <nav className="px-3 py-2 space-y-1 border-t border-slate-800/60 mt-2 pt-3">
             <div className="px-3 py-1.5 text-xs text-cyan-400 font-bold uppercase tracking-widest flex items-center justify-between">
               <span>NEXINFRA AI SYSTEMS</span>

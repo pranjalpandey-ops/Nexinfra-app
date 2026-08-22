@@ -97,24 +97,65 @@ export default function App() {
 
   // Protected Route Handler with Role Based Access Control
   const handleNavigate = (targetPage) => {
-    if (!user && (targetPage === "dashboard" || ADMIN_ONLY_PAGES.includes(targetPage))) {
+    if (!user && targetPage !== "landing" && targetPage !== "login" && targetPage !== "signup") {
       setActivePage("login");
       return;
     }
 
-    if (ADMIN_ONLY_PAGES.includes(targetPage)) {
-      if (!user || user.role !== "admin") {
-        alert("Access Restricted: This module requires Command Administrator clearance.");
-        setActivePage(user ? "dashboard" : "login");
+    // 1. Municipal Officer Account Route Isolation
+    if (user?.role === "officer") {
+      const officerAllowedPages = [
+        "municipal-dashboard",
+        "maintenance",
+        "live-map",
+        "cctv",
+        "landing",
+        "login",
+        "signup"
+      ];
+      if (!officerAllowedPages.includes(targetPage)) {
+        setActivePage("municipal-dashboard");
         return;
       }
     }
+
+    // 2. Public Citizen Account Route Isolation
+    if (user?.role === "public") {
+      const publicAllowedPages = [
+        "dashboard",
+        "citysync-map",
+        "report-issue",
+        "incident-detail",
+        "analytics",
+        "landing",
+        "login",
+        "signup"
+      ];
+      if (!publicAllowedPages.includes(targetPage)) {
+        setActivePage("dashboard");
+        return;
+      }
+    }
+
+    // 3. Admin-Only Modules
+    if (ADMIN_ONLY_PAGES.includes(targetPage)) {
+      if (!user || user.role !== "admin") {
+        alert("Access Restricted: This module requires Command Administrator clearance.");
+        setActivePage(user?.role === "officer" ? "municipal-dashboard" : user ? "dashboard" : "login");
+        return;
+      }
+    }
+
     setActivePage(targetPage);
   };
 
   const handleLoginSuccess = (userData) => {
     setUser(userData);
-    setActivePage("dashboard");
+    if (userData?.role === "officer") {
+      setActivePage("municipal-dashboard");
+    } else {
+      setActivePage("dashboard");
+    }
   };
 
   const handleLogout = async () => {
@@ -257,8 +298,14 @@ export default function App() {
             {/* Console Header */}
             <div className="h-14 bg-[#090D16] border-b border-slate-800/80 px-6 flex items-center justify-between font-mono-tech text-xs shrink-0">
               <div className="flex items-center gap-3">
-                <span className="text-cyan-400 font-bold uppercase tracking-wider text-sm">
-                  NEXINFRA {user?.role === "admin" ? "COMMAND CONSOLE" : "CITIZEN PORTAL"}
+                <span className={`font-bold uppercase tracking-wider text-sm ${
+                  user?.role === "officer" || activePage === "municipal-dashboard"
+                    ? "text-amber-400"
+                    : user?.role === "admin"
+                    ? "text-cyan-400"
+                    : "text-emerald-400"
+                }`}>
+                  NEXINFRA {user?.role === "officer" || activePage === "municipal-dashboard" ? "MUNICIPAL DESK" : user?.role === "admin" ? "COMMAND CONSOLE" : "CITIZEN PORTAL"}
                 </span>
 
                 <span className="text-slate-600">/</span>
@@ -270,19 +317,19 @@ export default function App() {
                 {user?.role && (
                   <span
                     className={`ml-2 px-2.5 py-0.5 rounded text-[11px] font-bold uppercase tracking-wider ${
-                      user.role === "admin"
-                        ? "bg-cyan-950 border border-cyan-500 text-cyan-300"
-                        : user.role === "officer"
+                      user.role === "officer" || activePage === "municipal-dashboard"
                         ? "bg-amber-950 border border-amber-500 text-amber-300"
+                        : user.role === "admin"
+                        ? "bg-cyan-950 border border-cyan-500 text-cyan-300"
                         : user.role === "pending_admin" || user.role === "pending_officer"
                         ? "bg-amber-950 border border-amber-500 text-amber-300"
                         : "bg-emerald-950 border border-emerald-500 text-emerald-300"
                     }`}
                   >
-                    {user.role === "admin"
-                      ? "ADMIN"
-                      : user.role === "officer"
+                    {user.role === "officer" || activePage === "municipal-dashboard"
                       ? "OFFICER"
+                      : user.role === "admin"
+                      ? "ADMIN"
                       : user.role === "pending_admin" || user.role === "pending_officer"
                       ? "PENDING"
                       : "CITIZEN"}
@@ -300,7 +347,7 @@ export default function App() {
                   <span>Live Alerts ({alerts.filter((a) => !a.acknowledged).length})</span>
                 </button>
 
-                {user?.role === "admin" && (
+                {user?.role === "admin" && activePage !== "municipal-dashboard" && (
                   <button
                     onClick={handleOpenApproval}
                     className="text-cyan-400 hover:text-cyan-300 transition-colors cursor-pointer text-xs font-bold flex items-center gap-1"
@@ -334,7 +381,7 @@ export default function App() {
 
             {/* Active Console Views */}
             <div className="flex-1 overflow-y-auto flex flex-col">
-              {activePage === "dashboard" && (
+              {activePage === "dashboard" && user?.role !== "officer" && (
                 <DashboardView
                   setActivePage={handleNavigate}
                   user={user}
@@ -358,7 +405,7 @@ export default function App() {
                 />
               )}
 
-              {activePage === "live-map" && user?.role === "admin" && (
+              {activePage === "live-map" && (user?.role === "admin" || user?.role === "officer") && (
                 <LiveMapView
                   onOpenDispatchModal={handleOpenDispatch}
                   setActivePage={handleNavigate}

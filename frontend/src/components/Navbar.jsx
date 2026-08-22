@@ -13,8 +13,8 @@ export default function Navbar({
   theme,
   setTheme
 }) {
-  const isAdmin = user?.role === 'admin';
-  const isOfficer = user?.role === 'officer';
+  const isOfficerContext = user?.role === 'officer' || activePage === 'municipal-dashboard';
+  const isAdminContext = user?.role === 'admin' && !isOfficerContext;
   const [alerts, setAlerts] = useState([]);
 
   useEffect(() => {
@@ -67,80 +67,119 @@ export default function Navbar({
             Platform
           </button>
           
-          {/* Municipal Officer Operations Tab - Dedicated to Municipal Officers */}
-          {isOfficer && (
-            <button
-              onClick={() => setActivePage('municipal-dashboard')}
-              className={`px-3.5 py-2 rounded transition-colors cursor-pointer ${
-                activePage === 'municipal-dashboard'
-                  ? 'text-amber-300 bg-amber-950/40 border-b-2 border-amber-400 font-bold'
-                  : 'text-slate-300 hover:text-white hover:bg-slate-800/40'
-              }`}
-            >
-              Officer Operations
-            </button>
+          {/* MUNICIPAL OFFICER NAVIGATION TABS */}
+          {isOfficerContext && (
+            <>
+              <button
+                onClick={() => setActivePage('municipal-dashboard')}
+                className={`px-3.5 py-2 rounded transition-colors cursor-pointer ${
+                  activePage === 'municipal-dashboard'
+                    ? 'text-amber-300 bg-amber-950/40 border-b-2 border-amber-400 font-bold'
+                    : 'text-slate-300 hover:text-white hover:bg-slate-800/40'
+                }`}
+              >
+                Officer Dashboard & Teams
+              </button>
+
+              <button
+                onClick={() => setActivePage('maintenance')}
+                className={`px-3.5 py-2 rounded transition-colors cursor-pointer ${
+                  activePage === 'maintenance'
+                    ? 'text-amber-300 bg-amber-950/40 border-b-2 border-amber-400 font-bold'
+                    : 'text-slate-300 hover:text-white hover:bg-slate-800/40'
+                }`}
+              >
+                Incident Logs
+              </button>
+
+              <button
+                onClick={() => setActivePage('live-map')}
+                className={`px-3.5 py-2 rounded transition-colors cursor-pointer ${
+                  activePage === 'live-map'
+                    ? 'text-amber-300 bg-amber-950/40 border-b-2 border-amber-400 font-bold'
+                    : 'text-slate-300 hover:text-white hover:bg-slate-800/40'
+                }`}
+              >
+                Live Map
+              </button>
+
+              <button
+                onClick={() => setActivePage('cctv')}
+                className={`px-3.5 py-2 rounded transition-colors cursor-pointer ${
+                  activePage === 'cctv'
+                    ? 'text-amber-300 bg-amber-950/40 border-b-2 border-amber-400 font-bold'
+                    : 'text-slate-300 hover:text-white hover:bg-slate-800/40'
+                }`}
+              >
+                CCTV Monitor
+              </button>
+            </>
           )}
 
-          {/* Dashboard Tab ONLY shown after citizen or admin login */}
-          {isAuth && (
-            <button
-              onClick={() => setActivePage('dashboard')}
-              className={`px-3.5 py-2 rounded transition-colors cursor-pointer ${
-                activePage === 'dashboard'
-                  ? 'text-cyan-400 bg-cyan-950/40 border-b-2 border-cyan-400 font-bold'
-                  : 'text-slate-300 hover:text-white hover:bg-slate-800/40'
-              }`}
-            >
-              {isAdmin ? "Console Dashboard" : isOfficer ? "Complaints Feed" : "Citizen Dashboard"}
-            </button>
-          )}
+          {/* ADMIN & CITIZEN NAVIGATION TABS */}
+          {!isOfficerContext && (
+            <>
+              {isAuth && (
+                <button
+                  onClick={() => setActivePage('dashboard')}
+                  className={`px-3.5 py-2 rounded transition-colors cursor-pointer ${
+                    activePage === 'dashboard'
+                      ? 'text-cyan-400 bg-cyan-950/40 border-b-2 border-cyan-400 font-bold'
+                      : 'text-slate-300 hover:text-white hover:bg-slate-800/40'
+                  }`}
+                >
+                  {isAdminContext ? "Console Dashboard" : "Citizen Dashboard"}
+                </button>
+              )}
 
-          <button
-            onClick={() => setActivePage('report-issue')}
-            className={`px-3.5 py-2 rounded transition-colors flex items-center gap-1.5 cursor-pointer ${
-              activePage === 'report-issue'
-                ? 'text-cyan-400 bg-cyan-950/40 border-b-2 border-cyan-400 font-bold'
-                : 'text-slate-300 hover:text-white hover:bg-slate-800/40'
-            }`}
-          >
-            <Sparkles className="w-4 h-4 text-cyan-400" />
-            <span>Report Issue</span>
-          </button>
+              <button
+                onClick={() => setActivePage('report-issue')}
+                className={`px-3.5 py-2 rounded transition-colors flex items-center gap-1.5 cursor-pointer ${
+                  activePage === 'report-issue'
+                    ? 'text-cyan-400 bg-cyan-950/40 border-b-2 border-cyan-400 font-bold'
+                    : 'text-slate-300 hover:text-white hover:bg-slate-800/40'
+                }`}
+              >
+                <Sparkles className="w-4 h-4 text-cyan-400" />
+                <span>Report Issue</span>
+              </button>
 
-          <button
-            onClick={() => setActivePage('citysync-map')}
-            className={`px-3.5 py-2 rounded transition-colors flex items-center gap-1.5 cursor-pointer ${
-              activePage === 'citysync-map'
-                ? 'text-cyan-400 bg-cyan-950/40 border-b-2 border-cyan-400 font-bold'
-                : 'text-slate-300 hover:text-white hover:bg-slate-800/40'
-            }`}
-          >
-            <MapPin className="w-4 h-4 text-cyan-400" />
-            <span>CitySync Map</span>
-          </button>
+              <button
+                onClick={() => setActivePage('citysync-map')}
+                className={`px-3.5 py-2 rounded transition-colors flex items-center gap-1.5 cursor-pointer ${
+                  activePage === 'citysync-map'
+                    ? 'text-cyan-400 bg-cyan-950/40 border-b-2 border-cyan-400 font-bold'
+                    : 'text-slate-300 hover:text-white hover:bg-slate-800/40'
+                }`}
+              >
+                <MapPin className="w-4 h-4 text-cyan-400" />
+                <span>CitySync Map</span>
+              </button>
 
-          <button
-            onClick={() => setActivePage('incident-detail')}
-            className={`px-3.5 py-2 rounded transition-colors cursor-pointer ${
-              activePage === 'incident-detail'
-                ? 'text-cyan-400 bg-cyan-950/40 border-b-2 border-cyan-400 font-bold'
-                : 'text-slate-300 hover:text-white hover:bg-slate-800/40'
-            }`}
-          >
-            {isAdmin ? "Incident Inspector" : "Track Incident"}
-          </button>
+              <button
+                onClick={() => setActivePage('incident-detail')}
+                className={`px-3.5 py-2 rounded transition-colors cursor-pointer ${
+                  activePage === 'incident-detail'
+                    ? 'text-cyan-400 bg-cyan-950/40 border-b-2 border-cyan-400 font-bold'
+                    : 'text-slate-300 hover:text-white hover:bg-slate-800/40'
+                }`}
+              >
+                {isAdminContext ? "Incident Inspector" : "Track Incident"}
+              </button>
 
-          {isAdmin && (
-            <button
-              onClick={() => setActivePage('maintenance')}
-              className={`px-3.5 py-2 rounded transition-colors cursor-pointer ${
-                activePage === 'maintenance'
-                  ? 'text-cyan-400 bg-cyan-950/40 border-b-2 border-cyan-400 font-bold'
-                  : 'text-slate-300 hover:text-white hover:bg-slate-800/40'
-              }`}
-            >
-              Incident Logs
-            </button>
+              {isAdminContext && (
+                <button
+                  onClick={() => setActivePage('maintenance')}
+                  className={`px-3.5 py-2 rounded transition-colors cursor-pointer ${
+                    activePage === 'maintenance'
+                      ? 'text-cyan-400 bg-cyan-950/40 border-b-2 border-cyan-400 font-bold'
+                      : 'text-slate-300 hover:text-white hover:bg-slate-800/40'
+                  }`}
+                >
+                  Incident Logs
+                </button>
+              )}
+            </>
           )}
         </nav>
 
@@ -206,26 +245,28 @@ export default function Navbar({
           ) : (
             <div className="flex items-center gap-2">
               <span className={`px-2.5 py-1 rounded text-[11px] font-bold uppercase tracking-wider flex items-center gap-1.5 ${
-                isAdmin
-                  ? "bg-cyan-950 border border-cyan-500/60 text-cyan-300"
-                  : isOfficer
+                isOfficerContext
                   ? "bg-amber-950 border border-amber-500/60 text-amber-300"
+                  : isAdminContext
+                  ? "bg-cyan-950 border border-cyan-500/60 text-cyan-300"
                   : "bg-emerald-950 border border-emerald-500/60 text-emerald-300"
               }`}>
-                {isAdmin ? (
-                  <ShieldCheck className="w-3.5 h-3.5 text-cyan-400" />
-                ) : isOfficer ? (
+                {isOfficerContext ? (
                   <Building className="w-3.5 h-3.5 text-amber-400" />
+                ) : isAdminContext ? (
+                  <ShieldCheck className="w-3.5 h-3.5 text-cyan-400" />
                 ) : (
                   <UserCheck className="w-3.5 h-3.5 text-emerald-400" />
                 )}
-                <span>{isAdmin ? "ADMIN" : isOfficer ? "OFFICER" : "CITIZEN"}</span>
+                <span>{isOfficerContext ? "OFFICER" : isAdminContext ? "ADMIN" : "CITIZEN"}</span>
               </span>
 
               {/* Console Live Status Badge */}
-              <div className="hidden sm:flex items-center gap-1 px-2.5 py-1 rounded bg-[#070A10] border border-cyan-500/40 text-[10px] text-cyan-300 font-bold">
-                <Radio className="w-3 h-3 text-cyan-400 animate-pulse" />
-                <span>{isOfficer ? "DISPATCH" : "CONSOLE"}</span>
+              <div className={`hidden sm:flex items-center gap-1 px-2.5 py-1 rounded bg-[#070A10] border text-[10px] font-bold ${
+                isOfficerContext ? "border-amber-500/40 text-amber-300" : "border-cyan-500/40 text-cyan-300"
+              }`}>
+                <Radio className={`w-3 h-3 animate-pulse ${isOfficerContext ? "text-amber-400" : "text-cyan-400"}`} />
+                <span>{isOfficerContext ? "DISPATCH" : "CONSOLE"}</span>
               </div>
             </div>
           )}
