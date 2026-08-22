@@ -427,7 +427,7 @@ export default function CCTVMonitor({ user, setActivePage }) {
 
       if (!backendRes || !backendRes.success || backendRes.error) {
         setBackendHealth({ status: "offline", modelLoaded: false, engine: "AI DETECTION OFFLINE" });
-        setVerificationState("AI DETECTION OFFLINE");
+        setVerificationState("CENTRAL AI SERVER UNAVAILABLE");
         consecutiveCountRef.current = 0;
         setConsecutiveCount(0);
         setCurrentDetection(null);
@@ -811,18 +811,20 @@ export default function CCTVMonitor({ user, setActivePage }) {
             <strong>{statusBadge.label}</strong>
           </div>
 
-          {/* AI ENGINE STATUS */}
+          {/* CENTRAL AI ENGINE STATUS */}
           <div
             className={`px-3 py-1.5 rounded-lg border flex items-center gap-2 ${
-              backendHealth.status === "online"
+              backendHealth.status === "online" && backendHealth.modelLoaded
                 ? "bg-emerald-950/60 border-emerald-500/40 text-emerald-300"
                 : "bg-red-950/60 border-red-500/50 text-red-300"
             }`}
+            title={backendHealth.status === "online" ? "Central ONNX AI Server Connected" : "Central AI Server Offline"}
           >
             <Server className="w-3.5 h-3.5 text-cyan-400" />
-            <span>AI:</span>
-            <strong className={backendHealth.status === "online" ? "text-emerald-400" : "text-red-400"}>
-              {backendHealth.status === "online" ? "ONLINE" : "OFFLINE"}
+            <span>AI ENGINE:</span>
+            <span className={`w-2 h-2 rounded-full ${backendHealth.status === "online" && backendHealth.modelLoaded ? "bg-emerald-400 animate-pulse" : "bg-red-400"}`} />
+            <strong className={backendHealth.status === "online" && backendHealth.modelLoaded ? "text-emerald-400" : "text-red-400"}>
+              {backendHealth.status === "online" && backendHealth.modelLoaded ? "ONLINE" : "OFFLINE"}
             </strong>
           </div>
 

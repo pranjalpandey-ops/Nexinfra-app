@@ -27,7 +27,7 @@ import { runModelValidation } from "./validateModel.js";
 
 const app = express();
 const PORT = process.env.PORT || 4000;
-const MASTER_SECRET_KEY = process.env.ADMIN_SECRET_KEY || "nexinfra-master-2026";
+const HOST = process.env.HOST || "0.0.0.0";
 
 // Firebase App Initialization
 const firebaseConfig = {
@@ -43,7 +43,12 @@ const firebaseApp = initializeApp(firebaseConfig);
 const auth = getAuth(firebaseApp);
 const db = getFirestore(firebaseApp);
 
-app.use(cors());
+app.use(cors({
+  origin: true,
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization", "Accept"]
+}));
 app.use(express.json({ limit: "15mb" }));
 app.use(express.urlencoded({ extended: true, limit: "15mb" }));
 
@@ -54,14 +59,16 @@ const upload = multer({
   }
 });
 
-// Health check reporting real ONNX model status
+// Central AI Health check reporting real ONNX model status
 app.get("/api/health", (req, res) => {
   const modelInfo = getModelInfo();
   res.json({
-    success: true,
     status: modelInfo.modelExists ? "online" : "offline",
-    message: "NEXinfra Backend API & Security Gateway operational",
+    modelLoaded: Boolean(modelInfo.modelExists),
+    engine: modelInfo.engine || "NEXinfra ONNX Civic Detector",
+    success: true,
     version: "4.5.0",
+    timestamp: new Date().toISOString(),
     ai: modelInfo
   });
 });
@@ -490,7 +497,7 @@ app.get("/api/ai/validate", async (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`⚡ NEXinfra Backend & Security API running on http://localhost:${PORT}`);
-  console.log(`🛡️ Master Admin Secret Key active: ${MASTER_SECRET_KEY}`);
+app.listen(PORT, HOST, () => {
+  console.log(`⚡ NEXinfra Central AI Backend running on http://${HOST}:${PORT}`);
+  console.log(`🛡️ Model path active: ${process.cwd()}`);
 });
