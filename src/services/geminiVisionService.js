@@ -72,11 +72,11 @@ export async function analyzeWithGeminiVision(imageSource) {
 
     if (!base64Data) return null;
 
-    let endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`;
+    let endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
     const headers = { "Content-Type": "application/json" };
 
     if (apiKey.startsWith("AQ.") || apiKey.startsWith("ya29.")) {
-      endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`;
+      endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
     }
 
     const prompt = `You are the AI Vision Inspector for the Nexinfra Smart City Civic Governance Matrix.

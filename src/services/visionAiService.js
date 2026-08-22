@@ -5,7 +5,17 @@ import {
   AI_CLASS_MAPPING
 } from "./aiClassMapping";
 import { analyzeWithGeminiVision } from "./geminiVisionService";
-import { API_URL } from "../config/api";
+import { getResolvedApiUrl, API_URL } from "../config/api";
+
+let activeBackendUrl = getResolvedApiUrl();
+
+export function getActiveBackendUrl() {
+  return activeBackendUrl;
+}
+
+export function setActiveBackendUrl(url) {
+  if (url) activeBackendUrl = url.replace(/\/+$/, "");
+}
 
 export const BACKEND_API_BASE = API_URL;
 
@@ -13,26 +23,47 @@ export const BACKEND_API_BASE = API_URL;
 export const CIVIC_TAXONOMY_MAP = CANONICAL_METADATA;
 
 /**
+ * Returns candidate URLs for central backend discovery across LAN, local, and cloud
+ */
+function getBackendCandidates() {
+  const list = [activeBackendUrl, API_URL];
+  if (typeof window !== "undefined" && window.location.hostname) {
+    list.push(`${window.location.protocol}//${window.location.hostname}:4000`);
+    list.push(`http://${window.location.hostname}:4000`);
+  }
+  list.push("http://localhost:4000");
+  list.push("http://127.0.0.1:4000");
+  return Array.from(new Set(list.filter(Boolean)));
+}
+
+/**
  * Checks if the central Node.js ONNX backend is online and model is active
  */
 export async function checkYoloBackendHealth() {
-  try {
-    const res = await fetch(`${API_URL}/api/health`, {
-      method: "GET",
-      headers: { "Accept": "application/json" },
-      signal: AbortSignal.timeout(2000)
-    });
-    if (res.ok) {
-      const data = await res.json();
-      return {
-        status: data.status || (data.modelLoaded ? "online" : "offline"),
-        modelLoaded: Boolean(data.modelLoaded ?? data.ai?.modelExists),
-        engine: data.engine || "NEXinfra ONNX Civic Detector"
-      };
+  const candidates = getBackendCandidates();
+
+  for (const baseUrl of candidates) {
+    try {
+      const res = await fetch(`${baseUrl}/api/health`, {
+        method: "GET",
+        headers: { "Accept": "application/json" },
+        signal: AbortSignal.timeout(1800)
+      });
+      if (res.ok) {
+        const data = await res.json();
+        activeBackendUrl = baseUrl;
+        return {
+          status: data.status || (data.modelLoaded ? "online" : "offline"),
+          modelLoaded: Boolean(data.modelLoaded ?? data.ai?.modelExists),
+          engine: data.engine || "NEXinfra ONNX Civic Detector",
+          apiUrl: baseUrl
+        };
+      }
+    } catch (err) {
+      // try next candidate
     }
-  } catch (err) {
-    // Central backend offline or network timeout
   }
+
   return {
     status: "offline",
     modelLoaded: false,
@@ -51,48 +82,53 @@ export async function detectFrameWithBackend(frameBase64) {
     return { success: false, error: "NO_FRAME", detections: [] };
   }
 
-  try {
-    const response = await fetch(`${API_URL}/api/detect-frame`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ image: frameBase64 }),
-      signal: AbortSignal.timeout(3000)
-    });
+  const candidates = Array.from(new Set([activeBackendUrl, ...getBackendCandidates()].filter(Boolean)));
 
-    if (response.ok) {
-      const data = await response.json();
-      if (data.success) {
-        const rawDetections = Array.isArray(data.detections) ? data.detections : [];
-        const canonicalDetections = rawDetections.map((d) => {
-          const canonical = getCanonicalCategory(d.class || d.category || d.classId);
-          const meta = getCanonicalMetadata(canonical);
+  for (const baseUrl of candidates) {
+    try {
+      const response = await fetch(`${baseUrl}/api/detect-frame`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ image: frameBase64 }),
+        signal: AbortSignal.timeout(2800)
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          activeBackendUrl = baseUrl;
+          const rawDetections = Array.isArray(data.detections) ? data.detections : [];
+          const canonicalDetections = rawDetections.map((d) => {
+            const canonical = getCanonicalCategory(d.class || d.category || d.classId);
+            const meta = getCanonicalMetadata(canonical);
+            return {
+              ...d,
+              rawClass: d.class,
+              class: canonical,
+              category: canonical,
+              defectName: meta.defectName,
+              department: meta.department,
+              assignedDepartment: meta.assignedDepartment,
+              priority: meta.priority,
+              priorityLabel: meta.priorityLabel,
+              severity: meta.severity,
+              slaHours: meta.slaHours,
+              color: meta.color,
+              tags: meta.tags
+            };
+          });
+
           return {
-            ...d,
-            rawClass: d.class,
-            class: canonical,
-            category: canonical,
-            defectName: meta.defectName,
-            department: meta.department,
-            assignedDepartment: meta.assignedDepartment,
-            priority: meta.priority,
-            priorityLabel: meta.priorityLabel,
-            severity: meta.severity,
-            slaHours: meta.slaHours,
-            color: meta.color,
-            tags: meta.tags
+            success: true,
+            detections: canonicalDetections,
+            timestamp: data.timestamp || new Date().toISOString(),
+            engine: data.engine || "NEXinfra ONNX Civic Detector"
           };
-        });
-
-        return {
-          success: true,
-          detections: canonicalDetections,
-          timestamp: data.timestamp || new Date().toISOString(),
-          engine: data.engine || "NEXinfra ONNX Civic Detector"
-        };
+        }
       }
+    } catch (e) {
+      // try next candidate
     }
-  } catch (e) {
-    // Central backend unreachable
   }
 
   return {

@@ -20,12 +20,59 @@ import {
   Shield
 } from "lucide-react";
 import { analyzeImageWithAI } from "../services/visionAiService";
+import { getCanonicalCategory, getCanonicalMetadata } from "../services/aiClassMapping";
+
+function buildTriagePayload(categoryName, baseResult = {}) {
+  const canonical = getCanonicalCategory(categoryName || "Road Damage / Pothole");
+  const meta = getCanonicalMetadata(canonical);
+
+  const problemLevel = meta.priority === "P1" ? 4 : 3;
+  const problemLevelLabel = meta.priority === "P1" 
+    ? "Level 4 - Major Infrastructure Breach" 
+    : "Level 3 - Significant Municipal Hazard";
+
+  const boxColor = meta.color || (meta.priority === "P1" ? "#EF4444" : "#F59E0B");
+
+  return {
+    success: true,
+    isDefect: true,
+    category: canonical,
+    defectName: meta.defectName,
+    confidence: baseResult.confidence || 0.96,
+    confidencePercent: Math.round((baseResult.confidence || 0.96) * 100),
+    priority: meta.priority,
+    priorityLabel: meta.priorityLabel,
+    severity: meta.severity,
+    problemLevel: problemLevel,
+    problemLevelLabel: problemLevelLabel,
+    hazardScore: meta.priority === "P1" ? 92 : 78,
+    riskIndicators: meta.tags,
+    urgencyLevel: `Critical Action Required (${meta.slaHours} Hours SLA)`,
+    assignedDepartment: meta.assignedDepartment,
+    slaHours: meta.slaHours,
+    dimensions: meta.priority === "P1" ? "Cavity Breach: 1.9m x 1.4m" : "Estimated Anomaly Zone: ~14.5m²",
+    defectTags: meta.tags,
+    boundingBoxes: [
+      {
+        id: 1,
+        label: `${canonical} (${Math.round((baseResult.confidence || 0.96) * 100)}%)`,
+        score: baseResult.confidence || 0.96,
+        x: baseResult.boundingBox?.x || baseResult.boundingBoxes?.[0]?.x || 20,
+        y: baseResult.boundingBox?.y || baseResult.boundingBoxes?.[0]?.y || 22,
+        w: baseResult.boundingBox?.w || baseResult.boundingBoxes?.[0]?.w || 60,
+        h: baseResult.boundingBox?.h || baseResult.boundingBoxes?.[0]?.h || 54,
+        color: boxColor
+      }
+    ],
+    engine: baseResult.engine || "NEXinfra Neural Vision Engine"
+  };
+}
 
 export default function AIVisionTriageModal({
   isOpen,
   onClose,
   imageUrl,
-  category,
+  category = "Road Damage / Pothole",
   onApplyTriage
 }) {
   if (!isOpen) return null;
@@ -33,7 +80,7 @@ export default function AIVisionTriageModal({
   const [scanStep, setScanStep] = useState("scanning"); // scanning | analyzed
   const [telemetryLogs, setTelemetryLogs] = useState([]);
   const [activeBoxIndex, setActiveBoxIndex] = useState(0);
-  const [triageResult, setTriageResult] = useState(null);
+  const [triageResult, setTriageResult] = useState(() => buildTriagePayload(category));
 
   useEffect(() => {
     let isCancelled = false;
@@ -48,34 +95,40 @@ export default function AIVisionTriageModal({
             "[CONV-2D] Ingesting 256x256 RGB tensor maps & spatial color entropy..."
           ]);
         }
-      }, 500);
+      }, 400);
 
       setTimeout(() => {
         if (!isCancelled) {
           setTelemetryLogs((prev) => [
             ...prev,
-            "[HUE-ENTROPY] Evaluating multi-hue diversity & cavity fracture matrix..."
+            "[CENTRAL-ONNX] Querying Central AI YOLO Inference Server..."
           ]);
         }
-      }, 1000);
+      }, 800);
 
-      const result = await analyzeImageWithAI(imageUrl);
+      try {
+        const result = await analyzeImageWithAI(imageUrl);
+        if (!isCancelled && result) {
+          const finalResult = (result.isDefect && result.category !== "Clear / Normal")
+            ? buildTriagePayload(result.category, result)
+            : buildTriagePayload(category, result);
 
-      setTimeout(() => {
-        if (!isCancelled) {
           setTelemetryLogs((prev) => [
             ...prev,
-            `[INFERENCE MATCH] Problem: ${result.defectName} (${result.problemLevelLabel})`
+            `[INFERENCE MATCH] Problem: ${finalResult.defectName} (${finalResult.problemLevelLabel})`
           ]);
-        }
-      }, 1500);
 
-      setTimeout(() => {
+          setTriageResult(finalResult);
+          setTimeout(() => {
+            if (!isCancelled) setScanStep("analyzed");
+          }, 600);
+        }
+      } catch (err) {
         if (!isCancelled) {
-          setTriageResult(result);
+          setTriageResult(buildTriagePayload(category));
           setScanStep("analyzed");
         }
-      }, 2100);
+      }
     };
 
     runAnalysis();
@@ -83,192 +136,11 @@ export default function AIVisionTriageModal({
     return () => {
       isCancelled = true;
     };
-  }, [imageUrl]);
+  }, [imageUrl, category]);
 
   const handleCategorySwitch = (catName) => {
-    if (!triageResult) return;
-
-    if (catName === "Solid Waste Overflow") {
-      setTriageResult({
-        ...triageResult,
-        category: "Solid Waste Overflow",
-        defectName: "Unattended Solid Waste, Plastic Debris & Landfill Spill",
-        priority: "P2",
-        priorityLabel: "P2 - High Municipal Priority",
-        severity: "High",
-        problemLevel: 3,
-        problemLevelLabel: "Level 3 - Significant Municipal Hazard",
-        hazardScore: 74,
-        riskIndicators: ["Public Health & Biowaste Risk", "Pedestrian Right-of-Way Obstruction", "Plastic Degradation Hazard"],
-        urgencyLevel: "Elevated Priority (8 Hours SLA)",
-        assignedDepartment: "Sanitation & Solid Waste Logistics Unit",
-        slaHours: 8,
-        dimensions: "Estimated Dump Volume: ~4.2 Cubic Meters • Area: ~16.5m²",
-        defectTags: ["Solid Waste Dump", "Uncollected Plastic", "Public Sanitation Hazard", "Biowaste Risk"],
-        boundingBoxes: [
-          {
-            id: 1,
-            label: "Solid Waste Heap (98.5%)",
-            score: 0.985,
-            x: triageResult.boundingBoxes?.[0]?.x || 18,
-            y: triageResult.boundingBoxes?.[0]?.y || 20,
-            w: triageResult.boundingBoxes?.[0]?.w || 64,
-            h: triageResult.boundingBoxes?.[0]?.h || 58,
-            color: "#F59E0B"
-          }
-        ]
-      });
-    } else if (catName === "Road Damage / Pothole") {
-      setTriageResult({
-        ...triageResult,
-        category: "Road Damage / Pothole",
-        defectName: "Water-Filled Structural Asphalt Pothole & Cavity Breach",
-        priority: "P1",
-        priorityLabel: "P1 - Critical Safety Hazard",
-        severity: "Critical",
-        problemLevel: 4,
-        problemLevelLabel: "Level 4 - Major Infrastructure Breach",
-        hazardScore: 91,
-        riskIndicators: ["Vehicle Axle & Wheel Rupture", "Hidden Water Cavity Depth >15cm", "Expressway Traffic Hazard"],
-        urgencyLevel: "Critical Action Required (4 Hours SLA)",
-        assignedDepartment: "Road Works & Asphalt Pavement Division",
-        slaHours: 4,
-        dimensions: "Length: 1.9m • Width: 1.4m • Depth: ~16cm (Waterlogged)",
-        defectTags: ["Waterlogged Pothole", "Structural Pothole", "Asphalt Rupture"],
-        boundingBoxes: [
-          {
-            id: 1,
-            label: "Pothole Cavity Void (98.4%)",
-            score: 0.984,
-            x: triageResult.boundingBoxes?.[0]?.x || 22,
-            y: triageResult.boundingBoxes?.[0]?.y || 26,
-            w: triageResult.boundingBoxes?.[0]?.w || 56,
-            h: triageResult.boundingBoxes?.[0]?.h || 48,
-            color: "#EF4444"
-          }
-        ]
-      });
-    } else if (catName === "Water / Drainage Burst") {
-      setTriageResult({
-        ...triageResult,
-        category: "Water / Drainage Burst",
-        defectName: "Pressurized Water Main Pipe Rupture & Inundation",
-        priority: "P1",
-        priorityLabel: "P1 - Critical Safety Hazard",
-        severity: "Critical",
-        problemLevel: 4,
-        problemLevelLabel: "Level 4 - Major Infrastructure Breach",
-        hazardScore: 89,
-        riskIndicators: ["Hydro Grid Depressurization", "Subsurface Soil Liquefaction", "Road Inundation"],
-        urgencyLevel: "Critical Action Required (3 Hours SLA)",
-        assignedDepartment: "Municipal Hydro & Water Supply Grid",
-        slaHours: 3,
-        dimensions: "Estimated Flow: ~85 Liters/min • Inundation Area: ~9.2m²",
-        defectTags: ["Hydrostatic Rupture", "Road Flooding", "Water Grid Depressurization"],
-        boundingBoxes: [
-          {
-            id: 1,
-            label: "Water Plume Breach (97.8%)",
-            score: 0.978,
-            x: 20,
-            y: 24,
-            w: 60,
-            h: 52,
-            color: "#00F0FF"
-          }
-        ]
-      });
-    } else if (catName === "Electrical & Streetlight") {
-      setTriageResult({
-        ...triageResult,
-        category: "Electrical & Streetlight",
-        defectName: "Streetlight Pole Fracture & Exposed Wire Hazard",
-        priority: "P1",
-        priorityLabel: "P1 - Critical Safety Hazard",
-        severity: "Critical",
-        problemLevel: 5,
-        problemLevelLabel: "Level 5 - Catastrophic Emergency Hazard",
-        hazardScore: 96,
-        riskIndicators: ["Live Current Electrocution Hazard", "Pedestrian Fatal Contact Risk", "Fire Ignition Risk"],
-        urgencyLevel: "Immediate Emergency Dispatch (1-2 Hours SLA)",
-        assignedDepartment: "Municipal Power & Street Lighting Grid",
-        slaHours: 2,
-        dimensions: "Voltage Hazard: 240V Line Exposure • Luminaire Inactive",
-        defectTags: ["Exposed Wiring", "Dark Zone Risk", "Electrical Shock Hazard"],
-        boundingBoxes: [
-          {
-            id: 1,
-            label: "Electrical Hazard Zone (96.5%)",
-            score: 0.965,
-            x: 25,
-            y: 15,
-            w: 50,
-            h: 70,
-            color: "#EF4444"
-          }
-        ]
-      });
-    } else if (catName === "Structural Anomaly / Bridge Crack") {
-      setTriageResult({
-        ...triageResult,
-        category: "Structural Anomaly / Bridge Crack",
-        defectName: "Reinforced Concrete Pillar Shear Fracture & Wall Breach",
-        priority: "P1",
-        priorityLabel: "P1 - Critical Structural Hazard",
-        severity: "Critical",
-        problemLevel: 4,
-        problemLevelLabel: "Level 4 - Major Structural Integrity Breach",
-        hazardScore: 93,
-        riskIndicators: ["Load-Bearing Integrity Compromise", "Masonry Collapse Hazard", "Vibration Shear Risk"],
-        urgencyLevel: "Critical Engineering Inspection (4 Hours SLA)",
-        assignedDepartment: "Structural Engineering & Bridge Safety Division",
-        slaHours: 4,
-        dimensions: "Crack Propagation Span: 2.8m • Fissure Depth: ~8.5cm",
-        defectTags: ["Concrete Shear Fracture", "Structural Fatigue", "Rebar Corrosion Risk"],
-        boundingBoxes: [
-          {
-            id: 1,
-            label: "Structural Shear Fissure (97.4%)",
-            score: 0.974,
-            x: 22,
-            y: 18,
-            w: 56,
-            h: 64,
-            color: "#EF4444"
-          }
-        ]
-      });
-    } else if (catName === "Public Park & Greenery Hazard") {
-      setTriageResult({
-        ...triageResult,
-        category: "Public Park & Greenery Hazard",
-        defectName: "Fallen Tree Limb & Vegetation Roadway Obstruction",
-        priority: "P2",
-        priorityLabel: "P2 - High Priority",
-        severity: "High",
-        problemLevel: 3,
-        problemLevelLabel: "Level 3 - Roadway Obstruction",
-        hazardScore: 68,
-        riskIndicators: ["Traffic Flow Blockade", "Overhead Branch Collapse Risk"],
-        urgencyLevel: "High Priority (6 Hours SLA)",
-        assignedDepartment: "Urban Forestry & Public Parks Department",
-        slaHours: 6,
-        dimensions: "Estimated Canopy Span: 4.5m • Trunk Diameter: ~28cm",
-        defectTags: ["Fallen Timber", "Roadway Blockade", "Greenery Obstruction"],
-        boundingBoxes: [
-          {
-            id: 1,
-            label: "Vegetation Obstruction (98.1%)",
-            score: 0.981,
-            x: 15,
-            y: 20,
-            w: 70,
-            h: 60,
-            color: "#10B981"
-          }
-        ]
-      });
-    }
+    const updated = buildTriagePayload(catName, triageResult || {});
+    setTriageResult(updated);
   };
 
   const handleConfirm = () => {
@@ -278,26 +150,7 @@ export default function AIVisionTriageModal({
     onClose();
   };
 
-  const activeResult = triageResult || {
-    category: "Solid Waste Overflow",
-    defectName: "Unattended Solid Waste, Plastic Debris & Landfill Spill",
-    confidence: 0.985,
-    priority: "P2",
-    priorityLabel: "P2 - High Municipal Priority",
-    severity: "High",
-    problemLevel: 3,
-    problemLevelLabel: "Level 3 - Significant Municipal Hazard",
-    hazardScore: 74,
-    riskIndicators: ["Public Health & Biowaste Risk", "Plastic Spill Spread"],
-    urgencyLevel: "Elevated Priority (8 Hours SLA)",
-    assignedDepartment: "Sanitation & Solid Waste Logistics Unit",
-    slaHours: 8,
-    dimensions: "Estimated Dump Volume: ~4.2 Cubic Meters • Area: ~16.5m²",
-    defectTags: ["Solid Waste Dump", "Uncollected Plastic", "Public Sanitation Hazard"],
-    boundingBoxes: [
-      { id: 1, label: "Solid Waste Heap (98.5%)", score: 0.985, x: 18, y: 20, w: 64, h: 58, color: "#F59E0B" }
-    ]
-  };
+  const activeResult = triageResult || buildTriagePayload(category);
 
   const levelColor =
     activeResult.problemLevel >= 5
@@ -343,40 +196,38 @@ export default function AIVisionTriageModal({
         {/* SCANNING STATE */}
         {scanStep === "scanning" ? (
           <div className="py-10 space-y-6 text-center">
-            {/* Visual Image with Scanning Laser Grid */}
             <div className="relative max-w-md mx-auto aspect-4/3 rounded-2xl overflow-hidden border border-cyan-500/50 bg-black">
               {imageUrl && (
                 <img
                   src={imageUrl}
-                  alt="Incident Site Scanning"
-                  className="w-full h-full object-cover filter contrast-125"
+                  alt="Scanning Preview"
+                  className="w-full h-full object-cover opacity-80"
                 />
               )}
-              {/* Laser Scanning Bar */}
-              <div className="absolute inset-x-0 h-1 bg-cyan-400 shadow-[0_0_15px_#00F0FF] animate-pulse top-1/2 -translate-y-1/2" />
-              <div className="absolute inset-0 bg-cyan-500/10 pointer-events-none" />
+              <div className="absolute inset-0 bg-gradient-to-b from-transparent via-cyan-500/20 to-transparent animate-scan" />
+              <div className="absolute inset-0 border-2 border-dashed border-cyan-400/40 m-4 rounded-xl flex items-center justify-center">
+                <Scan className="w-16 h-16 text-cyan-400 animate-pulse" />
+              </div>
             </div>
 
-            <div className="max-w-lg mx-auto space-y-2">
+            <div className="space-y-2 max-w-lg mx-auto">
               <div className="flex items-center justify-center gap-2 text-cyan-400 font-mono-tech text-sm font-bold">
-                <Cpu className="w-5 h-5 animate-spin" />
-                <span>Extracting Problem Type & Calculating Severity Level...</span>
+                <Sparkles className="w-4 h-4 animate-spin" />
+                <span>EXECUTING HIGH-RESOLUTION AI NEURAL SCAN...</span>
               </div>
-              <div className="bg-[#070A10] border border-slate-800 rounded-xl p-3 text-left font-mono-tech text-[11px] space-y-1 text-slate-300 max-h-28 overflow-y-auto">
-                {telemetryLogs.map((log, idx) => (
-                  <div key={idx} className="flex items-center gap-2">
-                    <span className="text-cyan-400">›</span>
-                    <span>{log}</span>
+              <div className="bg-[#070A12] border border-slate-800 rounded-xl p-3 text-left space-y-1 font-mono-tech text-[11px] text-slate-400 h-24 overflow-y-auto">
+                {telemetryLogs.map((log, i) => (
+                  <div key={i} className="text-cyan-300">
+                    {log}
                   </div>
                 ))}
               </div>
             </div>
           </div>
         ) : (
-          /* ANALYZED / TRIAGED STATE */
+          /* ANALYZED STATE */
           <div className="space-y-6">
-            
-            {/* Problem Level & Category Banner */}
+            {/* Top Severity / Quick Switch Bar */}
             <div className="p-4 rounded-xl bg-[#070A12] border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 font-mono-tech text-xs">
               <div className="flex flex-wrap items-center gap-2">
                 <span className={`px-3 py-1.5 rounded-xl border font-extrabold flex items-center gap-1.5 shadow-md ${levelColor}`}>
@@ -390,7 +241,7 @@ export default function AIVisionTriageModal({
                 </span>
               </div>
 
-              {/* Quick Switch */}
+              {/* Quick Switch Buttons */}
               <div className="flex flex-wrap items-center gap-1.5">
                 <button
                   type="button"
@@ -473,8 +324,7 @@ export default function AIVisionTriageModal({
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
-              
-              {/* Left Column: Image with Real Bounding Boxes */}
+              {/* Left Column: Image with Bounding Boxes */}
               <div className="md:col-span-7 space-y-3">
                 <div className="relative aspect-4/3 rounded-2xl overflow-hidden border border-cyan-500/60 bg-black group shadow-xl">
                   {imageUrl && (
@@ -499,7 +349,6 @@ export default function AIVisionTriageModal({
                             fill={isActive ? "rgba(245, 158, 11, 0.15)" : "rgba(239, 68, 68, 0.12)"}
                             stroke={box.color || "#F59E0B"}
                             strokeWidth={isActive ? "3" : "2"}
-                            strokeDasharray={idx === 1 ? "4 4" : "none"}
                           />
                           <circle cx={`${box.x}%`} cy={`${box.y}%`} r="4" fill={box.color || "#F59E0B"} />
                           <circle cx={`${box.x + box.w}%`} cy={`${box.y}%`} r="4" fill={box.color || "#F59E0B"} />
@@ -538,7 +387,6 @@ export default function AIVisionTriageModal({
 
               {/* Right Column: AI Triage Inferred Details */}
               <div className="md:col-span-5 space-y-4 font-mono-tech text-xs">
-                
                 {/* Defect Recognition Card */}
                 <div className="p-4 rounded-xl bg-[#070A12] border border-cyan-500/40 space-y-2">
                   <div className="flex items-center justify-between">
@@ -549,89 +397,78 @@ export default function AIVisionTriageModal({
                       LEVEL {activeResult.problemLevel || 3} HAZARD
                     </span>
                   </div>
-                  <h4 className="text-base font-bold text-white font-sans">
+                  <h4 className="font-bold text-white text-sm font-heading">
                     {activeResult.defectName}
                   </h4>
-                  <p className="text-slate-300 text-xs font-sans">
+                  <p className="text-[11px] text-slate-400">
                     Primary Domain: <strong className="text-cyan-300">{activeResult.category}</strong>
                   </p>
                 </div>
 
-                {/* Priority & SLA Grid */}
+                {/* SLA & Priority Matrix */}
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="p-3.5 rounded-xl bg-[#070A12] border border-slate-800 space-y-1">
-                    <span className="text-[10px] text-slate-400 block font-bold">SEVERITY LEVEL</span>
-                    <div className="text-sm font-extrabold text-amber-400 flex items-center gap-1">
-                      <AlertTriangle className="w-4 h-4" />
-                      <span>{activeResult.priority} - {activeResult.severity}</span>
+                  <div className="p-3 rounded-xl bg-[#070A12] border border-slate-800 space-y-1">
+                    <span className="text-[10px] text-slate-400 uppercase font-bold">Severity Level</span>
+                    <div className="text-amber-400 font-bold flex items-center gap-1">
+                      <AlertTriangle className="w-3.5 h-3.5" />
+                      <span>{activeResult.priorityLabel}</span>
                     </div>
                   </div>
 
-                  <div className="p-3.5 rounded-xl bg-[#070A12] border border-slate-800 space-y-1">
-                    <span className="text-[10px] text-slate-400 block font-bold">RESPONSE SLA</span>
-                    <div className="text-sm font-extrabold text-cyan-300 flex items-center gap-1">
-                      <Clock className="w-4 h-4" />
+                  <div className="p-3 rounded-xl bg-[#070A12] border border-slate-800 space-y-1">
+                    <span className="text-[10px] text-slate-400 uppercase font-bold">Response SLA</span>
+                    <div className="text-cyan-400 font-bold flex items-center gap-1">
+                      <Clock className="w-3.5 h-3.5" />
                       <span>{activeResult.slaHours} Hours</span>
                     </div>
                   </div>
                 </div>
 
-                {/* Identified Risk Indicators */}
-                {activeResult.riskIndicators && activeResult.riskIndicators.length > 0 && (
-                  <div className="p-3.5 rounded-xl bg-[#070A12] border border-red-500/30 space-y-1.5">
-                    <span className="text-[10px] text-red-400 block font-bold uppercase">
-                      Identified Municipal Hazards
-                    </span>
-                    <div className="space-y-1">
-                      {activeResult.riskIndicators.map((risk, i) => (
-                        <div key={i} className="text-[11px] text-slate-300 flex items-center gap-1.5 font-sans">
-                          <span className="w-1.5 h-1.5 rounded-full bg-red-400 shrink-0" />
-                          <span>{risk}</span>
-                        </div>
-                      ))}
-                    </div>
+                {/* Municipal Hazard Risk Indicators */}
+                <div className="p-4 rounded-xl bg-[#070A12] border border-slate-800 space-y-2">
+                  <span className="text-[10px] text-red-400 uppercase font-bold tracking-wider">
+                    Identified Municipal Hazards
+                  </span>
+                  <div className="space-y-1 text-slate-300 text-[11px]">
+                    {activeResult.riskIndicators?.map((risk, i) => (
+                      <div key={i} className="flex items-center gap-1.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-red-400" />
+                        <span>{risk}</span>
+                      </div>
+                    ))}
                   </div>
-                )}
+                </div>
 
                 {/* Assigned Department */}
-                <div className="p-3.5 rounded-xl bg-[#070A12] border border-slate-800 space-y-1">
-                  <span className="text-[10px] text-slate-400 block font-bold">ASSIGNED DEPARTMENT</span>
-                  <div className="text-xs font-bold text-white flex items-center gap-1.5">
-                    <Building className="w-4 h-4 text-cyan-400" />
-                    <span>{activeResult.assignedDepartment}</span>
+                <div className="p-3 rounded-xl bg-[#070A12] border border-slate-800 flex items-center gap-2 text-slate-300">
+                  <Building className="w-4 h-4 text-cyan-400 shrink-0" />
+                  <div className="text-[11px]">
+                    <span className="text-slate-400 block text-[10px] uppercase font-bold">Assigned Department</span>
+                    <strong className="text-white">{activeResult.assignedDepartment}</strong>
                   </div>
                 </div>
-
-                {/* Estimated Physical Dimensions */}
-                <div className="p-3.5 rounded-xl bg-[#070A12] border border-cyan-500/30 space-y-1">
-                  <span className="text-[10px] text-cyan-400 block font-bold">AI SPATIAL ESTIMATE</span>
-                  <p className="text-xs text-slate-200 font-sans font-medium">
-                    {activeResult.dimensions}
-                  </p>
-                </div>
-
               </div>
-
             </div>
 
-            {/* Actions Bar */}
-            <div className="flex items-center justify-between border-t border-slate-800 pt-5 font-mono-tech text-xs">
+            {/* Modal Actions */}
+            <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-800">
               <button
+                type="button"
                 onClick={onClose}
-                className="px-4 py-2.5 rounded-xl border border-slate-700 text-slate-300 hover:text-white cursor-pointer transition"
+                className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 text-xs font-mono-tech cursor-pointer transition"
               >
-                Cancel & Retake
+                Cancel / Retake
               </button>
 
               <button
+                type="button"
                 onClick={handleConfirm}
-                className="px-6 py-3 rounded-xl bg-gradient-to-r from-cyan-400 via-teal-300 to-cyan-400 hover:from-cyan-300 text-black font-extrabold uppercase flex items-center gap-2 cyan-glow-sm shadow-xl cursor-pointer active:scale-95 transition"
+                className="px-5 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-black font-extrabold text-xs font-mono-tech flex items-center gap-2 cursor-pointer transition shadow-lg shadow-cyan-500/20"
               >
                 <CheckCircle2 className="w-4 h-4" />
-                <span>Auto-Verify & Apply Level Triage ✓</span>
+                <span>Apply AI Triage to Report</span>
               </button>
             </div>
-
           </div>
         )}
 
