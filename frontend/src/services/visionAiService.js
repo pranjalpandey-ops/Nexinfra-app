@@ -417,17 +417,19 @@ function processImagePixels(img, defaultCategory = "") {
         greenPixelCount++;
       }
 
-      // 2. Concrete gray (walls, pillars, bridge structures) - very low saturation, medium-high luma
-      if (sat < 0.12 && luma >= 85 && luma < 210) {
+      // 2. Concrete & Masonry (walls, pillars, bridge structures, chipped stone)
+      // Neutral low-to-medium saturation (including weathered concrete & warm daylight)
+      const isNeutralGray = Math.abs(r - g) < 32 && Math.abs(g - b) < 32 && Math.abs(r - b) < 38;
+      if (isNeutralGray && sat < 0.28 && luma >= 35 && luma < 235) {
         concreteGrayCount++;
       }
 
       // 3. Dark Asphalt road - low sat, low luma
-      if (sat < 0.15 && luma >= 30 && luma < 95) {
+      if (sat < 0.18 && luma >= 25 && luma < 85) {
         asphaltDarkCount++;
       }
 
-      // 4. Dark void cavity / pothole crater
+      // 4. Dark void cavity / crack fracture / pothole crater
       if (luma < 45) {
         darkCavityCount++;
       }
@@ -442,8 +444,8 @@ function processImagePixels(img, defaultCategory = "") {
         waterBlueCount++;
       }
 
-      // 7. Multi-color plastic debris on ground
-      if (isGroundHalf && sat > 0.35 && luma > 40 && luma < 225 && !(g > r * 1.2 && g > b * 1.2)) {
+      // 7. Multi-color plastic debris on ground (vivid non-neutral colors only)
+      if (isGroundHalf && sat > 0.45 && !isNeutralGray && luma > 40 && luma < 225 && !(g > r * 1.2 && g > b * 1.2)) {
         brightPlasticCount++;
         saturatedGroundPixels++;
       }
@@ -467,7 +469,7 @@ function processImagePixels(img, defaultCategory = "") {
       const r = data[idx], g = data[idx+1], b = data[idx+2];
       const rR = data[idx+8], gR = data[idx+9], bR = data[idx+10];
       const diff = Math.abs(r - rR) + Math.abs(g - gR) + Math.abs(b - bR);
-      if (diff > 45) {
+      if (diff > 40) {
         totalEdge += diff;
         linearEdgeCount++;
       }
@@ -475,8 +477,8 @@ function processImagePixels(img, defaultCategory = "") {
   }
 
   // Priority-Ranked Classifier
-  let winner = "Road Damage / Pothole";
-  let confidence = 0.94;
+  let winner = "Structural Anomaly / Bridge Crack";
+  let confidence = 0.96;
 
   // Rule 1: Fire & Smoke Hazard
   if (fireRatio > 0.015) {
@@ -488,19 +490,19 @@ function processImagePixels(img, defaultCategory = "") {
     winner = "Public Park & Greenery Hazard";
     confidence = 0.96;
   }
-  // Rule 3: Structural Anomaly / Bridge Crack (Dominant neutral concrete gray + sharp crack edges)
-  else if (concreteRatio > 0.28 && linearEdgeCount > 150) {
+  // Rule 3: Structural Anomaly / Bridge Crack (Concrete pillar, beam, wall fissure, chipped stone)
+  else if (concreteRatio > 0.15) {
     winner = "Structural Anomaly / Bridge Crack";
-    confidence = 0.96;
+    confidence = 0.97;
   }
-  // Rule 4: Solid Waste Overflow (Colorful plastic packaging, garbage dump on ground)
-  else if (plasticRatio > 0.035 || saturatedGroundPixels > totalPixels * 0.04) {
-    winner = "Solid Waste Overflow";
-    confidence = 0.96;
-  }
-  // Rule 5: Water / Drainage Burst (Active blue fluid pooling on ground)
+  // Rule 4: Water / Drainage Burst (Active blue fluid pooling on ground)
   else if (waterRatio > 0.04) {
     winner = "Water / Drainage Burst";
+    confidence = 0.95;
+  }
+  // Rule 5: Solid Waste Overflow (Colorful plastic packaging heaps on ground)
+  else if (plasticRatio > 0.06 && saturatedGroundPixels > totalPixels * 0.05) {
+    winner = "Solid Waste Overflow";
     confidence = 0.95;
   }
   // Rule 6: Road Damage / Pothole (Asphalt road + dark crater void)
@@ -508,16 +510,13 @@ function processImagePixels(img, defaultCategory = "") {
     winner = "Road Damage / Pothole";
     confidence = 0.94;
   }
-  // Rule 7: Fallback to default selected category or Concrete/Waste
+  // Rule 7: Fallback to default selected category or Structural / Road
   else if (defaultCategory) {
     winner = getCanonicalCategory(defaultCategory);
     confidence = 0.92;
-  } else if (concreteRatio > 0.20) {
-    winner = "Structural Anomaly / Bridge Crack";
-    confidence = 0.90;
   } else {
-    winner = "Solid Waste Overflow";
-    confidence = 0.88;
+    winner = "Structural Anomaly / Bridge Crack";
+    confidence = 0.94;
   }
 
   const canonical = getCanonicalCategory(winner);

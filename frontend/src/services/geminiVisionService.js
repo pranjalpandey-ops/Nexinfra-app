@@ -34,40 +34,64 @@ export async function analyzeWithGeminiVision(imageSource) {
     let base64Data = "";
     let mimeType = "image/jpeg";
 
+    const compressImage = async (dataUrl) => {
+      if (typeof window === "undefined" || !dataUrl.startsWith("data:")) return dataUrl;
+      return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => {
+          const maxDim = 1024;
+          let w = img.width;
+          let h = img.height;
+          if (w > maxDim || h > maxDim) {
+            if (w > h) {
+              h = Math.round((h * maxDim) / w);
+              w = maxDim;
+            } else {
+              w = Math.round((w * maxDim) / h);
+              h = maxDim;
+            }
+          }
+          const canvas = document.createElement("canvas");
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext("2d");
+          ctx.drawImage(img, 0, 0, w, h);
+          resolve(canvas.toDataURL("image/jpeg", 0.85));
+        };
+        img.onerror = () => resolve(dataUrl);
+        img.src = dataUrl;
+      });
+    };
+
+    let rawDataUrl = "";
     if (typeof imageSource === "string" && imageSource.startsWith("data:")) {
-      const match = imageSource.match(/^data:([^;]+);base64,(.+)$/);
-      if (match) {
-        mimeType = match[1];
-        base64Data = match[2];
-      }
+      rawDataUrl = imageSource;
     } else if (typeof imageSource === "string" && (imageSource.startsWith("http://") || imageSource.startsWith("https://"))) {
       try {
         const fetchRes = await fetch(imageSource);
         const blob = await fetchRes.blob();
-        mimeType = blob.type || "image/jpeg";
-        const fullDataUrl = await new Promise((resolve) => {
+        rawDataUrl = await new Promise((resolve) => {
           const reader = new FileReader();
           reader.onload = (e) => resolve(e.target.result);
           reader.readAsDataURL(blob);
         });
-        const match = fullDataUrl.match(/^data:([^;]+);base64,(.+)$/);
-        if (match) {
-          base64Data = match[2];
-        }
       } catch (e) {
         console.warn("Could not fetch remote image URL for Gemini:", e);
       }
     } else if (imageSource instanceof File || imageSource instanceof Blob) {
-      mimeType = imageSource.type || "image/jpeg";
-      const fullDataUrl = await new Promise((resolve) => {
+      rawDataUrl = await new Promise((resolve) => {
         const reader = new FileReader();
         reader.onload = (e) => resolve(e.target.result);
         reader.readAsDataURL(imageSource);
       });
-      const match = fullDataUrl.match(/^data:([^;]+);base64,(.+)$/);
-      if (match) {
-        base64Data = match[2];
-      }
+    }
+
+    if (!rawDataUrl) return null;
+    const optimizedDataUrl = await compressImage(rawDataUrl);
+    const match = optimizedDataUrl.match(/^data:([^;]+);base64,(.+)$/);
+    if (match) {
+      mimeType = match[1];
+      base64Data = match[2];
     }
 
     if (!base64Data) return null;
