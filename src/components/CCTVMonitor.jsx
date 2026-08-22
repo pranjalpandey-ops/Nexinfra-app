@@ -822,57 +822,49 @@ export default function CCTVMonitor({ user, setActivePage }) {
                 ) : null;
               }
 
-              const boxColor =
-                currentDetection.category === "Solid Waste Overflow"
-                  ? "#F59E0B"
-                  : currentDetection.problemLevel >= 4
-                  ? "#EF4444"
-                  : currentDetection.problemLevel === 3
-                  ? "#F59E0B"
-                  : "#06B6D4";
+              const boxColor = "#EF4444"; // Vibrant Alert Red for all detected civic defects
 
               return (
                 <div
-                  className="absolute border-2 transition-all duration-300 pointer-events-none z-30 animate-pulse"
+                  className="absolute border-2 transition-all duration-200 pointer-events-none z-30 animate-pulse"
                   style={{
                     left: `${activeBox.x}%`,
                     top: `${activeBox.y}%`,
                     width: `${activeBox.w}%`,
                     height: `${activeBox.h}%`,
                     borderColor: boxColor,
-                    boxShadow: `0 0 25px ${boxColor}90, inset 0 0 15px ${boxColor}30`,
-                    backgroundColor: `${boxColor}18`
+                    boxShadow: "0 0 30px rgba(239, 68, 68, 0.95), inset 0 0 20px rgba(239, 68, 68, 0.35)",
+                    backgroundColor: "rgba(239, 68, 68, 0.22)"
                   }}
                 >
-                  {/* Corner Targeting Brackets */}
-                  <span className="absolute -top-1.5 -left-1.5 w-3.5 h-3.5 border-t-2 border-l-2 border-white" />
-                  <span className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 border-t-2 border-r-2 border-white" />
-                  <span className="absolute -bottom-1.5 -left-1.5 w-3.5 h-3.5 border-b-2 border-l-2 border-white" />
-                  <span className="absolute -bottom-1.5 -right-1.5 w-3.5 h-3.5 border-b-2 border-r-2 border-white" />
+                  {/* Corner Targeting Brackets in Bright Red/White */}
+                  <span className="absolute -top-1.5 -left-1.5 w-4 h-4 border-t-2 border-l-2 border-red-400 shadow-md shadow-red-500/50" />
+                  <span className="absolute -top-1.5 -right-1.5 w-4 h-4 border-t-2 border-r-2 border-red-400 shadow-md shadow-red-500/50" />
+                  <span className="absolute -bottom-1.5 -left-1.5 w-4 h-4 border-b-2 border-l-2 border-red-400 shadow-md shadow-red-500/50" />
+                  <span className="absolute -bottom-1.5 -right-1.5 w-4 h-4 border-b-2 border-r-2 border-red-400 shadow-md shadow-red-500/50" />
 
                   {/* Center Target Reticle */}
-                  <div className="absolute inset-0 flex items-center justify-center opacity-40">
-                    <Crosshair className="w-6 h-6 text-white" />
+                  <div className="absolute inset-0 flex items-center justify-center opacity-60">
+                    <Crosshair className="w-7 h-7 text-red-400 animate-spin" />
                   </div>
 
                   {/* Floating YOLO AI Tag */}
                   <div
-                    className="absolute -top-9 left-0 text-white text-[11px] font-bold px-2.5 py-1 rounded-md shadow-2xl flex items-center gap-1.5 whitespace-nowrap font-mono"
-                    style={{ backgroundColor: boxColor }}
+                    className="absolute -top-9 left-0 text-white text-[11px] font-bold px-2.5 py-1 rounded-md shadow-2xl flex items-center gap-1.5 whitespace-nowrap font-mono bg-red-600 border border-red-400"
                   >
-                    <Crosshair className="w-3.5 h-3.5 animate-spin" />
+                    <span className="w-2 h-2 rounded-full bg-white animate-ping" />
                     <span>{currentDetection.labelMain || currentDetection.category}</span>
-                    <span className="bg-black/40 px-1.5 py-0.2 rounded font-bold">
-                      {currentDetection.confidencePercent || 92}%
+                    <span className="bg-black/50 px-1.5 py-0.2 rounded font-bold text-red-200">
+                      {currentDetection.confidencePercent || 94}%
                     </span>
                     <span className="bg-white/20 px-1 rounded text-[10px]">
-                      {currentDetection.problemLevelLabel?.split(" - ")[0] || "Level 3"}
+                      {currentDetection.problemLevelLabel?.split(" - ")[0] || "Level 4"}
                     </span>
                   </div>
 
                   {/* Bottom Dimensions / Department Pill */}
-                  <div className="absolute -bottom-7 left-0 bg-black/90 border border-slate-700 text-slate-200 text-[10px] px-2 py-0.5 rounded font-mono font-bold shadow-lg">
-                    Dept: {currentDetection.department || currentDetection.assignedDepartment || "Municipal Operations"} • SLA: {currentDetection.slaHours || 4}h
+                  <div className="absolute -bottom-7 left-0 bg-black/95 border border-red-500/60 text-red-200 text-[10px] px-2 py-0.5 rounded font-mono font-bold shadow-lg">
+                    {currentDetection.dimensions || "Active Defect Zone"} • SLA: {currentDetection.slaHours || 4}h
                   </div>
                 </div>
               );
