@@ -93,9 +93,6 @@ export default function CCTVMonitor({ user, setActivePage }) {
   const [selectedSourceType, setSelectedSourceType] = useState("channel"); // default to channel for instant feed, user can click webcam
   const [activeChannel, setActiveChannel] = useState(CCTV_CHANNELS[0]);
   const [customVideoSrc, setCustomVideoSrc] = useState(null);
-  const isMobile = typeof navigator !== "undefined" && /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent || "");
-  const [cameraFacingMode, setCameraFacingMode] = useState(isMobile ? "environment" : "user");
-  const cameraFacingModeRef = useRef(isMobile ? "environment" : "user");
   const [isMediaTypeImage, setIsMediaTypeImage] = useState(false);
   const [isGridMode, setIsGridMode] = useState(false);
   const [cameraPermissionDenied, setCameraPermissionDenied] = useState(false);
@@ -143,20 +140,16 @@ export default function CCTVMonitor({ user, setActivePage }) {
     });
   }, []);
 
-  // WebCam Stream Initializer with Phone Back Camera support
-  const startWebcam = useCallback(async (requestedFacingMode) => {
+  // WebCam Stream Initializer
+  const startWebcam = useCallback(async () => {
     setCameraPermissionDenied(false);
     setSelectedSourceType("webcam");
-    const mode = requestedFacingMode || cameraFacingModeRef.current;
-    cameraFacingModeRef.current = mode;
-    setCameraFacingMode(mode);
 
     try {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         throw new Error("Browser does not support getUserMedia camera access");
       }
 
-      // 1. Fully stop and release previous camera hardware stream
       if (videoRef.current?.srcObject) {
         try {
           const oldStream = videoRef.current.srcObject;
@@ -165,22 +158,10 @@ export default function CCTVMonitor({ user, setActivePage }) {
         videoRef.current.srcObject = null;
       }
 
-      let stream = null;
-
-      // 2. Multi-tier camera constraint fallback
-      const constraintList = [
-        { video: { facingMode: { exact: mode } }, audio: false },
-        { video: { facingMode: mode }, audio: false },
-        { video: { facingMode: { ideal: mode } }, audio: false },
-        { video: true, audio: false }
-      ];
-
-      for (const constraints of constraintList) {
-        try {
-          stream = await navigator.mediaDevices.getUserMedia(constraints);
-          if (stream) break;
-        } catch (cErr) {}
-      }
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: true,
+        audio: false
+      });
 
       if (videoRef.current && stream) {
         videoRef.current.srcObject = stream;
@@ -198,13 +179,6 @@ export default function CCTVMonitor({ user, setActivePage }) {
       setSelectedSourceType("channel");
     }
   }, []);
-
-  const toggleCameraFacingMode = async () => {
-    const nextMode = cameraFacingModeRef.current === "environment" ? "user" : "environment";
-    cameraFacingModeRef.current = nextMode;
-    setCameraFacingMode(nextMode);
-    await startWebcam(nextMode);
-  };
 
   // Switch Sources
   useEffect(() => {
@@ -411,7 +385,7 @@ export default function CCTVMonitor({ user, setActivePage }) {
                 ...result,
                 time: Date.now(),
                 channelId: selectedSourceType === "webcam" ? "LIVE-CAM-HD" : selectedSourceType === "file" ? "USER-MEDIA" : activeChannel.id,
-                channelName: selectedSourceType === "webcam" ? (cameraFacingMode === "environment" ? "Back Camera (Road)" : "Front Camera") : selectedSourceType === "file" ? "Uploaded Media" : activeChannel.name,
+                channelName: selectedSourceType === "webcam" ? "Live Integrated Camera" : selectedSourceType === "file" ? "Uploaded Media" : activeChannel.name,
                 snapshot: frameBase64
               },
               ...prev.slice(0, 19)
@@ -422,7 +396,7 @@ export default function CCTVMonitor({ user, setActivePage }) {
     } catch (err) {
       console.warn("CCTV Frame Analysis Exception:", err);
     }
-  }, [selectedSourceType, activeChannel, targetDefectFilter, isMediaTypeImage, customVideoSrc, cameraFacingMode]);
+  }, [selectedSourceType, activeChannel, targetDefectFilter, isMediaTypeImage, customVideoSrc]);
 
   // Live Continuous Loop
   useEffect(() => {
@@ -678,7 +652,7 @@ export default function CCTVMonitor({ user, setActivePage }) {
           <div className="bg-[#0D121F] border border-slate-800 p-2.5 rounded-xl flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <button
-                onClick={() => startWebcam(cameraFacingMode)}
+                onClick={startWebcam}
                 className={`px-3.5 py-2 rounded-lg text-xs font-bold flex items-center gap-2 transition-colors cursor-pointer ${
                   selectedSourceType === "webcam"
                     ? "bg-cyan-600 text-white shadow-md shadow-cyan-600/30"
@@ -686,19 +660,8 @@ export default function CCTVMonitor({ user, setActivePage }) {
                 }`}
               >
                 <Video className="w-4 h-4 text-cyan-300" />
-                Live Camera
+                Live Integrated Camera
               </button>
-
-              {selectedSourceType === "webcam" && (
-                <button
-                  onClick={toggleCameraFacingMode}
-                  className="px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 bg-indigo-950/90 hover:bg-indigo-900 border border-indigo-500/60 text-indigo-200 transition-colors cursor-pointer shadow-md shadow-indigo-600/20"
-                  title="Toggle between Phone Back Camera and Front Camera"
-                >
-                  <RefreshCw className="w-3.5 h-3.5 text-indigo-400" />
-                  <span>{cameraFacingMode === "environment" ? "📱 Back Camera (Road Mode)" : "👤 Front Camera"}</span>
-                </button>
-              )}
 
               <button
                 onClick={() => setSelectedSourceType("channel")}
