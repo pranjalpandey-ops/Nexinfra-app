@@ -204,7 +204,7 @@ def analyze_image_with_yolo(pil_image: Image.Image):
     # 1. RUN REAL YOLO NEURAL NETWORK INFERENCE IF WEIGHTS ARE LOADED
     if model is not None:
         try:
-            results = model.predict(pil_image, conf=0.35, verbose=False)
+            results = model.predict(pil_image, conf=0.20, verbose=False)
             boxes = results[0].boxes
             if len(boxes) > 0:
                 # Pick detection with highest confidence

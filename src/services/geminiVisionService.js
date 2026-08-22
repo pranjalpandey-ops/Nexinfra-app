@@ -40,6 +40,23 @@ export async function analyzeWithGeminiVision(imageSource) {
         mimeType = match[1];
         base64Data = match[2];
       }
+    } else if (typeof imageSource === "string" && (imageSource.startsWith("http://") || imageSource.startsWith("https://"))) {
+      try {
+        const fetchRes = await fetch(imageSource);
+        const blob = await fetchRes.blob();
+        mimeType = blob.type || "image/jpeg";
+        const fullDataUrl = await new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onload = (e) => resolve(e.target.result);
+          reader.readAsDataURL(blob);
+        });
+        const match = fullDataUrl.match(/^data:([^;]+);base64,(.+)$/);
+        if (match) {
+          base64Data = match[2];
+        }
+      } catch (e) {
+        console.warn("Could not fetch remote image URL for Gemini:", e);
+      }
     } else if (imageSource instanceof File || imageSource instanceof Blob) {
       mimeType = imageSource.type || "image/jpeg";
       const fullDataUrl = await new Promise((resolve) => {
