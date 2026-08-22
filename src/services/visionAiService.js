@@ -114,6 +114,15 @@ export async function analyzeImageWithAI(imageSource) {
   });
 }
 
+export function processDirectVideoFrame(sourceElement) {
+  if (!sourceElement) return null;
+  try {
+    return processImagePixels(sourceElement);
+  } catch (err) {
+    return null;
+  }
+}
+
 function processImagePixels(img) {
   const canvas = document.createElement("canvas");
   const ctx = canvas.getContext("2d", { willReadFrequently: true });
