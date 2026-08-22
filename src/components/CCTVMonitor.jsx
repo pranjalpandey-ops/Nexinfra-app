@@ -93,6 +93,8 @@ export default function CCTVMonitor({ user, setActivePage }) {
   const [isGridMode, setIsGridMode] = useState(false);
   const [cameraPermissionDenied, setCameraPermissionDenied] = useState(false);
 
+  const [targetDefectFilter, setTargetDefectFilter] = useState("all");
+
   // Camera Refs
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
@@ -195,11 +197,21 @@ export default function CCTVMonitor({ user, setActivePage }) {
 
     const startTime = performance.now();
     try {
-      const result = await analyzeImageWithAI(frameBase64);
+      let result = await analyzeImageWithAI(frameBase64);
       const elapsed = Math.round(performance.now() - startTime);
       setInferenceLatencyMs(elapsed);
 
       if (result) {
+        // Apply Target Defect Filter if user specified one
+        if (targetDefectFilter !== "all" && result.category !== targetDefectFilter) {
+          result = {
+            ...result,
+            isDefect: false,
+            category: "Clear / Normal",
+            labelMain: `Filter Active: Scanning for ${targetDefectFilter}`
+          };
+        }
+
         setCurrentDetection(result);
 
         // Add to recent detections feed if genuine defect and confidence > threshold
@@ -223,7 +235,7 @@ export default function CCTVMonitor({ user, setActivePage }) {
     } catch (err) {
       console.warn("CCTV Frame Analysis Exception:", err);
     }
-  }, [selectedSourceType, activeChannel]);
+  }, [selectedSourceType, activeChannel, targetDefectFilter]);
 
   // Live Continuous Loop
   useEffect(() => {
@@ -461,19 +473,38 @@ export default function CCTVMonitor({ user, setActivePage }) {
               />
             </div>
 
-            {/* Scan Speed Selector */}
-            <div className="flex items-center gap-2 font-mono text-xs text-slate-400">
-              <span>Scan Frequency:</span>
-              <select
-                value={scanIntervalMs}
-                onChange={(e) => setScanIntervalMs(Number(e.target.value))}
-                className="bg-slate-900 border border-slate-700 text-slate-200 px-2.5 py-1 rounded-lg focus:outline-none focus:border-cyan-500 cursor-pointer"
-              >
-                <option value={500}>High Speed (500ms)</option>
-                <option value={1000}>Real-Time (1.0s)</option>
-                <option value={1500}>Balanced (1.5s)</option>
-                <option value={3000}>Precision (3.0s)</option>
-              </select>
+            {/* Scan Controls: Filter & Frequency */}
+            <div className="flex flex-wrap items-center gap-3 font-mono text-xs text-slate-400">
+              <div className="flex items-center gap-1.5">
+                <Filter className="w-3.5 h-3.5 text-cyan-400" />
+                <span>Target Focus:</span>
+                <select
+                  value={targetDefectFilter}
+                  onChange={(e) => setTargetDefectFilter(e.target.value)}
+                  className="bg-slate-900 border border-slate-700 text-cyan-300 font-bold px-2.5 py-1 rounded-lg focus:outline-none focus:border-cyan-500 cursor-pointer"
+                >
+                  <option value="all">⚡ All Hazards (Auto)</option>
+                  <option value="Road Damage / Pothole">🛣️ Potholes & Craters Only</option>
+                  <option value="Solid Waste Overflow">🗑️ Solid Waste & Trash Dumps Only</option>
+                  <option value="Structural Anomaly / Bridge Crack">🧱 Wall & Bridge Cracks Only</option>
+                  <option value="Water / Drainage Burst">💧 Water Leaks & Floods Only</option>
+                  <option value="Electrical & Streetlight">⚡ Electrical & Streetlights Only</option>
+                </select>
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                <span>Speed:</span>
+                <select
+                  value={scanIntervalMs}
+                  onChange={(e) => setScanIntervalMs(Number(e.target.value))}
+                  className="bg-slate-900 border border-slate-700 text-slate-200 px-2.5 py-1 rounded-lg focus:outline-none focus:border-cyan-500 cursor-pointer"
+                >
+                  <option value={500}>500ms (High Speed)</option>
+                  <option value={1000}>1.0s (Real-Time)</option>
+                  <option value={1500}>1.5s (Balanced)</option>
+                  <option value={3000}>3.0s (Precision)</option>
+                </select>
+              </div>
             </div>
           </div>
 

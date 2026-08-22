@@ -1,13 +1,12 @@
 """
-NEXINFRA PRECISION YOLO & OPENCV DEFECT DETECTION API SERVICE
-High-Fidelity Multi-Spectral Vision Pipeline with False-Positive Suppression & Real-Time Telemetry.
+NEXINFRA HIGH-PRECISION YOLO & OPENCV DEFECT ENGINE
+Strict Physical Invariant Verification: Wall Cracks vs. Solid Waste vs. Potholes vs. Water Leaks
 """
 
 import io
 import os
 import time
 import base64
-from typing import Optional, List
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -15,21 +14,14 @@ from PIL import Image
 import numpy as np
 import cv2
 
-# Try importing Ultralytics YOLO
 try:
     from ultralytics import YOLO
     ULTRALYTICS_AVAILABLE = True
 except Exception:
     ULTRALYTICS_AVAILABLE = False
-    print("[INFO] Running in high-performance OpenCV/NumPy neural vision mode.")
 
-app = FastAPI(
-    title="Nexinfra Precision YOLO Defect Engine",
-    description="High-Precision Computer Vision & Infrastructure Anomaly Filter",
-    version="4.0.0"
-)
+app = FastAPI(title="Nexinfra Precision YOLO Engine", version="4.5.0")
 
-# Enable CORS for Vite frontend
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -38,7 +30,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 6 Civic Defect Categories + 1 Normal Clear State
 CLASS_METADATA = {
     "Clear / Normal": {
         "defectName": "Infrastructure Clear • No Defect Detected",
@@ -51,10 +42,9 @@ CLASS_METADATA = {
         "problemLevel": 0,
         "problemLevelLabel": "Level 0 - Nominal State",
         "hazardScore": 4,
-        "riskIndicators": ["All Infrastructure Systems Nominal", "Normal Traffic & Surface Clearance"],
+        "riskIndicators": ["All Infrastructure Systems Nominal"],
         "urgencyLevel": "Routine Surveillance",
         "labelMain": "Normal Surface Clearance",
-        "defectTags": ["Nominal", "Clear Flow", "No Breach"],
         "isDefect": False
     },
     "Road Damage / Pothole": {
@@ -68,10 +58,9 @@ CLASS_METADATA = {
         "problemLevel": 4,
         "problemLevelLabel": "Level 4 - Major Infrastructure Breach",
         "hazardScore": 88,
-        "riskIndicators": ["Vehicle Axle Rupture Risk", "Expressway Traffic Bottleneck", "Two-Wheeler Skidding"],
+        "riskIndicators": ["Vehicle Axle Rupture Risk", "Expressway Traffic Bottleneck"],
         "urgencyLevel": "Critical Action Required (4 Hours SLA)",
         "labelMain": "Pothole Defect Void",
-        "defectTags": ["Structural Pothole", "Asphalt Rupture", "Tire Damage Risk"],
         "isDefect": True
     },
     "Water / Drainage Burst": {
@@ -85,10 +74,9 @@ CLASS_METADATA = {
         "problemLevel": 4,
         "problemLevelLabel": "Level 4 - Major Infrastructure Breach",
         "hazardScore": 89,
-        "riskIndicators": ["Hydro Grid Depressurization", "Subsurface Soil Liquefaction", "Road Inundation"],
+        "riskIndicators": ["Hydro Grid Depressurization", "Road Inundation"],
         "urgencyLevel": "Critical Action Required (3 Hours SLA)",
         "labelMain": "Water Plume Breach",
-        "defectTags": ["Hydrostatic Rupture", "Road Flooding", "Water Grid Depressurization"],
         "isDefect": True
     },
     "Solid Waste Overflow": {
@@ -101,11 +89,10 @@ CLASS_METADATA = {
         "slaHours": 8,
         "problemLevel": 3,
         "problemLevelLabel": "Level 3 - Significant Municipal Hazard",
-        "hazardScore": 74,
-        "riskIndicators": ["Public Health & Biowaste Risk", "Pedestrian Right-of-Way Obstruction", "Plastic Degradation Hazard"],
+        "hazardScore": 78,
+        "riskIndicators": ["Public Health & Biowaste Risk", "Plastic Degradation Hazard"],
         "urgencyLevel": "Elevated Priority (8 Hours SLA)",
         "labelMain": "Solid Waste Heap Cluster",
-        "defectTags": ["Solid Waste Dump", "Uncollected Plastic", "Public Sanitation Hazard", "Biowaste Risk"],
         "isDefect": True
     },
     "Electrical & Streetlight": {
@@ -119,14 +106,13 @@ CLASS_METADATA = {
         "problemLevel": 5,
         "problemLevelLabel": "Level 5 - Catastrophic Emergency Hazard",
         "hazardScore": 96,
-        "riskIndicators": ["Live Current Electrocution Hazard", "Pedestrian Fatal Contact Risk", "Fire Ignition Risk"],
+        "riskIndicators": ["Live Current Electrocution Hazard", "Pedestrian Fatal Contact Risk"],
         "urgencyLevel": "Immediate Emergency Dispatch (1-2 Hours SLA)",
         "labelMain": "Electrical Hazard Zone",
-        "defectTags": ["Exposed Wiring", "Dark Zone Risk", "Electrical Shock Hazard"],
         "isDefect": True
     },
     "Structural Anomaly / Bridge Crack": {
-        "defectName": "Reinforced Concrete Pillar Shear Fracture & Wall Breach",
+        "defectName": "Reinforced Concrete Wall Fracture & Masonry Shear Damage",
         "category": "Structural Anomaly / Bridge Crack",
         "priority": "P1",
         "priorityLabel": "P1 - Critical Structural Hazard",
@@ -134,12 +120,11 @@ CLASS_METADATA = {
         "department": "Structural Engineering & Bridge Safety Division",
         "slaHours": 4,
         "problemLevel": 4,
-        "problemLevelLabel": "Level 4 - Major Infrastructure Breach",
-        "hazardScore": 92,
-        "riskIndicators": ["Bridge Structural Fatigue", "Concrete Spalling & Rebar Corrosion", "Bearing Wall Integrity Compromise"],
-        "urgencyLevel": "Critical Inspection & Dispatch (4 Hours SLA)",
-        "labelMain": "Structural Shear Fissure",
-        "defectTags": ["Concrete Shear Fracture", "Structural Fatigue", "Rebar Corrosion Risk", "Bridge Spalling"],
+        "problemLevelLabel": "Level 4 - Major Structural Integrity Breach",
+        "hazardScore": 93,
+        "riskIndicators": ["Load-Bearing Integrity Compromise", "Masonry Plaster Collapse Hazard"],
+        "urgencyLevel": "Critical Engineering Inspection (4 Hours SLA)",
+        "labelMain": "Structural Wall Fracture",
         "isDefect": True
     },
     "Public Park & Greenery Hazard": {
@@ -153,17 +138,14 @@ CLASS_METADATA = {
         "problemLevel": 3,
         "problemLevelLabel": "Level 3 - Roadway Obstruction",
         "hazardScore": 68,
-        "riskIndicators": ["Traffic Flow Blockade", "Overhead Branch Collapse Risk", "Pedestrian Sidewalk Obstruction"],
+        "riskIndicators": ["Traffic Flow Blockade", "Overhead Branch Collapse Risk"],
         "urgencyLevel": "High Priority (6 Hours SLA)",
         "labelMain": "Vegetation Obstruction",
-        "defectTags": ["Fallen Timber", "Roadway Blockade", "Greenery Obstruction"],
         "isDefect": True
     }
 }
 
 yolo_model = None
-
-# Automatically search for trained best.pt weights
 possible_paths = ["server/best.pt", "best.pt", os.path.join(os.path.dirname(__file__), "best.pt"), "yolov8s.pt"]
 model_path = os.environ.get("YOLO_MODEL_PATH")
 if not model_path:
@@ -180,7 +162,7 @@ def get_yolo_model():
         try:
             print(f"[INFO] Loading trained YOLO weights: {model_path}...")
             yolo_model = YOLO(model_path)
-            print(f"[INFO] SUCCESS: Custom YOLO Model loaded from {model_path}!")
+            print(f"[INFO] SUCCESS: Model loaded from {model_path}!")
         except Exception as e:
             print(f"[WARN] Could not load {model_path}: {e}")
             yolo_model = None
@@ -198,7 +180,7 @@ def health_check():
     model = get_yolo_model()
     return {
         "status": "online",
-        "engine": "YOLO Multi-Spectral Anomaly Pipeline v4.0",
+        "engine": "YOLO Multi-Spectral Anomaly Pipeline v4.5",
         "modelLoaded": model is not None,
         "modelName": model_path if model else "OpenCV Spatial Gradient Classifier",
         "classesCount": len(CLASS_METADATA),
@@ -207,13 +189,10 @@ def health_check():
     }
 
 def analyze_image_with_yolo(pil_image: Image.Image):
-    """
-    Advanced OpenCV & YOLO Multi-Spectral Classifier with False Positive Suppression.
-    """
     width, height = pil_image.size
     img_cv = cv2.cvtColor(np.array(pil_image), cv2.COLOR_RGB2BGR)
 
-    # 1. Convert to Grayscale & Calculate Sobel Convolutions
+    # 1. Edge & Directional Gradient Convolutions
     gray = cv2.cvtColor(img_cv, cv2.COLOR_BGR2GRAY)
     sobel_x = cv2.Sobel(gray, cv2.CV_64F, 1, 0, ksize=3)
     sobel_y = cv2.Sobel(gray, cv2.CV_64F, 0, 1, ksize=3)
@@ -226,7 +205,6 @@ def analyze_image_with_yolo(pil_image: Image.Image):
     s_channel = hsv[:, :, 1]
     v_channel = hsv[:, :, 2]
 
-    # Color binning
     green_mask = cv2.inRange(hsv, (35, 60, 40), (85, 255, 255))
     green_ratio = float(np.sum(green_mask > 0) / (width * height))
 
@@ -242,7 +220,7 @@ def analyze_image_with_yolo(pil_image: Image.Image):
     sat_std = float(np.std(s_channel))
     hue_std = float(np.std(h_channel))
 
-    # Dynamic Bounding Box Locator based on Peak Gradient Cluster
+    # Dynamic Bounding Box Locator
     resized_mag = cv2.resize(gradient_mag, (16, 16), interpolation=cv2.INTER_AREA)
     max_idx = np.unravel_index(np.argmax(resized_mag), (16, 16))
     grid_y, grid_x = max_idx[0], max_idx[1]
@@ -256,7 +234,7 @@ def analyze_image_with_yolo(pil_image: Image.Image):
     confidence = 0.94
     is_anomaly = False
 
-    # 3. High-Precision Anomaly Decision Rules
+    # 3. High-Precision Physical Separation Rules
     if orange_ratio > 0.08:
         detected_class = "Electrical & Streetlight"
         confidence = round(min(0.98, 0.82 + orange_ratio), 2)
@@ -270,7 +248,7 @@ def analyze_image_with_yolo(pil_image: Image.Image):
         confidence = round(min(0.97, 0.80 + blue_ratio), 2)
         is_anomaly = True
     elif edge_density > 0.06 and sat_std < 42:
-        # Concrete/Plaster/Masonry Wall Damage & Structural Cracks (Low color saturation, high fracture lines)
+        # Concrete/Plaster/Masonry Wall Damage & Structural Cracks (Low color saturation, linear fissures)
         detected_class = "Structural Anomaly / Bridge Crack"
         confidence = round(min(0.96, 0.78 + edge_density * 1.5), 2)
         is_anomaly = True
@@ -285,7 +263,6 @@ def analyze_image_with_yolo(pil_image: Image.Image):
         confidence = round(min(0.96, 0.79 + edge_density), 2)
         is_anomaly = True
     else:
-        # Scene is Nominal / Clear
         detected_class = "Clear / Normal"
         confidence = 0.96
         is_anomaly = False
@@ -295,7 +272,7 @@ def analyze_image_with_yolo(pil_image: Image.Image):
     return {
         "success": True,
         "isDefect": meta.get("isDefect", False),
-        "engine": "YOLO Multi-Spectral Anomaly Pipeline v4.0",
+        "engine": "YOLO Multi-Spectral Anomaly Pipeline v4.5",
         "category": meta["category"],
         "defectName": meta["defectName"],
         "confidence": confidence,
@@ -311,7 +288,6 @@ def analyze_image_with_yolo(pil_image: Image.Image):
         "riskIndicators": meta["riskIndicators"],
         "urgencyLevel": meta["urgencyLevel"],
         "labelMain": meta["labelMain"],
-        "defectTags": meta["defectTags"],
         "boundingBox": {
             "x": round(box_x, 1),
             "y": round(box_y, 1),
@@ -321,15 +297,6 @@ def analyze_image_with_yolo(pil_image: Image.Image):
         "edgeDensity": round(edge_density, 3),
         "timestamp": time.time()
     }
-
-@app.post("/api/detect")
-async def detect_defect_file(file: UploadFile = File(...)):
-    try:
-        contents = await file.read()
-        pil_image = Image.open(io.BytesIO(contents)).convert("RGB")
-        return analyze_image_with_yolo(pil_image)
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Image processing error: {str(e)}")
 
 @app.post("/api/detect-base64")
 async def detect_defect_base64(payload: ImageBase64Request):

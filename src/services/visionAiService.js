@@ -307,24 +307,32 @@ function processImagePixels(img) {
     (activeHueBinCount >= 4 && totalEdgeEnergy > 14000)
   );
 
-  let detectedCategory = "Road Damage / Pothole";
-  let defectName = "Structural Asphalt Pothole & Road Cavity";
-  let priority = "P1";
-  let priorityLabel = "P1 - Critical Safety Hazard";
-  let severity = "Critical";
-  let department = "Road Works & Asphalt Pavement Division";
-  let slaHours = 4;
-  let dimensions = "Length: 1.8m • Width: 1.3m • Depth: ~14cm";
-  let defectTags = ["Structural Pothole", "Asphalt Rupture", "Tire Damage Risk"];
-  let labelMain = "Pothole Defect Void";
-  let problemLevel = 4;
-  let problemLevelLabel = "Level 4 - Major Infrastructure Breach";
-  let hazardScore = 88;
-  let riskIndicators = ["Vehicle Axle Rupture Risk", "Expressway Traffic Bottleneck"];
-  let urgencyLevel = "Critical Action Required (4 Hours SLA)";
+  const isPothole = (darkVoidPixels > 1000 || (waterRatio > 0.08 && asphaltRatio > 0.15)) &&
+                    (totalEdgeEnergy > 15000) &&
+                    !isStructuralCrack &&
+                    !isGarbageDump &&
+                    !isGreenery;
+
+  let isDefect = true;
+  let detectedCategory = "Clear / Normal";
+  let defectName = "Infrastructure Clear • No Defect Detected";
+  let priority = "P4";
+  let priorityLabel = "P4 - Normal / Nominal";
+  let severity = "Nominal";
+  let department = "Surveillance Monitoring Division";
+  let slaHours = 0;
+  let dimensions = "Surface Scanning Nominal • 0 Violations";
+  let defectTags = ["Nominal Surface", "Clear Flow", "No Hazard"];
+  let labelMain = "Normal Surface Clearance";
+  let problemLevel = 0;
+  let problemLevelLabel = "Level 0 - Nominal State";
+  let hazardScore = 4;
+  let riskIndicators = ["All Infrastructure Systems Nominal"];
+  let urgencyLevel = "Routine Surveillance";
 
   if (isElectrical) {
-    // 4. ELECTRICAL & STREETLIGHT
+    // 1. ELECTRICAL & STREETLIGHT
+    isDefect = true;
     detectedCategory = "Electrical & Streetlight";
     defectName = "Streetlight Pole Fracture & Exposed Wire Hazard";
     priority = "P1";
@@ -341,7 +349,8 @@ function processImagePixels(img) {
     riskIndicators = ["Live Current Electrocution Hazard", "Pedestrian Fatal Contact Risk", "Fire Ignition Risk"];
     urgencyLevel = "Immediate Emergency Dispatch (1-2 Hours SLA)";
   } else if (isStructuralCrack) {
-    // 5. STRUCTURAL ANOMALY / WALL DAMAGE / BRIDGE CRACK
+    // 2. STRUCTURAL ANOMALY / WALL DAMAGE / BRIDGE CRACK
+    isDefect = true;
     detectedCategory = "Structural Anomaly / Bridge Crack";
     defectName = "Reinforced Concrete Wall Fracture & Masonry Shear Damage";
     priority = "P1";
@@ -359,6 +368,7 @@ function processImagePixels(img) {
     urgencyLevel = "Critical Engineering Inspection (4 Hours SLA)";
   } else if (isGarbageDump) {
     // 3. SOLID WASTE OVERFLOW
+    isDefect = true;
     detectedCategory = "Solid Waste Overflow";
     defectName = "Unattended Solid Waste, Plastic Debris & Landfill Spill";
     priority = "P2";
@@ -375,7 +385,8 @@ function processImagePixels(img) {
     riskIndicators = ["Public Health & Biowaste Risk", "Pedestrian Right-of-Way Obstruction", "Plastic Degradation Hazard"];
     urgencyLevel = "Elevated Priority (8 Hours SLA)";
   } else if (isGreenery) {
-    // 6. PUBLIC PARK & GREENERY HAZARD
+    // 4. PUBLIC PARK & GREENERY HAZARD
+    isDefect = true;
     detectedCategory = "Public Park & Greenery Hazard";
     defectName = "Fallen Tree Limb & Vegetation Roadway Obstruction";
     priority = "P2";
@@ -392,7 +403,8 @@ function processImagePixels(img) {
     riskIndicators = ["Traffic Flow Blockade", "Overhead Branch Collapse Risk"];
     urgencyLevel = "High Priority (6 Hours SLA)";
   } else if (isWaterBurst) {
-    // 2. WATER / DRAINAGE BURST
+    // 5. WATER / DRAINAGE BURST
+    isDefect = true;
     detectedCategory = "Water / Drainage Burst";
     defectName = "Pressurized Water Main Pipe Rupture & Inundation";
     priority = "P1";
@@ -408,42 +420,9 @@ function processImagePixels(img) {
     hazardScore = 89;
     riskIndicators = ["Hydro Grid Depressurization", "Subsurface Soil Liquefaction", "Road Inundation"];
     urgencyLevel = "Critical Action Required (3 Hours SLA)";
-  } else if (isElectrical) {
-    // 4. ELECTRICAL & STREETLIGHT
-    detectedCategory = "Electrical & Streetlight";
-    defectName = "Streetlight Pole Fracture & Exposed Wire Hazard";
-    priority = "P1";
-    priorityLabel = "P1 - Critical Safety Hazard";
-    severity = "Critical";
-    department = "Municipal Power & Street Lighting Grid";
-    slaHours = 2;
-    dimensions = "Voltage Hazard: 240V Line Exposure • Luminaire Inactive";
-    defectTags = ["Exposed Wiring", "Dark Zone Risk", "Electrical Shock Hazard"];
-    labelMain = "Electrical Hazard Zone";
-    problemLevel = 5;
-    problemLevelLabel = "Level 5 - Catastrophic Emergency Hazard";
-    hazardScore = 96;
-    riskIndicators = ["Live Current Electrocution Hazard", "Pedestrian Fatal Contact Risk", "Fire Ignition Risk"];
-    urgencyLevel = "Immediate Emergency Dispatch (1-2 Hours SLA)";
-  } else if (isStructuralCrack) {
-    // 5. STRUCTURAL ANOMALY / BRIDGE CRACK
-    detectedCategory = "Structural Anomaly / Bridge Crack";
-    defectName = "Reinforced Concrete Pillar Shear Fracture & Wall Breach";
-    priority = "P1";
-    priorityLabel = "P1 - Critical Structural Hazard";
-    severity = "Critical";
-    department = "Structural Engineering & Bridge Safety Division";
-    slaHours = 4;
-    dimensions = "Crack Propagation Span: 2.8m • Fissure Depth: ~8.5cm";
-    defectTags = ["Concrete Shear Fracture", "Structural Fatigue", "Rebar Corrosion Risk", "Bridge Spalling"];
-    labelMain = "Structural Shear Fissure";
-    problemLevel = 4;
-    problemLevelLabel = "Level 4 - Major Structural Integrity Breach";
-    hazardScore = 93;
-    riskIndicators = ["Load-Bearing Integrity Compromise", "Masonry Collapse Hazard", "Vibration Shear Risk"];
-    urgencyLevel = "Critical Engineering Inspection (4 Hours SLA)";
-  } else {
-    // 1. ROAD DAMAGE / POTHOLE
+  } else if (isPothole) {
+    // 6. ROAD DAMAGE / POTHOLE
+    isDefect = true;
     detectedCategory = "Road Damage / Pothole";
     if (waterRatio > 0.08 || darkVoidPixels > 1500) {
       defectName = "Water-Filled Structural Asphalt Pothole & Cavity Breach";
@@ -471,13 +450,17 @@ function processImagePixels(img) {
     severity = "Critical";
     department = "Road Works & Asphalt Pavement Division";
     slaHours = 4;
+  } else {
+    // 7. CLEAN / NOMINAL SURFACE
+    isDefect = false;
+    detectedCategory = "Clear / Normal";
   }
 
-  const confidence = parseFloat((0.965 + Math.min(0.028, (totalEdgeEnergy / 3500000))).toFixed(3));
+  const confidence = parseFloat((0.94 + Math.min(0.05, (totalEdgeEnergy / 2500000))).toFixed(3));
 
   return {
     success: true,
-    isDefect: true,
+    isDefect: isDefect,
     category: detectedCategory,
     defectName,
     confidence,
@@ -497,13 +480,13 @@ function processImagePixels(img) {
     defectTags,
     labelMain,
     suggestedTitle: `${defectName}`,
-    boundingBox: {
+    boundingBox: isDefect ? {
       x: Math.round(boxX),
       y: Math.round(boxY),
       w: Math.round(boxW),
       h: Math.round(boxH)
-    },
-    boundingBoxes: [
+    } : null,
+    boundingBoxes: isDefect ? [
       {
         id: 1,
         label: `${labelMain} (${(confidence * 100).toFixed(1)}%)`,
@@ -517,7 +500,7 @@ function processImagePixels(img) {
                detectedCategory === "Water / Drainage Burst" ? "#00F0FF" :
                "#EF4444",
       }
-    ],
+    ] : [],
     telemetryAnalysis: {
       activeHueBins: activeHueBinCount,
       wastePlasticRatio: wastePlasticRatio.toFixed(3),
