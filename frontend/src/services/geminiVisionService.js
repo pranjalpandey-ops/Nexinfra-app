@@ -137,8 +137,8 @@ Schema:
       },
     };
 
-    // Candidate Gemini model endpoints (tries 2.0-flash first, then 1.5-flash)
-    const models = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-2.5-flash"];
+    // Candidate Gemini model endpoints (tries 3.6-flash, 3.7-flash, flash-latest, 3.5-flash)
+    const models = ["gemini-3.6-flash", "gemini-3.7-flash", "gemini-flash-latest", "gemini-3.5-flash"];
     let data = null;
 
     for (const modelName of models) {

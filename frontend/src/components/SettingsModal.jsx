@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import {
   X,
   Settings,
@@ -12,12 +12,8 @@ import {
   ShieldCheck,
   UserCheck,
   ShieldAlert,
-  UserPlus,
-  Key,
-  Globe,
-  Sparkles
+  UserPlus
 } from 'lucide-react';
-import { getGeminiApiKey, setGeminiApiKey } from '../services/geminiVisionService';
 
 export default function SettingsModal({
   isOpen,
@@ -30,26 +26,6 @@ export default function SettingsModal({
   onOpenApprovalModal
 }) {
   if (!isOpen) return null;
-
-  const [geminiKey, setGeminiKey] = useState('');
-  const [serverUrl, setServerUrl] = useState('');
-  const [saveStatus, setSaveStatus] = useState('');
-
-  useEffect(() => {
-    setGeminiKey(getGeminiApiKey() || '');
-    setServerUrl(localStorage.getItem('nexinfra_api_url') || '');
-  }, [isOpen]);
-
-  const handleSaveApiKeys = () => {
-    setGeminiApiKey(geminiKey);
-    if (serverUrl.trim()) {
-      localStorage.setItem('nexinfra_api_url', serverUrl.trim().replace(/\/+$/, ''));
-    } else {
-      localStorage.removeItem('nexinfra_api_url');
-    }
-    setSaveStatus('✅ Settings saved successfully!');
-    setTimeout(() => setSaveStatus(''), 2500);
-  };
 
   const isAdmin = user?.role === "admin";
   const isPendingAdmin = user?.role === "pending_admin";
@@ -76,57 +52,8 @@ export default function SettingsModal({
               Platform Settings
             </h3>
             <p className="text-xs text-cyan-400 font-mono-tech uppercase">
-              AI Engine & Identity Configuration
+              User Preferences & Interface Configuration
             </p>
-          </div>
-        </div>
-
-        {/* Google Gemini Vision API Key Configuration */}
-        <div className="p-4 rounded-xl bg-[#070A10] border border-cyan-500/30 space-y-3 font-mono-tech text-xs">
-          <div className="flex items-center gap-2 text-cyan-300 font-bold">
-            <Sparkles className="w-4 h-4 text-cyan-400" />
-            <span>Google Gemini Vision AI Engine</span>
-          </div>
-          <p className="text-[11px] text-slate-400 font-sans">
-            Paste your Google Gemini API key to enable high-accuracy zero-shot defect classification.
-          </p>
-          <div className="space-y-1.5">
-            <label className="text-[10px] text-slate-400 uppercase font-bold flex items-center gap-1">
-              <Key className="w-3 h-3 text-cyan-400" />
-              <span>Gemini API Key</span>
-            </label>
-            <input
-              type="password"
-              value={geminiKey}
-              onChange={(e) => setGeminiKey(e.target.value)}
-              placeholder="AIzaSy..."
-              className="w-full px-3 py-2 rounded-lg bg-black border border-slate-700 text-cyan-300 font-mono text-xs focus:border-cyan-400 focus:outline-none"
-            />
-          </div>
-
-          <div className="space-y-1.5 pt-1">
-            <label className="text-[10px] text-slate-400 uppercase font-bold flex items-center gap-1">
-              <Globe className="w-3 h-3 text-cyan-400" />
-              <span>Central AI Server URL (Optional)</span>
-            </label>
-            <input
-              type="text"
-              value={serverUrl}
-              onChange={(e) => setServerUrl(e.target.value)}
-              placeholder="http://192.168.1.14:4000 or https://..."
-              className="w-full px-3 py-2 rounded-lg bg-black border border-slate-700 text-cyan-300 font-mono text-xs focus:border-cyan-400 focus:outline-none"
-            />
-          </div>
-
-          <div className="flex items-center justify-between pt-1">
-            {saveStatus && <span className="text-[11px] text-emerald-400 font-bold">{saveStatus}</span>}
-            <button
-              type="button"
-              onClick={handleSaveApiKeys}
-              className="ml-auto px-3 py-1.5 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-black font-bold text-xs transition cursor-pointer"
-            >
-              Save API Config
-            </button>
           </div>
         </div>
 
