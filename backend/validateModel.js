@@ -19,7 +19,8 @@ const CANONICAL_CLASSES = [
   { id: 2, rawName: "garbage_waste_overflow", canonical: "Solid Waste Overflow", department: "Sanitation", sla: "8h" },
   { id: 3, rawName: "electrical_hazard", canonical: "Electrical & Streetlight", department: "Power", sla: "2h" },
   { id: 4, rawName: "structural_bridge_crack", canonical: "Structural Anomaly / Bridge Crack", department: "Structural Engineering", sla: "4h" },
-  { id: 5, rawName: "tree_greenery_hazard", canonical: "Public Park & Greenery Hazard", department: "Forestry", sla: "6h" }
+  { id: 5, rawName: "tree_greenery_hazard", canonical: "Public Park & Greenery Hazard", department: "Forestry", sla: "6h" },
+  { id: 6, rawName: "fire_smoke_hazard", canonical: "Fire & Smoke Hazard", department: "Fire & Emergency", sla: "1h" }
 ];
 
 export async function runModelValidation() {
@@ -76,7 +77,7 @@ export async function runModelValidation() {
     isSupported: true
   }));
   report.supportedClassCount = report.supportedClasses.length;
-  report.allSixClassesSupported = report.supportedClassCount === 6;
+  report.allSixClassesSupported = report.supportedClassCount === 7;
 
   // 3. Find Representative Test Images
   const testDirs = [
@@ -166,10 +167,10 @@ if (process.argv[1] && process.argv[1].endsWith("validateModel.js")) {
       console.log(`⚡ Model File Size     : ${(res.modelInfo?.modelSizeBytes / (1024 * 1024)).toFixed(2)} MB`);
       console.log(`🧠 Engine Identifier   : ${res.modelInfo?.engine}`);
       console.log(`✅ Model Status        : ${res.modelStatus}`);
-      console.log(`🎯 All 6 Classes Active: ${res.allSixClassesSupported ? "YES (6/6 Supported)" : "NO"}\n`);
+      console.log(`🎯 All 6 Classes Active: ${res.allSixClassesSupported ? "YES (7/7 Supported)" : "NO"}\n`);
 
       console.log("---------------------------------------------------------------");
-      console.log("📋 SUPPORTED CANONICAL CIVIC CLASSES (6/6):");
+      console.log("📋 SUPPORTED CANONICAL CIVIC CLASSES (7/7):");
       console.log("---------------------------------------------------------------");
       res.supportedClasses.forEach((c) => {
         console.log(`  [${c.classId}] ${c.canonicalCategory.padEnd(35)} -> Dept: ${c.department.padEnd(22)} (SLA: ${c.sla})`);

@@ -97,6 +97,17 @@ export const CLASS_METADATA = {
     assignedDepartment: "Urban Forestry & Public Parks Department",
     slaHours: 6,
     tags: ["Fallen Tree", "Overhanging Branch", "Greenery Obstruction"]
+  },
+  6: {
+    label: "Fire & Smoke Hazard",
+    category: "Fire & Smoke Hazard",
+    color: "#DC2626",
+    severity: "Critical",
+    priority: "P1",
+    department: "Fire & Emergency",
+    assignedDepartment: "Fire & Emergency Disaster Response Unit",
+    slaHours: 1,
+    tags: ["Active Fire", "Smoke Plume", "Combustion Hazard", "Thermal Flare"]
   }
 };
 
@@ -356,7 +367,7 @@ export async function detect(frameBuffer) {
     const outputName = activeSession.outputNames[0];
     const outputTensor = results[outputName];
 
-    const detections = parseYoloOutput(outputTensor, origWidth, origHeight, 640, 0.25);
+    const detections = parseYoloOutput(outputTensor, origWidth, origHeight, 640, 0.12);
     return detections;
   } catch (err) {
     console.error("❌ ONNX Inference Exception:", err.message);

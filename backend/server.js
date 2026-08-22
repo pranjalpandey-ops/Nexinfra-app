@@ -386,12 +386,12 @@ app.post("/api/detect-frame", upload.single("frame"), async (req, res) => {
 
     if (req.file && req.file.buffer) {
       frameBuffer = req.file.buffer;
-    } else if (req.body && req.body.image) {
-      const base64Data = req.body.image.replace(/^data:image\/\w+;base64,/, "");
-      frameBuffer = Buffer.from(base64Data, "base64");
-    } else if (req.body && req.body.frame) {
-      const base64Data = req.body.frame.replace(/^data:image\/\w+;base64,/, "");
-      frameBuffer = Buffer.from(base64Data, "base64");
+    } else {
+      const rawInput = req.body?.image || req.body?.frame || req.body?.dataUrl;
+      if (typeof rawInput === "string") {
+        const cleanBase64 = rawInput.includes(",") ? rawInput.split(",")[1] : rawInput;
+        frameBuffer = Buffer.from(cleanBase64.trim(), "base64");
+      }
     }
 
     if (!frameBuffer || frameBuffer.length === 0) {
@@ -498,7 +498,13 @@ app.get("/api/ai/validate", async (req, res) => {
   }
 });
 
-app.listen(PORT, HOST, () => {
+app.listen(PORT, HOST, async () => {
   console.log(`⚡ NEXinfra Central AI Backend running on http://${HOST}:${PORT}`);
   console.log(`🛡️ Model path active: ${process.cwd()}`);
+  try {
+    const { getInferenceSession } = await import("./detector.js");
+    await getInferenceSession();
+  } catch (e) {
+    console.warn("Warm up on boot exception:", e.message);
+  }
 });

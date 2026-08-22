@@ -1,0 +1,11 @@
+names:
+  0: pothole_road_defect
+  1: water_drainage_burst
+  2: garbage_waste_overflow
+  3: electrical_hazard
+  4: structural_bridge_crack
+  5: tree_greenery_hazard
+nc: 6
+path: C:/Users/PRANJAL/.gemini/antigravity/scratch/nexinfra-app/nexinfra-ai/dataset
+train: images/train
+val: images/val
