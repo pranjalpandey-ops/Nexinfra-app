@@ -91,6 +91,7 @@ export default function CCTVMonitor({ user, setActivePage }) {
   const [selectedSourceType, setSelectedSourceType] = useState("channel"); // default to channel for instant feed, user can click webcam
   const [activeChannel, setActiveChannel] = useState(CCTV_CHANNELS[0]);
   const [customVideoSrc, setCustomVideoSrc] = useState(null);
+  const [isMediaTypeImage, setIsMediaTypeImage] = useState(false);
   const [isGridMode, setIsGridMode] = useState(false);
   const [cameraPermissionDenied, setCameraPermissionDenied] = useState(false);
 
@@ -139,28 +140,30 @@ export default function CCTVMonitor({ user, setActivePage }) {
 
   // WebCam Stream Initializer
   const startWebcam = useCallback(async () => {
+    setCameraPermissionDenied(false);
+    setSelectedSourceType("webcam");
     try {
-      setCameraPermissionDenied(false);
-      if (videoRef.current?.srcObject) {
-        videoRef.current.srcObject.getTracks().forEach((track) => track.stop());
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error("Browser does not support getUserMedia camera access");
       }
 
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
           width: { ideal: 1280 },
           height: { ideal: 720 },
-          facingMode: "environment"
+          facingMode: "user"
         },
         audio: false
       });
 
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        videoRef.current.play().catch(() => {});
+        videoRef.current.onloadedmetadata = () => {
+          videoRef.current?.play().catch((e) => console.warn("Video play exception:", e));
+        };
       }
-      setSelectedSourceType("webcam");
     } catch (err) {
-      console.warn("Hardware camera unavailable or permission denied:", err);
+      console.warn("Hardware Webcam Error:", err);
       setCameraPermissionDenied(true);
       setSelectedSourceType("channel");
     }
@@ -180,21 +183,35 @@ export default function CCTVMonitor({ user, setActivePage }) {
 
   // Frame Capture & YOLO Detection Loop
   const captureAndDetect = useCallback(async () => {
-    if (!videoRef.current || !canvasRef.current) return;
     const video = videoRef.current;
     const canvas = canvasRef.current;
+    let frameBase64 = "";
 
-    // Check if video is loaded and playing
-    if (video.readyState < 2 || video.videoWidth === 0 || video.videoHeight === 0) {
-      return;
+    try {
+      if (selectedSourceType === "file" && isMediaTypeImage && customVideoSrc) {
+        frameBase64 = customVideoSrc;
+      } else if (video && video.readyState >= 2 && video.videoWidth > 0 && canvas) {
+        canvas.width = video.videoWidth || 640;
+        canvas.height = video.videoHeight || 360;
+        const ctx = canvas.getContext("2d", { willReadFrequently: true });
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        try {
+          frameBase64 = canvas.toDataURL("image/jpeg", 0.85);
+        } catch (taintErr) {
+          if (selectedSourceType === "channel" && activeChannel?.sampleImage) {
+            frameBase64 = activeChannel.sampleImage;
+          }
+        }
+      } else if (selectedSourceType === "channel" && activeChannel?.sampleImage) {
+        frameBase64 = activeChannel.sampleImage;
+      }
+    } catch (err) {
+      if (selectedSourceType === "channel" && activeChannel?.sampleImage) {
+        frameBase64 = activeChannel.sampleImage;
+      }
     }
 
-    canvas.width = video.videoWidth || 640;
-    canvas.height = video.videoHeight || 360;
-    const ctx = canvas.getContext("2d", { willReadFrequently: true });
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-    const frameBase64 = canvas.toDataURL("image/jpeg", 0.85);
+    if (!frameBase64) return;
 
     const startTime = performance.now();
     try {
@@ -215,8 +232,8 @@ export default function CCTVMonitor({ user, setActivePage }) {
 
         setCurrentDetection(result);
 
-        // Add to recent detections feed if genuine defect and confidence > threshold
-        if (result.isDefect && result.category !== "Clear / Normal" && result.confidence >= 0.72) {
+        // Add to recent detections feed if genuine defect
+        if (result.isDefect && result.category !== "Clear / Normal" && result.confidence >= 0.70) {
           setRecentDetections((prev) => {
             const isDuplicate = prev[0]?.category === result.category && Date.now() - prev[0]?.time < 5000;
             if (isDuplicate) return prev;
@@ -224,8 +241,8 @@ export default function CCTVMonitor({ user, setActivePage }) {
               {
                 ...result,
                 time: Date.now(),
-                channelId: selectedSourceType === "webcam" ? "LIVE-CAM-HD" : activeChannel.id,
-                channelName: selectedSourceType === "webcam" ? "Integrated Hardware Cam" : activeChannel.name,
+                channelId: selectedSourceType === "webcam" ? "LIVE-CAM-HD" : selectedSourceType === "file" ? "USER-MEDIA" : activeChannel.id,
+                channelName: selectedSourceType === "webcam" ? "Integrated Hardware Cam" : selectedSourceType === "file" ? "Uploaded Media Stream" : activeChannel.name,
                 snapshot: frameBase64
               },
               ...prev.slice(0, 19)
@@ -236,7 +253,7 @@ export default function CCTVMonitor({ user, setActivePage }) {
     } catch (err) {
       console.warn("CCTV Frame Analysis Exception:", err);
     }
-  }, [selectedSourceType, activeChannel, targetDefectFilter]);
+  }, [selectedSourceType, activeChannel, targetDefectFilter, isMediaTypeImage, customVideoSrc]);
 
   // Live Continuous Loop
   useEffect(() => {
@@ -247,13 +264,18 @@ export default function CCTVMonitor({ user, setActivePage }) {
     return () => clearInterval(interval);
   }, [isDetecting, scanIntervalMs, captureAndDetect]);
 
-  // Handle Custom Video Upload
-  const handleCustomVideoUpload = (e) => {
+  // Handle Custom Video/Photo Upload
+  const handleCustomMediaUpload = (e) => {
     const file = e.target.files?.[0];
     if (file) {
-      const url = URL.createObjectURL(file);
-      setCustomVideoSrc(url);
-      setSelectedSourceType("file");
+      const isImg = file.type.startsWith("image/");
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        setCustomVideoSrc(evt.target.result);
+        setIsMediaTypeImage(isImg);
+        setSelectedSourceType("file");
+      };
+      reader.readAsDataURL(file);
     }
   };
 
@@ -463,14 +485,14 @@ export default function CCTVMonitor({ user, setActivePage }) {
                 }`}
               >
                 <FolderOpen className="w-4 h-4 text-cyan-300" />
-                Upload Raw CCTV Video
+                Upload CCTV Video / Photo
               </button>
               <input
                 ref={customFileInputRef}
                 type="file"
-                accept="video/*"
+                accept="video/*,image/*"
                 className="hidden"
-                onChange={handleCustomVideoUpload}
+                onChange={handleCustomMediaUpload}
               />
             </div>
 
@@ -511,13 +533,20 @@ export default function CCTVMonitor({ user, setActivePage }) {
 
           {/* VIDEO FEED CONTAINER WITH REAL-TIME HUD OVERLAYS */}
           <div className="relative rounded-2xl overflow-hidden bg-black border-2 border-slate-800 shadow-2xl aspect-video flex items-center justify-center group">
-            {/* Live Video Element */}
-            {selectedSourceType === "webcam" ? (
+            {/* Live Media Element */}
+            {selectedSourceType === "file" && isMediaTypeImage ? (
+              <img
+                src={customVideoSrc}
+                alt="Defect Scan"
+                className="w-full h-full object-contain"
+              />
+            ) : selectedSourceType === "webcam" ? (
               <video
                 ref={videoRef}
                 autoPlay
                 muted
                 playsInline
+                crossOrigin="anonymous"
                 className="w-full h-full object-cover"
               />
             ) : selectedSourceType === "file" ? (
@@ -529,6 +558,7 @@ export default function CCTVMonitor({ user, setActivePage }) {
                 muted
                 playsInline
                 controls
+                crossOrigin="anonymous"
                 className="w-full h-full object-cover"
               />
             ) : (
@@ -539,6 +569,7 @@ export default function CCTVMonitor({ user, setActivePage }) {
                 loop
                 muted
                 playsInline
+                crossOrigin="anonymous"
                 className="w-full h-full object-cover"
               />
             )}
