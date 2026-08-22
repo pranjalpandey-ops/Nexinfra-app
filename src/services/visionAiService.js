@@ -230,9 +230,9 @@ function processImagePixels(img) {
   }
 
   const skinRatio = skinPixelCount / totalPixels;
-  const isHumanPresent = skinRatio > 0.025; // Human face, skin or subject in frame
+  const isHumanPresent = skinRatio > 0.45; // Only genuine close-up face portrait occupying full frame
 
-  const activeHueBinCount = hueBins.filter((count) => count > totalPixels * 0.015).length;
+  const activeHueBinCount = hueBins.filter((count) => count > totalPixels * 0.010).length;
   const wastePlasticRatio = brightPlasticPixels / totalPixels;
   const chromaticEntropy = chromaticTransitions / totalPixels;
   const asphaltRatio = pureAsphaltGrayCount / totalPixels;
@@ -265,10 +265,10 @@ function processImagePixels(img) {
       const sobelY = (p20 + 2 * p21 + p22) - (p00 + 2 * p01 + p02);
       const mag = Math.sqrt(sobelX * sobelX + sobelY * sobelY);
 
-      if (mag > 40) {
+      if (mag > 30) {
         totalEdgeEnergy += mag;
-        if (Math.abs(sobelX) > Math.abs(sobelY) * 1.8) verticalLinearEdges++;
-        if (Math.abs(sobelY) > Math.abs(sobelX) * 1.8) horizontalLinearEdges++;
+        if (Math.abs(sobelX) > Math.abs(sobelY) * 1.5) verticalLinearEdges++;
+        if (Math.abs(sobelY) > Math.abs(sobelX) * 1.5) horizontalLinearEdges++;
 
         if (gx >= 0 && gx < gridW && gy >= 0 && gy < gridH) {
           gridEnergy[gy][gx] += mag;
@@ -278,16 +278,11 @@ function processImagePixels(img) {
   }
 
   // Find Peak Anomaly Coordinates
-  for (let gy = 1; gy < gridH - 1; gy++) {
-    for (let gx = 1; gx < gridW - 1; gx++) {
-      let combined = 0;
-      for (let dy = -1; dy <= 1; dy++) {
-        for (let dx = -1; dx <= 1; dx++) {
-          combined += gridEnergy[gy + dy][gx + dx] + (gridWaste[gy + dy][gx + dx] * 600) + (gridCrack[gy + dy][gx + dx] * 200);
-        }
-      }
-      if (combined > maxCellEnergy) {
-        maxCellEnergy = combined;
+  for (let gy = 0; gy < gridH; gy++) {
+    for (let gx = 0; gx < gridW; gx++) {
+      const cellVal = gridEnergy[gy][gx] + gridCrack[gy][gx] * 200;
+      if (cellVal > maxCellEnergy) {
+        maxCellEnergy = cellVal;
         maxCellX = gx;
         maxCellY = gy;
       }
@@ -314,34 +309,34 @@ function processImagePixels(img) {
   };
 
   if (!isHumanPresent) {
-    // 1. ROAD DAMAGE / POTHOLE SCORE: Dark asphalt pit or road roughness
-    if ((asphaltRatio > 0.04 || darkVoidPixels > 350) && totalEdgeEnergy > 7000 && brightPlasticPixels < 350) {
-      scores["Road Damage / Pothole"] = Math.min(1.0, (darkVoidPixels / 1400) * 0.5 + (asphaltRatio * 2.5) * 0.3 + (totalEdgeEnergy / 25000) * 0.2);
+    // 1. ROAD DAMAGE / POTHOLE SCORE: Dark asphalt cavity or road surface roughness
+    if (darkVoidPixels > 100 || (asphaltRatio > 0.02 && totalEdgeEnergy > 2000)) {
+      scores["Road Damage / Pothole"] = Math.min(1.0, 0.40 + (darkVoidPixels / 800) * 0.4 + (totalEdgeEnergy / 20000) * 0.2);
     }
 
     // 2. SOLID WASTE OVERFLOW SCORE: Multi-hue plastic trash pile
-    if (brightPlasticPixels > 300 && activeHueBinCount >= 2 && wastePlasticRatio > 0.015) {
-      scores["Solid Waste Overflow"] = Math.min(1.0, (brightPlasticPixels / 1200) * 0.6 + (chromaticEntropy * 25.0) * 0.4);
+    if (brightPlasticPixels > 80 || (activeHueBinCount >= 2 && wastePlasticRatio > 0.005)) {
+      scores["Solid Waste Overflow"] = Math.min(1.0, 0.40 + (brightPlasticPixels / 600) * 0.4 + (chromaticEntropy * 20.0) * 0.2);
     }
 
     // 3. STRUCTURAL CRACK / WALL DAMAGE SCORE: Directional fissure or surface fractures
-    if ((horizontalLinearEdges > 450 || verticalLinearEdges > 450 || totalEdgeEnergy > 12000) && brightPlasticPixels < 300) {
-      scores["Structural Anomaly / Bridge Crack"] = Math.min(1.0, (totalEdgeEnergy / 30000) * 0.5 + (Math.max(horizontalLinearEdges, verticalLinearEdges) / 1500) * 0.5);
+    if (horizontalLinearEdges > 120 || verticalLinearEdges > 120 || totalEdgeEnergy > 3000) {
+      scores["Structural Anomaly / Bridge Crack"] = Math.min(1.0, 0.35 + (totalEdgeEnergy / 20000) * 0.35 + (Math.max(horizontalLinearEdges, verticalLinearEdges) / 800) * 0.3);
     }
 
     // 4. WATER / DRAINAGE BURST SCORE: Hydrostatic blue/cyan liquid pooling
-    if (waterRatio > 0.18 && greenRatio < 0.25 && brightPlasticPixels < 300) {
-      scores["Water / Drainage Burst"] = Math.min(1.0, waterRatio * 3.0);
+    if (waterRatio > 0.06) {
+      scores["Water / Drainage Burst"] = Math.min(1.0, 0.40 + waterRatio * 3.5);
     }
 
     // 5. ELECTRICAL & STREETLIGHT SCORE: Orange/yellow spark flare
-    if ((electricalOrangeCount / totalPixels) > 0.04 && brightPlasticPixels < 300) {
-      scores["Electrical & Streetlight"] = Math.min(1.0, (electricalOrangeCount / totalPixels) * 12.0);
+    if ((electricalOrangeCount / totalPixels) > 0.02) {
+      scores["Electrical & Streetlight"] = Math.min(1.0, 0.40 + (electricalOrangeCount / totalPixels) * 15.0);
     }
 
     // 6. PUBLIC PARK & GREENERY SCORE: Chlorophyll green canopy
-    if (greenRatio > 0.22 && activeHueBinCount <= 2) {
-      scores["Public Park & Greenery Hazard"] = Math.min(1.0, greenRatio * 2.5);
+    if (greenRatio > 0.12) {
+      scores["Public Park & Greenery Hazard"] = Math.min(1.0, 0.40 + greenRatio * 3.0);
     }
   }
 
@@ -355,7 +350,7 @@ function processImagePixels(img) {
     }
   }
 
-  const isDefect = topScore >= 0.20 && topCategory !== "Clear / Normal";
+  const isDefect = topScore >= 0.15 && topCategory !== "Clear / Normal";
   const detectedCategory = isDefect ? topCategory : "Clear / Normal";
 
   let defectName = "Infrastructure Clear • No Defect Detected";
