@@ -264,6 +264,57 @@ export default function CCTVMonitor({ user, setActivePage }) {
     return () => clearInterval(interval);
   }, [isDetecting, scanIntervalMs, captureAndDetect]);
 
+  // Handle Manual/One-Click Gemini 3.5 Multimodal Deep Scan
+  const [isGeminiScanning, setIsGeminiScanning] = useState(false);
+  const handleGeminiDeepScan = async () => {
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    let frameBase64 = "";
+
+    try {
+      if (selectedSourceType === "file" && isMediaTypeImage && customVideoSrc) {
+        frameBase64 = customVideoSrc;
+      } else if (video && canvas) {
+        canvas.width = video.videoWidth || 640;
+        canvas.height = video.videoHeight || 360;
+        const ctx = canvas.getContext("2d", { willReadFrequently: true });
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        frameBase64 = canvas.toDataURL("image/jpeg", 0.90);
+      } else if (selectedSourceType === "channel" && activeChannel?.sampleImage) {
+        frameBase64 = activeChannel.sampleImage;
+      }
+    } catch (e) {
+      if (activeChannel?.sampleImage) frameBase64 = activeChannel.sampleImage;
+    }
+
+    if (!frameBase64) return;
+
+    setIsGeminiScanning(true);
+    try {
+      const geminiResult = await analyzeWithGeminiVision(frameBase64);
+      if (geminiResult && geminiResult.success) {
+        setCurrentDetection(geminiResult);
+        if (geminiResult.isDefect && geminiResult.category !== "Clear / Normal") {
+          setRecentDetections((prev) => [
+            {
+              ...geminiResult,
+              time: Date.now(),
+              channelId: selectedSourceType === "webcam" ? "LIVE-CAM-HD" : selectedSourceType === "file" ? "USER-MEDIA" : activeChannel.id,
+              channelName: selectedSourceType === "webcam" ? "Live Integrated Cam" : selectedSourceType === "file" ? "Uploaded Media" : activeChannel.name,
+              snapshot: frameBase64,
+              engineBadge: "Gemini 3.5 Flash"
+            },
+            ...prev.slice(0, 19)
+          ]);
+        }
+      }
+    } catch (err) {
+      console.warn("Gemini Deep Scan Error:", err);
+    } finally {
+      setIsGeminiScanning(false);
+    }
+  };
+
   // Handle Custom Video/Photo Upload
   const handleCustomMediaUpload = (e) => {
     const file = e.target.files?.[0];
@@ -376,6 +427,16 @@ export default function CCTVMonitor({ user, setActivePage }) {
               YOLO Backend: <strong>{backendHealth.status === "online" ? "Active (Port 8000)" : "In-Browser Neural Engine"}</strong>
             </span>
           </div>
+
+          <button
+            onClick={handleGeminiDeepScan}
+            disabled={isGeminiScanning}
+            className="px-3.5 py-1.5 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold flex items-center gap-1.5 shadow-lg shadow-indigo-600/30 transition-all cursor-pointer disabled:opacity-50"
+            title="Perform Full Multimodal Gemini 3.5 Deep Inspection on Current Frame"
+          >
+            <Sparkles className={`w-4 h-4 text-amber-300 ${isGeminiScanning ? "animate-spin" : ""}`} />
+            <span>{isGeminiScanning ? "Gemini Scanning..." : "⚡ Gemini Vision Scan"}</span>
+          </button>
 
           <button
             onClick={() => setAudioAlertsEnabled(!audioAlertsEnabled)}
@@ -806,24 +867,56 @@ export default function CCTVMonitor({ user, setActivePage }) {
                 recentDetections.map((item, idx) => (
                   <div
                     key={idx}
-                    className="p-3 bg-slate-900/80 hover:bg-slate-850 border border-slate-800 rounded-xl flex items-start justify-between gap-3 transition-colors"
+                    className="p-3 bg-slate-900/90 hover:bg-slate-850 border border-slate-800 rounded-xl flex items-start justify-between gap-3 transition-colors shadow-md"
                   >
-                    <div className="space-y-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="px-2 py-0.5 rounded text-[10px] font-bold font-mono bg-red-950 text-red-400 border border-red-500/30">
-                          {item.priority || "P1"}
-                        </span>
-                        <span className="text-slate-400 font-mono text-[10px]">
-                          {new Date(item.time).toLocaleTimeString()}
-                        </span>
+                    <div className="flex items-start gap-3 min-w-0 flex-1">
+                      {item.snapshot && (
+                        <img
+                          src={item.snapshot}
+                          alt="Violation Thumbnail"
+                          className="w-14 h-14 rounded-lg object-cover border border-slate-700 shrink-0 bg-black"
+                        />
+                      )}
+                      <div className="space-y-1 min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-1.5 font-mono text-[10px]">
+                          <span
+                            className={`px-1.5 py-0.5 rounded font-bold ${
+                              item.priority === "P1"
+                                ? "bg-red-950 text-red-300 border border-red-500/40"
+                                : "bg-amber-950 text-amber-300 border border-amber-500/40"
+                            }`}
+                          >
+                            {item.priority || "P1"} ({item.slaHours || 4}h SLA)
+                          </span>
+                          <span className="px-1.5 py-0.5 rounded bg-cyan-950 text-cyan-300 border border-cyan-500/40 font-bold">
+                            {item.confidencePercent || 92}%
+                          </span>
+                          {item.engineBadge && (
+                            <span className="px-1.5 py-0.5 rounded bg-indigo-950 text-indigo-300 border border-indigo-500/40 font-bold">
+                              {item.engineBadge}
+                            </span>
+                          )}
+                          <span className="text-slate-400">
+                            {new Date(item.time).toLocaleTimeString()}
+                          </span>
+                        </div>
+                        <div className="text-xs font-bold text-white truncate font-heading">
+                          {item.defectName || item.category}
+                        </div>
+                        {item.dimensions && (
+                          <div className="text-[10px] text-cyan-300/90 font-mono truncate">
+                            📏 {item.dimensions}
+                          </div>
+                        )}
+                        <div className="text-[10px] text-slate-400 truncate">
+                          🏢 {item.department || "Municipal Operations"} • {item.channelName}
+                        </div>
                       </div>
-                      <div className="text-xs font-bold text-white truncate">{item.defectName || item.category}</div>
-                      <div className="text-[11px] text-slate-400 truncate">{item.channelName}</div>
                     </div>
 
                     <button
                       onClick={() => handleAutoLogIncident(item)}
-                      className="px-2.5 py-1 bg-cyan-950 hover:bg-cyan-900 border border-cyan-500/50 text-cyan-300 rounded text-xs font-bold shrink-0 transition-colors cursor-pointer"
+                      className="px-3 py-1.5 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white rounded-lg text-xs font-bold shrink-0 transition-colors shadow-md shadow-cyan-600/20 cursor-pointer"
                     >
                       Dispatch
                     </button>
