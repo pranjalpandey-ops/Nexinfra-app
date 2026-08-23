@@ -29,7 +29,7 @@ import AdminApprovalModal from "./components/AdminApprovalModal";
 import AlertsDrawerModal from "./components/AlertsDrawerModal";
 import LiveAlertToast from "./components/LiveAlertToast";
 
-const ADMIN_ONLY_PAGES = ["live-map", "maintenance", "drone-fleet", "cctv"];
+const ADMIN_ONLY_PAGES = ["drone-fleet"];
 
 export default function App() {
   const [activePage, setActivePage] = useState("landing");
@@ -113,10 +113,16 @@ export default function App() {
         "add-member",
         "maintenance",
         "cctv",
+        "live-map",
         "landing",
         "login",
-        "signup"
+        "signup",
+        "dashboard"
       ];
+      if (targetPage === "dashboard") {
+        setActivePage("officer-map");
+        return;
+      }
       if (!officerAllowedPages.includes(targetPage)) {
         setActivePage("officer-map");
         return;

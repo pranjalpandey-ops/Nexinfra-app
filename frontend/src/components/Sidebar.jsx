@@ -77,7 +77,14 @@ export default function Sidebar({
     { id: 'citysync-map', label: 'CitySync AI Map', icon: MapPin },
   ];
 
-  const isOfficerContext = isOfficer || activePage === 'municipal-dashboard';
+  const isOfficerContext = isOfficer || [
+    'municipal-dashboard',
+    'officer-map',
+    'teams-laid-to-work',
+    'task-allotment',
+    'team-details',
+    'add-member'
+  ].includes(activePage);
   const showAdminControls = isAdmin && !isOfficerContext;
 
   const menuToRender = showAdminControls ? adminMenuItems : isOfficerContext ? officerMenuItems : publicMenuItems;

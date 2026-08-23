@@ -14,7 +14,14 @@ export default function Navbar({
   theme,
   setTheme
 }) {
-  const isOfficerContext = user?.role === 'officer' || activePage === 'municipal-dashboard';
+  const isOfficerContext = user?.role === 'officer' || [
+    'municipal-dashboard',
+    'officer-map',
+    'teams-laid-to-work',
+    'task-allotment',
+    'team-details',
+    'add-member'
+  ].includes(activePage);
   const isAdminContext = user?.role === 'admin' && !isOfficerContext;
   const [alerts, setAlerts] = useState([]);
 
