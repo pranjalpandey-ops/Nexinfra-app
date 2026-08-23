@@ -27,12 +27,27 @@ import InProgressSubpage from "./incident-subpages/InProgressSubpage";
 import ResolvedSubpage from "./incident-subpages/ResolvedSubpage";
 import DisasterBroadcastModal from "../components/DisasterBroadcastModal";
 import AIVisionTriageModal from "../components/AIVisionTriageModal";
+import MunicipalOfficerIncidentLogs from "../components/MunicipalOfficerIncidentLogs";
 
 export default function MaintenanceView({
   onOpenWorkOrderModal,
   onOpenDispatchModal,
-  user
+  user,
+  setActivePage
 }) {
+  const isOfficer = user?.role === "officer";
+
+  if (isOfficer) {
+    return (
+      <div className="flex-1 bg-[#070A10] text-slate-100 p-6 space-y-6 font-sans overflow-y-auto">
+        <MunicipalOfficerIncidentLogs
+          user={user}
+          setActivePage={setActivePage}
+          onOpenWorkOrderModal={onOpenWorkOrderModal}
+        />
+      </div>
+    );
+  }
   const [activeSubpage, setActiveSubpage] = useState("requests"); // requests | ai_verification | in_progress | resolved | pipeline
   const [incidents, setIncidents] = useState([]);
   const [selectedIncident, setSelectedIncident] = useState(null);

@@ -598,16 +598,6 @@ export default function LiveMapView({ onOpenDispatchModal, setActivePage, user }
                   <ShieldAlert className="w-3.5 h-3.5 text-red-400" />
                   <span>🚨 Level 5 Warning Broadcast</span>
                 </button>
-
-                {activeEntity.type !== 'DRONE' && (
-                  <button
-                    onClick={(e) => handleUpvote(activeEntity.id, e)}
-                    className="w-full py-2 rounded-xl bg-[#090D16] border border-slate-800 hover:border-cyan-500 text-slate-300 hover:text-cyan-300 font-bold flex items-center justify-center gap-2 transition cursor-pointer"
-                  >
-                    <ThumbsUp className="w-3.5 h-3.5 text-cyan-400" />
-                    <span>Citizen Verification ({activeEntity.upvotes || 0})</span>
-                  </button>
-                )}
               </div>
 
             </div>

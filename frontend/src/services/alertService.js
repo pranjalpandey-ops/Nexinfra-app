@@ -139,3 +139,24 @@ export function acknowledgeAlert(alertId) {
   saveLocalAlerts(updated);
   return updated;
 }
+
+export function createLiveAlert(newAlert) {
+  const alerts = getLocalAlerts();
+  const alertObj = {
+    id: newAlert.id || `ALT-${Date.now()}`,
+    level: newAlert.level || "INFO",
+    title: newAlert.title || "Incident Status Update",
+    message: newAlert.message || "Municipal resolution event recorded.",
+    location: newAlert.location || "City Grid",
+    incidentId: newAlert.incidentId || null,
+    timestamp: new Date().toISOString(),
+    acknowledged: false,
+    source: newAlert.source || "Municipal Authority"
+  };
+  const updated = [alertObj, ...alerts];
+  saveLocalAlerts(updated);
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("new_live_alert", { detail: alertObj }));
+  }
+  return updated;
+}

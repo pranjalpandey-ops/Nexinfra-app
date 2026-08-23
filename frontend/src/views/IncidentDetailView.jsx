@@ -16,13 +16,18 @@ import {
   Activity,
   AlertTriangle,
   Flame,
-  Trash2
+  Trash2,
+  MessageSquareHeart,
+  Star
 } from "lucide-react";
 
 import { updateComplaintStatus } from "../services/updateComplaintStatus";
 import { deleteComplaint } from "../services/deleteComplaint";
 import { upvoteIssue, getLocalCivicIssues } from "../services/civicDb";
 import DisasterBroadcastModal from "../components/DisasterBroadcastModal";
+import CitizenFeedbackModal from "../components/CitizenFeedbackModal";
+import DeleteIncidentModal from "../components/DeleteIncidentModal";
+import OfficerOverrideModal from "../components/OfficerOverrideModal";
 
 export default function IncidentDetailView({
   setActivePage,
@@ -30,8 +35,13 @@ export default function IncidentDetailView({
   user,
 }) {
   const isAdmin = user?.role === "admin";
+  const isOfficer = user?.role === "officer";
+  const isPrivileged = isAdmin || isOfficer;
   const [isScanning, setIsScanning] = useState(false);
   const [isDisasterModalOpen, setIsDisasterModalOpen] = useState(false);
+  const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [officerOverrideTarget, setOfficerOverrideTarget] = useState(null);
 
   const [complaint, setComplaint] = useState({
     id: "CIVIC-892A",
@@ -96,11 +106,17 @@ export default function IncidentDetailView({
   };
 
   const changeStatus = async (newStatus) => {
-    if (!isAdmin) {
-      alert("Only Command Administrators can change incident resolution states.");
+    if (!isAdmin && !isOfficer) {
+      alert("Only Command Administrators & Municipal Officers can change incident resolution states.");
       return;
     }
     if (!complaint.id) return;
+
+    const isCurrentInProgress = (complaint.status || "").toLowerCase() === "in progress";
+    if (isCurrentInProgress && !isOfficer && isAdmin && newStatus !== "In Progress") {
+      setOfficerOverrideTarget({ incident: complaint, targetStatus: newStatus });
+      return;
+    }
 
     const result = await updateComplaintStatus(complaint.id, newStatus);
 
@@ -112,10 +128,22 @@ export default function IncidentDetailView({
 
       setComplaint(updated);
       localStorage.setItem("selectedComplaint", JSON.stringify(updated));
-      alert(`Status successfully updated to: ${newStatus}`);
     } else {
       alert(`Failed to update status: ${result.error}`);
     }
+  };
+
+  const handleConfirmOfficerOverride = async ({ incidentId, targetStatus }) => {
+    const result = await updateComplaintStatus(incidentId, targetStatus);
+    if (result.success) {
+      const updated = {
+        ...complaint,
+        status: targetStatus,
+      };
+      setComplaint(updated);
+      localStorage.setItem("selectedComplaint", JSON.stringify(updated));
+    }
+    setOfficerOverrideTarget(null);
   };
 
   const isPhoneFrame = viewMode === "phone";
@@ -210,6 +238,18 @@ export default function IncidentDetailView({
                 >
                   <Flame className="w-4 h-4 animate-pulse" />
                   <span>🚨 Level 5 Warning</span>
+                </button>
+              )}
+
+              {/* Delete / Dismiss Incident Log with Reason & Citizen Notification */}
+              {isPrivileged && (
+                <button
+                  onClick={() => setIsDeleteModalOpen(true)}
+                  className="px-4 py-2.5 rounded-xl bg-rose-950/70 border border-rose-500/70 hover:bg-rose-900/80 text-rose-300 font-bold text-xs uppercase cursor-pointer flex items-center gap-1.5 shadow-md font-mono-tech active:scale-95 transition"
+                  title="Permanently close / delete incident log and dispatch resolution notice to citizen"
+                >
+                  <Trash2 className="w-4 h-4 text-rose-400" />
+                  <span>Delete this log</span>
                 </button>
               )}
 
@@ -356,6 +396,62 @@ export default function IncidentDetailView({
               </div>
             ) : (
               <div className="space-y-3">
+                {/* Citizen Ground Resolution & Feedback Card */}
+                <div className="bg-[#070A12] border border-amber-500/40 rounded-2xl p-4 space-y-3 shadow-md">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-amber-300 font-bold text-xs">
+                      <MessageSquareHeart className="w-4 h-4 text-amber-400" />
+                      <span>Citizen Ground Verification</span>
+                    </div>
+                    {complaint.feedbackScore && (
+                      <span className="text-amber-400 text-xs font-bold flex items-center gap-1 bg-amber-950/80 px-2 py-0.5 rounded border border-amber-500/50">
+                        <Star className="w-3 h-3 fill-amber-400" />
+                        <span>{complaint.feedbackScore} / 5.0</span>
+                      </span>
+                    )}
+                  </div>
+
+                  <p className="text-xs text-slate-300">
+                    {complaint.status === "Resolved"
+                      ? "Have you inspected this location? Rate the repair quality and confirm if the road or service is fully restored."
+                      : "Provide a real-time status update from the ground to assist municipal dispatch teams."}
+                  </p>
+
+                  <button
+                    type="button"
+                    onClick={() => setIsFeedbackModalOpen(true)}
+                    className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-amber-400 to-orange-400 hover:from-amber-300 hover:to-orange-300 text-black font-extrabold text-xs uppercase flex items-center justify-center gap-2 cursor-pointer shadow-md transition active:scale-95"
+                  >
+                    <MessageSquareHeart className="w-4 h-4" />
+                    <span>
+                      {complaint.status === "Resolved"
+                        ? "⭐ Rate Resolution & Verify Work"
+                        : "💬 Submit Ground Status Feedback"}
+                    </span>
+                  </button>
+
+                  {/* Existing Citizen Feedback List */}
+                  {complaint.citizenFeedbacks && complaint.citizenFeedbacks.length > 0 && (
+                    <div className="pt-2 border-t border-slate-800 space-y-2">
+                      <div className="text-[10px] text-slate-400 uppercase font-bold">
+                        Community Ground Verifications ({complaint.citizenFeedbacks.length}):
+                      </div>
+                      <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
+                        {complaint.citizenFeedbacks.slice(0, 3).map((fb, idx) => (
+                          <div key={idx} className="p-2 rounded-lg bg-[#0B0F19] border border-slate-800 text-[11px] space-y-1">
+                            <div className="flex items-center justify-between">
+                              <span className="font-bold text-amber-300">{fb.citizenName}</span>
+                              <span className="text-amber-400 text-[10px] font-bold">⭐ {fb.rating}/5</span>
+                            </div>
+                            <div className="text-slate-300 text-[10px]">{fb.statusConfirmation}</div>
+                            {fb.comment && <div className="text-slate-400 text-[10px] italic">"{fb.comment}"</div>}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
                 <div className="bg-[#070A12] border border-slate-800 rounded-2xl p-4 text-xs text-slate-400">
                   ℹ Citizen Notice: Updates made by the municipal repair unit will synchronize with this timeline in real-time.
                 </div>
@@ -434,6 +530,20 @@ export default function IncidentDetailView({
 
       </div>
 
+      {/* Citizen Feedback Modal */}
+      {isFeedbackModalOpen && (
+        <CitizenFeedbackModal
+          isOpen={isFeedbackModalOpen}
+          onClose={() => setIsFeedbackModalOpen(false)}
+          incident={complaint}
+          user={user}
+          onFeedbackSubmitted={(updated) => {
+            setComplaint(updated);
+            localStorage.setItem("selectedComplaint", JSON.stringify(updated));
+          }}
+        />
+      )}
+
       {/* Disaster Early Warning Broadcast Modal */}
       <DisasterBroadcastModal
         isOpen={isDisasterModalOpen}
@@ -441,6 +551,30 @@ export default function IncidentDetailView({
         initialIncident={complaint}
         user={user}
       />
+
+      {/* Delete / Dismiss Incident Log Modal with Citizen Resolution Broadcast */}
+      {isDeleteModalOpen && (
+        <DeleteIncidentModal
+          isOpen={isDeleteModalOpen}
+          onClose={() => setIsDeleteModalOpen(false)}
+          incident={complaint}
+          user={user}
+          onDeleted={() => {
+            setActivePage("citysync-map");
+          }}
+        />
+      )}
+
+      {/* Municipal Officer Override Permission Modal for In Progress tasks */}
+      {officerOverrideTarget && (
+        <OfficerOverrideModal
+          isOpen={Boolean(officerOverrideTarget)}
+          onClose={() => setOfficerOverrideTarget(null)}
+          incident={officerOverrideTarget.incident}
+          targetStatus={officerOverrideTarget.targetStatus}
+          onConfirmOverride={handleConfirmOfficerOverride}
+        />
+      )}
     </div>
   );
 }

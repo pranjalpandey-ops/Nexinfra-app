@@ -106,15 +106,19 @@ export default function App() {
     if (user?.role === "officer") {
       const officerAllowedPages = [
         "municipal-dashboard",
+        "officer-map",
+        "teams-laid-to-work",
+        "task-allotment",
+        "team-details",
+        "add-member",
         "maintenance",
-        "live-map",
         "cctv",
         "landing",
         "login",
         "signup"
       ];
       if (!officerAllowedPages.includes(targetPage)) {
-        setActivePage("municipal-dashboard");
+        setActivePage("officer-map");
         return;
       }
     }
@@ -218,7 +222,7 @@ export default function App() {
     activePage === "login";
 
   return (
-    <div className="min-h-screen bg-[#07090E] text-slate-100 flex flex-col font-sans selection:bg-cyan-500 selection:text-black">
+    <div className="h-screen bg-[#07090E] text-slate-100 flex flex-col font-sans selection:bg-cyan-500 selection:text-black overflow-hidden">
       {/* Navbar */}
       <Navbar
         activePage={activePage}
@@ -229,11 +233,12 @@ export default function App() {
         setTheme={setTheme}
         onOpenSettings={() => setIsSettingsOpen(true)}
         onOpenAlerts={() => setIsAlertsOpen(true)}
+        onLogout={handleLogout}
       />
 
       {/* Public Unauthenticated Views */}
       {isPublicPage ? (
-        <div className="flex-1">
+        <div className="flex-1 min-h-0 overflow-y-auto">
           {activePage === "landing" && (
             <LandingView setActivePage={handleNavigate} />
           )}
@@ -255,7 +260,7 @@ export default function App() {
       ) : activePage === "report-issue" ||
         activePage === "citysync-map" ||
         activePage === "incident-detail" ? (
-        <div className="flex-1 bg-[#07090E] flex flex-col justify-center items-center py-4">
+        <div className="flex-1 min-h-0 overflow-y-auto bg-[#07090E] flex flex-col justify-center items-center py-4">
           {activePage === "report-issue" && (
             <CitySyncReportView
               setActivePage={handleNavigate}
@@ -281,7 +286,7 @@ export default function App() {
           )}
         </div>
       ) : user ? (
-        <div className="flex min-h-screen w-full overflow-hidden">
+        <div className="flex flex-1 min-h-0 w-full overflow-hidden">
           {/* Sidebar */}
           <Sidebar
             activePage={activePage}
@@ -294,7 +299,7 @@ export default function App() {
           />
 
           {/* Main Console */}
-          <main className="flex-1 flex flex-col min-w-0 bg-[#070A10] h-screen overflow-hidden">
+          <main className="flex-1 flex flex-col min-w-0 bg-[#070A10] h-full overflow-hidden">
             {/* Console Header */}
             <div className="h-14 bg-[#090D16] border-b border-slate-800/80 px-6 flex items-center justify-between font-mono-tech text-xs shrink-0">
               <div className="flex items-center gap-3">
@@ -389,10 +394,17 @@ export default function App() {
                 />
               )}
 
-              {activePage === "municipal-dashboard" && (
+              {(activePage === "municipal-dashboard" ||
+                activePage === "officer-map" ||
+                activePage === "teams-laid-to-work" ||
+                activePage === "task-allotment" ||
+                activePage === "team-details" ||
+                activePage === "add-member" ||
+                (activePage === "dashboard" && user?.role === "officer")) && (
                 <div className="p-6">
                   <MunicipalOfficerView
                     user={user}
+                    activePage={activePage}
                     setActivePage={handleNavigate}
                   />
                 </div>
@@ -400,6 +412,8 @@ export default function App() {
 
               {activePage === "maintenance" && (user?.role === "admin" || user?.role === "officer") && (
                 <MaintenanceView
+                  user={user}
+                  setActivePage={handleNavigate}
                   onOpenWorkOrderModal={handleOpenWorkOrder}
                   onOpenDispatchModal={handleOpenDispatch}
                 />

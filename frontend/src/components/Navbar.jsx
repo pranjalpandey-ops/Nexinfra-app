@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Radio, Sparkles, MapPin, Settings, ShieldCheck, UserCheck, Sun, Moon, Bell, ShieldAlert, Building } from 'lucide-react';
+import { Radio, Sparkles, MapPin, Settings, ShieldCheck, UserCheck, Sun, Moon, Bell, ShieldAlert, Building, LogOut } from 'lucide-react';
 import { subscribeToLiveAlerts } from '../services/alertService';
 import Logo from './Logo';
 
@@ -10,6 +10,7 @@ export default function Navbar({
   user,
   onOpenSettings,
   onOpenAlerts,
+  onLogout,
   theme,
   setTheme
 }) {
@@ -67,51 +68,84 @@ export default function Navbar({
             Platform
           </button>
           
-          {/* MUNICIPAL OFFICER NAVIGATION TABS */}
+          {/* MUNICIPAL OFFICER NAVIGATION TABS (DEDICATED INDEPENDENT MODULES) */}
           {isOfficerContext && (
             <>
               <button
-                onClick={() => setActivePage('municipal-dashboard')}
-                className={`px-3.5 py-2 rounded transition-colors cursor-pointer ${
-                  activePage === 'municipal-dashboard'
-                    ? 'text-amber-300 bg-amber-950/40 border-b-2 border-amber-400 font-bold'
+                onClick={() => setActivePage('officer-map')}
+                className={`px-3 py-1.5 rounded transition-colors cursor-pointer font-mono text-xs flex items-center gap-1 ${
+                  activePage === 'officer-map' || activePage === 'municipal-dashboard'
+                    ? 'text-amber-300 bg-amber-950/60 border-b-2 border-amber-400 font-bold'
                     : 'text-slate-300 hover:text-white hover:bg-slate-800/40'
                 }`}
               >
-                Officer Dashboard & Teams
+                🗺️ Live Team Map
+              </button>
+
+              <button
+                onClick={() => setActivePage('teams-laid-to-work')}
+                className={`px-3 py-1.5 rounded transition-colors cursor-pointer font-mono text-xs flex items-center gap-1 ${
+                  activePage === 'teams-laid-to-work'
+                    ? 'text-amber-300 bg-amber-950/60 border-b-2 border-amber-400 font-bold'
+                    : 'text-slate-300 hover:text-white hover:bg-slate-800/40'
+                }`}
+              >
+                ⚡ Teams Laid to Work
+              </button>
+
+              <button
+                onClick={() => setActivePage('task-allotment')}
+                className={`px-3 py-1.5 rounded transition-colors cursor-pointer font-mono text-xs flex items-center gap-1 ${
+                  activePage === 'task-allotment'
+                    ? 'text-amber-300 bg-amber-950/60 border-b-2 border-amber-400 font-bold'
+                    : 'text-slate-300 hover:text-white hover:bg-slate-800/40'
+                }`}
+              >
+                📋 Task Allotment
+              </button>
+
+              <button
+                onClick={() => setActivePage('team-details')}
+                className={`px-3 py-1.5 rounded transition-colors cursor-pointer font-mono text-xs flex items-center gap-1 ${
+                  activePage === 'team-details'
+                    ? 'text-amber-300 bg-amber-950/60 border-b-2 border-amber-400 font-bold'
+                    : 'text-slate-300 hover:text-white hover:bg-slate-800/40'
+                }`}
+              >
+                👥 Team Rosters
+              </button>
+
+              <button
+                onClick={() => setActivePage('add-member')}
+                className={`px-3 py-1.5 rounded transition-colors cursor-pointer font-mono text-xs flex items-center gap-1 ${
+                  activePage === 'add-member'
+                    ? 'text-amber-300 bg-amber-950/60 border-b-2 border-amber-400 font-bold'
+                    : 'text-slate-300 hover:text-white hover:bg-slate-800/40'
+                }`}
+              >
+                ➕ Add Member
               </button>
 
               <button
                 onClick={() => setActivePage('maintenance')}
-                className={`px-3.5 py-2 rounded transition-colors cursor-pointer ${
+                className={`px-3 py-1.5 rounded transition-colors cursor-pointer font-mono text-xs flex items-center gap-1 ${
                   activePage === 'maintenance'
-                    ? 'text-amber-300 bg-amber-950/40 border-b-2 border-amber-400 font-bold'
+                    ? 'text-amber-300 bg-amber-950/60 border-b-2 border-amber-400 font-bold'
                     : 'text-slate-300 hover:text-white hover:bg-slate-800/40'
                 }`}
               >
-                Incident Logs
-              </button>
-
-              <button
-                onClick={() => setActivePage('live-map')}
-                className={`px-3.5 py-2 rounded transition-colors cursor-pointer ${
-                  activePage === 'live-map'
-                    ? 'text-amber-300 bg-amber-950/40 border-b-2 border-amber-400 font-bold'
-                    : 'text-slate-300 hover:text-white hover:bg-slate-800/40'
-                }`}
-              >
-                Live Map
+                📄 Incident Logs
               </button>
 
               <button
                 onClick={() => setActivePage('cctv')}
-                className={`px-3.5 py-2 rounded transition-colors cursor-pointer ${
+                className={`px-3 py-1.5 rounded transition-colors cursor-pointer font-mono text-xs flex items-center gap-1 ${
                   activePage === 'cctv'
-                    ? 'text-amber-300 bg-amber-950/40 border-b-2 border-amber-400 font-bold'
+                    ? 'text-amber-300 bg-amber-950/60 border-b-2 border-amber-400 font-bold'
                     : 'text-slate-300 hover:text-white hover:bg-slate-800/40'
                 }`}
               >
-                CCTV Monitor
+                📹 CCTV Monitor
               </button>
             </>
           )}
@@ -128,7 +162,7 @@ export default function Navbar({
                       : 'text-slate-300 hover:text-white hover:bg-slate-800/40'
                   }`}
                 >
-                  {isAdminContext ? "Console Dashboard" : "Citizen Dashboard"}
+                  Dashboard
                 </button>
               )}
 
@@ -166,19 +200,6 @@ export default function Navbar({
               >
                 {isAdminContext ? "Incident Inspector" : "Track Incident"}
               </button>
-
-              {isAdminContext && (
-                <button
-                  onClick={() => setActivePage('maintenance')}
-                  className={`px-3.5 py-2 rounded transition-colors cursor-pointer ${
-                    activePage === 'maintenance'
-                      ? 'text-cyan-400 bg-cyan-950/40 border-b-2 border-cyan-400 font-bold'
-                      : 'text-slate-300 hover:text-white hover:bg-slate-800/40'
-                  }`}
-                >
-                  Incident Logs
-                </button>
-              )}
             </>
           )}
         </nav>
@@ -261,13 +282,15 @@ export default function Navbar({
                 <span>{isOfficerContext ? "OFFICER" : isAdminContext ? "ADMIN" : "CITIZEN"}</span>
               </span>
 
-              {/* Console Live Status Badge */}
-              <div className={`hidden sm:flex items-center gap-1 px-2.5 py-1 rounded bg-[#070A10] border text-[10px] font-bold ${
-                isOfficerContext ? "border-amber-500/40 text-amber-300" : "border-cyan-500/40 text-cyan-300"
-              }`}>
-                <Radio className={`w-3 h-3 animate-pulse ${isOfficerContext ? "text-amber-400" : "text-cyan-400"}`} />
-                <span>{isOfficerContext ? "DISPATCH" : "CONSOLE"}</span>
-              </div>
+              {/* Universal Logout Button */}
+              <button
+                onClick={onLogout}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-red-950/40 border border-red-500/50 hover:bg-red-900/60 text-red-300 font-bold text-[11px] transition-all cursor-pointer shadow-sm active:scale-95"
+                title="Logout of Account"
+              >
+                <LogOut className="w-3.5 h-3.5 text-red-400" />
+                <span>Logout</span>
+              </button>
             </div>
           )}
         </div>

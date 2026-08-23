@@ -476,9 +476,9 @@ export default function CCTVMonitor({ user, setActivePage }) {
         const canonicalCategory = getCanonicalCategory(top.class || top.category || top.rawClass);
         const taxMeta = getCanonicalMetadata(canonicalCategory);
 
-        // Spatial-Temporal Verification: Class + Confidence >= 0.15 + Bounding Box IoU >= 0.35
+        // Spatial-Temporal Verification: Class + High Confidence (>= 0.65) + Bounding Box IoU (>= 0.35)
         const IOU_THRESHOLD = 0.35;
-        const CONFIDENCE_THRESHOLD = 0.15;
+        const CONFIDENCE_THRESHOLD = 0.65;
 
         let spatialIoU = 1.0;
         let isSpatialMatch = false;
@@ -501,7 +501,6 @@ export default function CCTVMonitor({ user, setActivePage }) {
               };
             } else {
               // Reset verification if object moved significantly (IoU < 0.35) or class changed
-              console.log(`🔄 [SPATIAL RESET] Defect moved or changed (IoU: ${spatialIoU}, Class: ${canonicalCategory}). Resetting track.`);
               consecutiveCountRef.current = 1;
               trackedDefectRef.current = {
                 canonicalCategory,
@@ -522,21 +521,25 @@ export default function CCTVMonitor({ user, setActivePage }) {
               timestamp: Date.now()
             };
           }
+
+          const count = consecutiveCountRef.current;
+          setConsecutiveCount(count);
+          setCurrentTrackingIou(spatialIoU);
+
+          let vState = "WAITING";
+          if (count === 1) vState = "VERIFYING (1/3)";
+          else if (count === 2) vState = `VERIFYING (2/3 • IoU ${Math.round(spatialIoU * 100)}%)`;
+          else if (count >= 3) vState = "AI VERIFIED";
+          setVerificationState(vState);
         } else {
-          // Confidence dropped below threshold - reset verification
+          // Low confidence false positive - discard detection
           consecutiveCountRef.current = 0;
+          setConsecutiveCount(0);
           trackedDefectRef.current = null;
+          setCurrentDetection(null);
+          setVerificationState("NO DEFECT");
+          return;
         }
-
-        const count = consecutiveCountRef.current;
-        setConsecutiveCount(count);
-        setCurrentTrackingIou(spatialIoU);
-
-        let vState = "WAITING";
-        if (count === 1) vState = "VERIFYING (1/3)";
-        else if (count === 2) vState = `VERIFYING (2/3 • IoU ${Math.round(spatialIoU * 100)}%)`;
-        else if (count >= 3) vState = "AI VERIFIED";
-        setVerificationState(vState);
 
         const detectionPayload = {
           success: true,
@@ -1236,7 +1239,7 @@ export default function CCTVMonitor({ user, setActivePage }) {
                       {currentDetection.confidencePercent || 94}%
                     </span>
                     <span className="bg-white/20 px-1.5 py-0.5 rounded text-[10px]">
-                      {verificationState} {currentTrackingIou !== null ? `(IoU: ${Math.round(currentTrackingIou * 100)}%)` : ""}
+                      {verificationState}
                     </span>
                   </div>
 

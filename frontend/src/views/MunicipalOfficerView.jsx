@@ -30,7 +30,13 @@ import {
   Eye,
   Sliders,
   Timer,
-  Award
+  Award,
+  Trash2,
+  Send,
+  UserCheck,
+  HardHat,
+  BadgeAlert,
+  Map as MapIcon
 } from "lucide-react";
 
 import {
@@ -40,59 +46,89 @@ import {
   updateTeamJobStatus,
   completeJobAndReleaseTeam,
   createMunicipalTeam,
-  calculateJobTimeMetrics
+  calculateJobTimeMetrics,
+  addCrewMemberToTeam,
+  removeCrewMemberFromTeam,
+  getPendingMemberRequests,
+  submitNewMemberRequest,
+  approveMemberRequest
 } from "../services/municipalTeamService";
 
 import { getLocalCivicIssues, updateCivicIssueStatus } from "../services/civicDb";
 import { updateComplaintStatus } from "../services/updateComplaintStatus";
 import { subscribeToComplaints } from "../services/getComplaints";
+import LeafletMap from "../components/LeafletMap";
 
 export default function MunicipalOfficerView({
   user,
+  activePage = "officer-map",
   setActivePage,
   onSelectIncident
 }) {
   const [teams, setTeams] = useState(getMunicipalTeams());
   const [incidents, setIncidents] = useState(getLocalCivicIssues());
-  const [activeTab, setActiveTab] = useState("occupied"); // "occupied" | "allotment" | "teams"
+  const [memberRequests, setMemberRequests] = useState(getPendingMemberRequests());
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedDeptFilter, setSelectedDeptFilter] = useState("All");
   
+  // Selected Team on Map
+  const [selectedMapTeam, setSelectedMapTeam] = useState(null);
+
   // Allotment Modal State
   const [selectedTaskToAllot, setSelectedTaskToAllot] = useState(null);
   const [selectedTeamId, setSelectedTeamId] = useState("");
   const [allottedHours, setAllottedHours] = useState(4);
   const [isAllotModalOpen, setIsAllotModalOpen] = useState(false);
-  
-  // New Team Modal State
-  const [isNewTeamModalOpen, setIsNewTeamModalOpen] = useState(false);
-  const [newTeamName, setNewTeamName] = useState("");
-  const [newTeamDept, setNewTeamDept] = useState("Road Works & Asphalt Pavement Division");
-  const [newTeamWard, setNewTeamWard] = useState("Central District - Ward 4 (Civic Centre)");
-  const [newTeamLeader, setNewTeamLeader] = useState("");
-  const [newTeamPhone, setNewTeamPhone] = useState("");
-  const [newTeamMembers, setNewTeamMembers] = useState("");
 
-  // Live timer tick every 15 seconds to recalculate late metrics in real time
+  // Add Member to Specific Team Modal State
+  const [activeAddMemberTeam, setActiveAddMemberTeam] = useState(null);
+  const [memberNameInput, setMemberNameInput] = useState("");
+  const [memberRoleInput, setMemberRoleInput] = useState("Field Technician");
+  const [memberPhoneInput, setMemberPhoneInput] = useState("");
+  const [memberEmployeeId, setMemberEmployeeId] = useState("");
+
+  // New Member Onboarding Request Form State
+  const [reqName, setReqName] = useState("");
+  const [reqEmpId, setReqEmpId] = useState("");
+  const [reqDept, setReqDept] = useState("Road Works & Asphalt Pavement Division");
+  const [reqRole, setReqRole] = useState("Pavement Repair Specialist");
+  const [reqPhone, setReqPhone] = useState("");
+  const [reqTeamId, setReqTeamId] = useState("TEAM-RD-01");
+  const [reqWard, setReqWard] = useState("Central District - Ward 4");
+  const [reqShift, setReqShift] = useState("Morning Shift (06:00 - 14:00)");
+  const [reqSuccessMessage, setReqSuccessMessage] = useState("");
+
+  // Map activePage prop to current view mode
+  const currentView =
+    activePage === "teams-laid-to-work"
+      ? "occupied"
+      : activePage === "task-allotment"
+      ? "allotment"
+      : activePage === "team-details"
+      ? "teams"
+      : activePage === "add-member"
+      ? "new_member"
+      : "map";
+
+  // Live timer tick every 10 seconds to recalculate late metrics in real time
   const [tick, setTick] = useState(0);
   useEffect(() => {
-    const timer = setInterval(() => setTick((t) => t + 1), 15000);
+    const timer = setInterval(() => setTick((t) => t + 1), 10000);
     return () => clearInterval(timer);
   }, []);
 
+  const refreshAllData = () => {
+    setTeams(getMunicipalTeams());
+    setIncidents(getLocalCivicIssues());
+    setMemberRequests(getPendingMemberRequests());
+  };
+
   useEffect(() => {
-    const refreshData = () => {
-      setTeams(getMunicipalTeams());
-      setIncidents(getLocalCivicIssues());
-    };
+    window.addEventListener("municipal_teams_updated", refreshAllData);
+    window.addEventListener("civic_issue_updated", refreshAllData);
+    window.addEventListener("nexinfra_incident_created", refreshAllData);
+    window.addEventListener("member_requests_updated", refreshAllData);
+    window.addEventListener("storage", refreshAllData);
 
-    // 1. Listen for local state events
-    window.addEventListener("municipal_teams_updated", refreshData);
-    window.addEventListener("civic_issue_updated", refreshData);
-    window.addEventListener("nexinfra_incident_created", refreshData);
-    window.addEventListener("storage", refreshData);
-
-    // 2. Real-time Firestore complaints subscription
     const unsubscribeFirestore = subscribeToComplaints((firestoreComplaints) => {
       if (Array.isArray(firestoreComplaints) && firestoreComplaints.length > 0) {
         const local = getLocalCivicIssues();
@@ -105,862 +141,915 @@ export default function MunicipalOfficerView({
     });
 
     return () => {
-      window.removeEventListener("municipal_teams_updated", refreshData);
-      window.removeEventListener("civic_issue_updated", refreshData);
-      window.removeEventListener("nexinfra_incident_created", refreshData);
-      window.removeEventListener("storage", refreshData);
-      if (typeof unsubscribeFirestore === "function") unsubscribeFirestore();
+      window.removeEventListener("municipal_teams_updated", refreshAllData);
+      window.removeEventListener("civic_issue_updated", refreshAllData);
+      window.removeEventListener("nexinfra_incident_created", refreshAllData);
+      window.removeEventListener("member_requests_updated", refreshAllData);
+      window.removeEventListener("storage", refreshAllData);
+      unsubscribeFirestore();
     };
   }, []);
+
+  // Team Coordinate Presets for Map Placement
+  const teamPositions = {
+    "TEAM-RD-01": [28.6180, 77.2250],
+    "TEAM-HY-02": [28.6220, 77.2140],
+    "TEAM-SW-03": [28.6060, 77.1945],
+    "TEAM-EL-04": [28.6010, 77.2280],
+    "TEAM-ST-05": [28.6290, 77.2020],
+    "TEAM-FR-06": [28.6320, 77.2180]
+  };
+
+  // Convert Municipal Teams to Map Markers
+  const teamMapMarkers = teams.map((team, idx) => {
+    const coords = teamPositions[team.id] || [28.6139 + (idx * 0.006), 77.2090 + (idx * 0.005)];
+    const timeMetrics = team.activeJob ? calculateJobTimeMetrics(team.activeJob) : null;
+
+    return {
+      position: coords,
+      data: {
+        ...team,
+        type: "MUNICIPAL_TEAM",
+        timeMetrics
+      }
+    };
+  });
+
+  // Convert Civic Incidents to Map Markers
+  const incidentMapMarkers = incidents
+    .filter((inc) => inc.latitude && inc.longitude)
+    .map((inc) => ({
+      position: [inc.latitude, inc.longitude],
+      data: inc
+    }));
+
+  const allOfficerMapMarkers = [...teamMapMarkers, ...incidentMapMarkers];
+
+  // Filter unassigned / actionable incidents for Allotment
+  const unassignedIncidents = incidents.filter((inc) => {
+    const isAlreadyAssigned = teams.some((t) => t.activeJob?.taskId === inc.id);
+    return !isAlreadyAssigned && inc.status !== "Resolved";
+  });
 
   const occupiedTeams = teams.filter((t) => t.status === "occupied" && t.activeJob);
   const availableTeams = teams.filter((t) => t.status === "available");
 
-  // Pending tasks ready for dispatch
-  const pendingTasks = incidents.filter(
-    (i) =>
-      i.status === "Forwarded to Municipal Officer" ||
-      i.status === "Pending Officer Assignment" ||
-      i.status === "AI Verified" ||
-      i.status === "Verified" ||
-      i.status === "Submitted" ||
-      i.status === "Reported" ||
-      i.status === "In Progress"
-  );
+  // Summary Metrics
+  const totalOccupiedCount = occupiedTeams.length;
+  const totalAvailableCount = availableTeams.length;
+  const lateTeamsCount = occupiedTeams.filter((t) => calculateJobTimeMetrics(t.activeJob).isLate).length;
+  const totalCrewMembers = teams.reduce((acc, t) => acc + (t.members?.length || 0), 0);
 
-  const lateTeamsCount = occupiedTeams.filter((t) => {
-    const metrics = calculateJobTimeMetrics(t.activeJob);
-    return metrics.isLate;
-  }).length;
-
-  const handleOpenAllotModal = (task) => {
-    setSelectedTaskToAllot(task);
-    
-    // Auto-match closest relevant available team based on department / category
-    const categoryLower = (task?.category || "").toLowerCase();
-    const matchedTeam = availableTeams.find((t) => {
-      const deptLower = (t.department || "").toLowerCase();
-      if (categoryLower.includes("road") || categoryLower.includes("pothole")) return deptLower.includes("road");
-      if (categoryLower.includes("water") || categoryLower.includes("drain")) return deptLower.includes("hydro");
-      if (categoryLower.includes("waste") || categoryLower.includes("garbage")) return deptLower.includes("waste");
-      if (categoryLower.includes("electric") || categoryLower.includes("light")) return deptLower.includes("power");
-      if (categoryLower.includes("bridge") || categoryLower.includes("crack")) return deptLower.includes("struct");
-      if (categoryLower.includes("tree") || categoryLower.includes("park")) return deptLower.includes("forest");
-      return false;
-    });
-
-    if (matchedTeam) {
-      setSelectedTeamId(matchedTeam.id);
-    } else if (availableTeams.length > 0) {
-      setSelectedTeamId(availableTeams[0].id);
+  // Handle Complete Job and Free Team
+  const handleCompleteJob = (teamId) => {
+    const res = completeJobAndReleaseTeam(teamId);
+    if (res.success) {
+      if (res.completedTaskId) {
+        updateCivicIssueStatus(res.completedTaskId, "Resolved");
+        updateComplaintStatus(res.completedTaskId, "Resolved");
+      }
+      refreshAllData();
     }
-    
-    setAllottedHours(task?.slaHours || 4);
-    setIsAllotModalOpen(true);
   };
 
-  const handleConfirmAllotment = async () => {
-    if (!selectedTeamId || !selectedTaskToAllot) {
-      alert("Please choose an available team for allotment.");
-      return;
-    }
+  // Handle Allotting Task to Team
+  const handleConfirmAllotment = (e) => {
+    e.preventDefault();
+    if (!selectedTaskToAllot || !selectedTeamId) return;
 
     const res = allotTeamToTask(selectedTeamId, selectedTaskToAllot, allottedHours);
     if (res.success) {
-      await updateComplaintStatus(selectedTaskToAllot.id, "In Progress");
-      setTeams(getMunicipalTeams());
+      updateCivicIssueStatus(selectedTaskToAllot.id, "In Progress");
+      updateComplaintStatus(selectedTaskToAllot.id, "In Progress");
       setIsAllotModalOpen(false);
       setSelectedTaskToAllot(null);
-      setActiveTab("occupied");
+      setSelectedTeamId("");
+      refreshAllData();
+      setActivePage("teams-laid-to-work");
     }
   };
 
-  const handleAdvanceJobStatus = (teamId, currentStatus) => {
-    let nextStatus = "On-Site Remediating";
-    if (currentStatus === "Dispatched to Site" || currentStatus === "Dispatched & Loading") {
-      nextStatus = "On-Site Remediating";
-    } else if (currentStatus === "On-Site Remediating") {
-      nextStatus = "Quality Inspection";
-    }
-
-    updateTeamJobStatus(teamId, nextStatus);
-    setTeams(getMunicipalTeams());
-  };
-
-  const handleCompleteJob = async (team) => {
-    const taskId = team.activeJob?.taskId;
-    if (!confirm(`Are you sure you want to COMPLETE & RESOLVE job for task #${taskId} and release ${team.name}?`)) {
-      return;
-    }
-
-    if (taskId) {
-      await updateComplaintStatus(taskId, "Resolved");
-    }
-    completeJobAndReleaseTeam(team.id);
-    setTeams(getMunicipalTeams());
-  };
-
-  const handleCreateTeamSubmit = (e) => {
+  // Handle Add Member to Team Inline
+  const handleAddMemberToTeam = (e) => {
     e.preventDefault();
-    if (!newTeamName.trim() || !newTeamLeader.trim()) {
-      alert("Please provide Team Name and Leader Name.");
-      return;
-    }
+    if (!activeAddMemberTeam || !memberNameInput.trim()) return;
 
-    const memberList = newTeamMembers
-      .split("\n")
-      .filter((m) => m.trim())
-      .map((name, idx) => ({
-        name: name.trim(),
-        role: idx === 0 ? "Lead Technician" : "Field Specialist"
-      }));
-
-    if (memberList.length === 0) {
-      memberList.push(
-        { name: newTeamLeader, role: "Crew Lead" },
-        { name: "Field Technician 1", role: "Equipment Specialist" },
-        { name: "Field Technician 2", role: "Safety Marshall" }
-      );
-    }
-
-    createMunicipalTeam({
-      name: newTeamName,
-      department: newTeamDept,
-      ward: newTeamWard,
-      leader: newTeamLeader,
-      leaderPhone: newTeamPhone || "+91 98112-00000",
-      members: memberList,
-      equipment: ["Specialized Maintenance Van #01", "Hydraulic & Hand Remediation Tools"]
+    addCrewMemberToTeam(activeAddMemberTeam.id, {
+      name: memberNameInput.trim(),
+      role: memberRoleInput,
+      phone: memberPhoneInput || activeAddMemberTeam.leaderPhone,
+      employeeId: memberEmployeeId || `EMP-${Math.floor(1000 + Math.random() * 9000)}`
     });
 
-    setTeams(getMunicipalTeams());
-    setIsNewTeamModalOpen(false);
-    setNewTeamName("");
-    setNewTeamLeader("");
-    setNewTeamPhone("");
-    setNewTeamMembers("");
+    setMemberNameInput("");
+    setMemberPhoneInput("");
+    setMemberEmployeeId("");
+    setActiveAddMemberTeam(null);
+    refreshAllData();
   };
 
-  // Filter pending tasks
-  const filteredTasks = pendingTasks.filter((task) => {
-    if (selectedDeptFilter !== "All") {
-      const cat = (task.category || "").toLowerCase();
-      if (selectedDeptFilter === "Roads" && !cat.includes("road") && !cat.includes("pothole")) return false;
-      if (selectedDeptFilter === "Hydro" && !cat.includes("water") && !cat.includes("drain")) return false;
-      if (selectedDeptFilter === "Waste" && !cat.includes("waste") && !cat.includes("garbage")) return false;
-      if (selectedDeptFilter === "Power" && !cat.includes("electric") && !cat.includes("light")) return false;
-      if (selectedDeptFilter === "Bridges" && !cat.includes("bridge") && !cat.includes("crack")) return false;
-      if (selectedDeptFilter === "Forestry" && !cat.includes("tree") && !cat.includes("park")) return false;
+  // Handle Remove Member
+  const handleRemoveMember = (teamId, memberIdx) => {
+    if (window.confirm("Remove this crew member from the team?")) {
+      removeCrewMemberFromTeam(teamId, memberIdx);
+      refreshAllData();
     }
+  };
 
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      return (
-        (task.id || "").toLowerCase().includes(q) ||
-        (task.title || "").toLowerCase().includes(q) ||
-        (task.category || "").toLowerCase().includes(q) ||
-        (task.locationName || "").toLowerCase().includes(q) ||
-        (task.ward || "").toLowerCase().includes(q)
-      );
-    }
+  // Handle Submit New Member Request
+  const handleSubmitMemberRequest = (e) => {
+    e.preventDefault();
+    if (!reqName.trim()) return;
 
-    return true;
-  });
+    submitNewMemberRequest({
+      name: reqName.trim(),
+      employeeId: reqEmpId || `EMP-${Math.floor(1000 + Math.random() * 9000)}`,
+      department: reqDept,
+      role: reqRole,
+      phone: reqPhone,
+      targetTeamId: reqTeamId,
+      ward: reqWard,
+      shift: reqShift
+    });
+
+    setReqSuccessMessage(`✅ Onboarding Request for ${reqName} recorded and staged for deployment!`);
+    setReqName("");
+    setReqEmpId("");
+    setReqPhone("");
+    setTimeout(() => setReqSuccessMessage(""), 5000);
+    refreshAllData();
+  };
+
+  // Handle Quick Approve Member Request
+  const handleApproveMember = (reqId) => {
+    approveMemberRequest(reqId);
+    refreshAllData();
+  };
 
   return (
-    <div className="space-y-6 font-mono-tech text-xs pb-16">
+    <div className="space-y-6 text-slate-100 font-sans pb-12">
       
-      {/* 🏛️ Modern Officer Command Hero Header */}
-      <div className="p-6 sm:p-7 rounded-3xl bg-gradient-to-r from-[#0C121E] via-[#0E1726] to-[#0A101A] border border-amber-500/40 relative overflow-hidden shadow-2xl">
-        <div className="absolute top-0 right-0 w-[450px] h-[450px] bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute bottom-0 left-1/3 w-64 h-64 bg-cyan-500/5 rounded-full blur-2xl pointer-events-none" />
+      {/* 1. TOP MUNICIPAL COMMAND HEADER */}
+      <div className="bg-[#0B0F19] border border-amber-500/40 rounded-2xl p-6 shadow-xl relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-96 h-96 bg-amber-500/5 rounded-full blur-3xl pointer-events-none" />
 
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 relative z-10">
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-2.5">
+              <span className="px-3 py-1 rounded-full text-xs font-mono font-bold uppercase bg-amber-950/90 border border-amber-500/80 text-amber-300 flex items-center gap-1.5">
+                <HardHat className="w-3.5 h-3.5 text-amber-400" />
+                MUNICIPAL OFFICER SUITE • WORKFORCE DISPATCH
+              </span>
+              <span className="px-2.5 py-0.5 rounded text-[11px] font-mono bg-slate-900 border border-slate-700 text-slate-400">
+                OFFICER: {user?.name || "Field Officer Desk"}
+              </span>
+            </div>
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-white font-heading tracking-tight">
+              Municipal Workforce & Team Allotment Console
+            </h1>
+            <p className="text-slate-400 text-xs sm:text-sm max-w-2xl font-sans">
+              Live GIS tracking of deployed field repair crews, task duration timers, defect remediation, and ground crew member rosters.
+            </p>
+          </div>
+
+          {/* Quick Module Triggers */}
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              onClick={() => setActivePage("officer-map")}
+              className={`px-4 py-2.5 rounded-xl font-bold text-xs uppercase flex items-center gap-2 cursor-pointer transition shadow-md ${
+                currentView === "map"
+                  ? "bg-amber-500 text-black font-extrabold shadow-amber-500/30"
+                  : "bg-slate-900 border border-amber-500/50 text-amber-300 hover:bg-slate-800"
+              }`}
+            >
+              <MapIcon className="w-4 h-4" />
+              <span>Live Team GIS Map</span>
+            </button>
+
+            <button
+              onClick={() => setActivePage("task-allotment")}
+              className={`px-4 py-2.5 rounded-xl font-extrabold text-xs uppercase flex items-center gap-2 shadow-lg cursor-pointer active:scale-95 transition ${
+                currentView === "allotment"
+                  ? "bg-gradient-to-r from-amber-400 to-amber-500 text-black"
+                  : "bg-amber-950/80 border border-amber-500 text-amber-300 hover:bg-amber-900"
+              }`}
+            >
+              <Send className="w-4 h-4" />
+              <span>Allot Task to Team</span>
+            </button>
+          </div>
+        </div>
+
+        {/* 2. STATS KPI TELEMETRY BAR */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-6 pt-6 border-t border-slate-800/80 font-mono-tech">
           
-          <div className="space-y-3">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl bg-amber-950/80 border border-amber-400/80 flex items-center justify-center text-amber-300 shadow-[0_0_20px_rgba(245,158,11,0.3)]">
-                <Building className="w-6 h-6" />
+          <button
+            onClick={() => setActivePage("teams-laid-to-work")}
+            className="p-4 rounded-xl bg-[#070A10] border border-slate-800/80 hover:border-amber-500/60 transition text-left space-y-1 cursor-pointer"
+          >
+            <div className="text-[11px] text-slate-400 uppercase font-bold flex items-center gap-1.5">
+              <Truck className="w-3.5 h-3.5 text-amber-400" />
+              <span>Teams Laid to Work</span>
+            </div>
+            <div className="text-2xl font-extrabold text-amber-400">{totalOccupiedCount} Units</div>
+            <div className="text-[10px] text-slate-500">Actively resolving on site</div>
+          </button>
+
+          <button
+            onClick={() => setActivePage("task-allotment")}
+            className="p-4 rounded-xl bg-[#070A10] border border-slate-800/80 hover:border-emerald-500/60 transition text-left space-y-1 cursor-pointer"
+          >
+            <div className="text-[11px] text-slate-400 uppercase font-bold flex items-center gap-1.5">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Teams Available</span>
+            </div>
+            <div className="text-2xl font-extrabold text-emerald-400">{totalAvailableCount} Units</div>
+            <div className="text-[10px] text-slate-500">Ready for instant dispatch</div>
+          </button>
+
+          <button
+            onClick={() => setActivePage("teams-laid-to-work")}
+            className="p-4 rounded-xl bg-[#070A10] border border-slate-800/80 hover:border-red-500/60 transition text-left space-y-1 cursor-pointer"
+          >
+            <div className="text-[11px] text-slate-400 uppercase font-bold flex items-center gap-1.5">
+              <AlertTriangle className="w-3.5 h-3.5 text-red-400" />
+              <span>Late Time Overruns</span>
+            </div>
+            <div className="text-2xl font-extrabold text-red-400">{lateTeamsCount} Late</div>
+            <div className="text-[10px] text-slate-500">Exceeding allotted SLA</div>
+          </button>
+
+          <button
+            onClick={() => setActivePage("team-details")}
+            className="p-4 rounded-xl bg-[#070A10] border border-slate-800/80 hover:border-cyan-500/60 transition text-left space-y-1 cursor-pointer"
+          >
+            <div className="text-[11px] text-slate-400 uppercase font-bold flex items-center gap-1.5">
+              <Users className="w-3.5 h-3.5 text-cyan-400" />
+              <span>Total Crew Members</span>
+            </div>
+            <div className="text-2xl font-extrabold text-cyan-400">{totalCrewMembers} Personnel</div>
+            <div className="text-[10px] text-slate-500">Across {teams.length} Specialized Units</div>
+          </button>
+
+        </div>
+      </div>
+
+      {/* 3. VIEW 1: LIVE FIELD TEAMS GIS MAP */}
+      {currentView === "map" && (
+        <div className="space-y-4 font-mono-tech">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-bold text-white font-heading flex items-center gap-2">
+                <MapIcon className="w-5 h-5 text-amber-400" />
+                <span>Live Municipal Teams GPS Radar Map</span>
+              </h2>
+              <p className="text-xs text-slate-400 font-sans">
+                Real-time geographic pinpoints of all municipal field units (🚜), active work duration timers, and defect remediation.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2 text-xs">
+              <span className="px-3 py-1 rounded-lg bg-[#0B0F19] border border-amber-500/50 text-amber-300 font-bold flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
+                <span>🚜 {occupiedTeams.length} Active On-Site Units</span>
+              </span>
+              <span className="px-3 py-1 rounded-lg bg-[#0B0F19] border border-emerald-500/50 text-emerald-300 font-bold">
+                🛠️ {availableTeams.length} Standby Base Units
+              </span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 xl:grid-cols-12 gap-5">
+            
+            {/* Map Viewport Container */}
+            <div className="xl:col-span-8 bg-[#0B0F19] border border-slate-800 rounded-2xl overflow-hidden shadow-2xl h-[580px] relative">
+              <LeafletMap
+                center={[28.6180, 77.2140]}
+                zoom={13}
+                markers={allOfficerMapMarkers}
+                showHeatmap={false}
+                onMarkerClick={(data) => {
+                  if (data?.type === "MUNICIPAL_TEAM") {
+                    setSelectedMapTeam(data);
+                  }
+                }}
+              />
+
+              {/* Map Legend Overlay */}
+              <div className="absolute bottom-4 left-4 z-[400] bg-black/85 backdrop-blur-md border border-slate-800 p-3 rounded-xl text-[11px] space-y-1 shadow-xl">
+                <div className="font-bold text-white uppercase text-[10px] border-b border-slate-800 pb-1">GIS Map Legend</div>
+                <div className="flex items-center gap-2 text-amber-300">
+                  <span>🚜</span>
+                  <span>Active Municipal Unit (On Work)</span>
+                </div>
+                <div className="flex items-center gap-2 text-emerald-300">
+                  <span>🛠️</span>
+                  <span>Available Standby Unit (Base)</span>
+                </div>
+                <div className="flex items-center gap-2 text-red-400">
+                  <span className="w-2.5 h-2.5 rounded-full bg-red-500" />
+                  <span>Critical Defect Location</span>
+                </div>
               </div>
+            </div>
+
+            {/* Right Live Team Telemetry Feed */}
+            <div className="xl:col-span-4 bg-[#0B0F19] border border-slate-800 rounded-2xl p-5 shadow-xl flex flex-col justify-between space-y-4 max-h-[580px] overflow-y-auto">
               
-              <div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <h1 className="text-2xl font-black text-white tracking-wide font-heading">
-                    Municipal Field Officer Command
-                  </h1>
-                  <span className="px-3 py-0.5 rounded-full bg-amber-950 border border-amber-500 text-amber-300 font-extrabold text-[10px] tracking-wider uppercase">
-                    🏛️ ZONAL DISPATCH DESK
+              <div className="space-y-3">
+                <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                  <h3 className="font-bold text-white text-sm uppercase flex items-center gap-1.5">
+                    <Truck className="w-4 h-4 text-amber-400" />
+                    <span>Active Team Telemetry Feed</span>
+                  </h3>
+                  <span className="text-[10px] text-amber-400 font-bold bg-amber-950 px-2 py-0.5 rounded">
+                    {teams.length} Units Tracked
                   </span>
                 </div>
-                <p className="text-xs text-slate-300 font-sans mt-0.5">
-                  Manage field response crews, assign duration SLAs, and monitor live delays
-                </p>
+
+                {/* List of Teams with Quick Details */}
+                <div className="space-y-3">
+                  {teams.map((team) => {
+                    const isOccupied = team.status === "occupied";
+                    const metrics = team.activeJob ? calculateJobTimeMetrics(team.activeJob) : null;
+                    const isSelected = selectedMapTeam?.id === team.id;
+
+                    return (
+                      <div
+                        key={team.id}
+                        onClick={() => setSelectedMapTeam(team)}
+                        className={`p-3.5 rounded-xl border text-xs transition cursor-pointer space-y-2 ${
+                          isSelected
+                            ? "bg-amber-950/70 border-amber-400 shadow-md shadow-amber-950/40"
+                            : isOccupied
+                            ? "bg-[#070A10] border-amber-500/40 hover:border-amber-400"
+                            : "bg-[#070A10] border-slate-800 hover:border-slate-700"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-white font-sans truncate">{team.name}</span>
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                            isOccupied
+                              ? metrics?.isLate ? "bg-red-950 text-red-300 border border-red-500" : "bg-amber-950 text-amber-300 border border-amber-500"
+                              : "bg-emerald-950 text-emerald-300 border border-emerald-500"
+                          }`}>
+                            {isOccupied ? (metrics?.isLate ? `LATE +${metrics.formattedLate}` : "ON WORK") : "AVAILABLE"}
+                          </span>
+                        </div>
+
+                        {team.activeJob ? (
+                          <div className="space-y-1 text-[11px]">
+                            <div className="text-amber-300 font-bold">
+                              ⚠️ Solving: {team.activeJob.taskTitle || team.activeJob.category}
+                            </div>
+                            <div className="text-slate-400 flex items-center justify-between">
+                              <span>Elapsed: <strong className="text-white">{metrics?.formattedElapsed}</strong></span>
+                              <span>Allotted: <strong className="text-amber-300">{team.activeJob.allottedHours}h</strong></span>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="text-[10px] text-slate-500 font-sans">
+                            Standby at depot ({team.ward})
+                          </div>
+                        )}
+
+                        <div className="text-[10px] text-slate-400 flex items-center justify-between pt-1 border-t border-slate-800/80">
+                          <span>Lead: {team.leader}</span>
+                          <span className="text-slate-500">{team.members?.length || 4} Crew</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
+
             </div>
 
-            {/* Officer Meta Chips */}
-            <div className="flex flex-wrap items-center gap-2.5 pt-1 text-[11px] text-slate-200">
-              <span className="px-3 py-1.5 rounded-xl bg-[#070A10]/90 border border-slate-700/80 flex items-center gap-1.5">
-                <Shield className="w-3.5 h-3.5 text-amber-400" />
-                <span>Officer: <strong className="text-white">{user?.name || "Er. Rajesh Mehra"}</strong></span>
-              </span>
-
-              <span className="px-3 py-1.5 rounded-xl bg-[#070A10]/90 border border-slate-700/80 flex items-center gap-1.5">
-                <Building className="w-3.5 h-3.5 text-teal-400" />
-                <span>Dept: <strong className="text-white">{user?.department || "Road Works & Infrastructure"}</strong></span>
-              </span>
-
-              <span className="px-3 py-1.5 rounded-xl bg-[#070A10]/90 border border-slate-700/80 flex items-center gap-1.5">
-                <MapPin className="w-3.5 h-3.5 text-cyan-400" />
-                <span>Zone: <strong className="text-white">{user?.ward || "Central District - Ward 4"}</strong></span>
-              </span>
-            </div>
-          </div>
-
-          {/* Quick Header Actions */}
-          <div className="flex items-center gap-2.5 shrink-0">
-            <button
-              onClick={() => setIsNewTeamModalOpen(true)}
-              className="px-4 py-3 rounded-xl bg-gradient-to-r from-amber-400 via-orange-400 to-amber-300 hover:from-amber-300 hover:to-orange-300 text-black font-extrabold uppercase text-xs flex items-center gap-2 cursor-pointer transition shadow-[0_0_20px_rgba(245,158,11,0.3)] active:scale-95"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Register New Crew</span>
-            </button>
-
-            <button
-              onClick={() => {
-                setTeams(getMunicipalTeams());
-                setIncidents(getLocalCivicIssues());
-              }}
-              title="Refresh live team telemetries"
-              className="p-3 rounded-xl bg-[#070A10] border border-slate-700 hover:border-cyan-400 text-slate-300 hover:text-cyan-400 transition cursor-pointer"
-            >
-              <RefreshCw className="w-4 h-4" />
-            </button>
-          </div>
-
-        </div>
-      </div>
-
-      {/* 📊 High-Level KPI Summary Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
-        
-        {/* Occupied Crews */}
-        <div 
-          onClick={() => setActiveTab("occupied")}
-          className={`p-4 rounded-2xl border transition-all cursor-pointer ${
-            activeTab === "occupied"
-              ? "bg-[#14110C] border-amber-500 shadow-[0_0_20px_rgba(245,158,11,0.2)]"
-              : "bg-[#0B0F19] border-slate-800/90 hover:border-slate-700"
-          }`}
-        >
-          <div className="flex items-center justify-between text-slate-400">
-            <span className="text-[11px] font-bold uppercase tracking-wider">Occupied at Job</span>
-            <Truck className="w-4 h-4 text-amber-400" />
-          </div>
-          <div className="mt-2 flex items-baseline gap-2">
-            <span className="text-2xl font-black text-amber-300 font-sans">{occupiedTeams.length}</span>
-            <span className="text-[10px] text-slate-400">active crews</span>
-          </div>
-          <div className="mt-2 text-[10px] text-amber-400/90 flex items-center gap-1 font-bold">
-            <Radio className="w-2.5 h-2.5 animate-pulse" />
-            <span>Remediating On-Site</span>
           </div>
         </div>
+      )}
 
-        {/* Ready Available Teams */}
-        <div 
-          onClick={() => setActiveTab("teams")}
-          className={`p-4 rounded-2xl border transition-all cursor-pointer ${
-            activeTab === "teams"
-              ? "bg-[#0B1510] border-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.2)]"
-              : "bg-[#0B0F19] border-slate-800/90 hover:border-slate-700"
-          }`}
-        >
-          <div className="flex items-center justify-between text-slate-400">
-            <span className="text-[11px] font-bold uppercase tracking-wider">Available Ready</span>
-            <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-          </div>
-          <div className="mt-2 flex items-baseline gap-2">
-            <span className="text-2xl font-black text-emerald-300 font-sans">{availableTeams.length}</span>
-            <span className="text-[10px] text-slate-400">standby units</span>
-          </div>
-          <div className="mt-2 text-[10px] text-emerald-400/90 flex items-center gap-1 font-bold">
-            <Check className="w-3 h-3" />
-            <span>Ready for Immediate Allotment</span>
-          </div>
-        </div>
-
-        {/* Overdue / Late Delay Tracker */}
-        <div 
-          onClick={() => setActiveTab("occupied")}
-          className={`p-4 rounded-2xl border transition-all cursor-pointer ${
-            lateTeamsCount > 0
-              ? "bg-[#180B0B] border-red-500/80 shadow-[0_0_25px_rgba(239,68,68,0.3)] animate-pulse"
-              : "bg-[#0B0F19] border-slate-800/90 hover:border-slate-700"
-          }`}
-        >
-          <div className="flex items-center justify-between text-slate-400">
-            <span className="text-[11px] font-bold uppercase tracking-wider">SLA Overdue / Late</span>
-            <AlertTriangle className={`w-4 h-4 ${lateTeamsCount > 0 ? "text-red-400" : "text-slate-500"}`} />
-          </div>
-          <div className="mt-2 flex items-baseline gap-2">
-            <span className={`text-2xl font-black font-sans ${lateTeamsCount > 0 ? "text-red-400" : "text-slate-300"}`}>
-              {lateTeamsCount}
-            </span>
-            <span className="text-[10px] text-slate-400">delayed jobs</span>
-          </div>
-          <div className="mt-2 text-[10px] flex items-center gap-1 font-bold">
-            {lateTeamsCount > 0 ? (
-              <span className="text-red-400">🚨 Immediate Remediation Required</span>
-            ) : (
-              <span className="text-emerald-400">✓ All Teams On Schedule</span>
-            )}
-          </div>
-        </div>
-
-        {/* Pending Task Queue */}
-        <div 
-          onClick={() => setActiveTab("allotment")}
-          className={`p-4 rounded-2xl border transition-all cursor-pointer ${
-            activeTab === "allotment"
-              ? "bg-[#0B1220] border-cyan-500 shadow-[0_0_20px_rgba(6,182,212,0.2)]"
-              : "bg-[#0B0F19] border-slate-800/90 hover:border-slate-700"
-          }`}
-        >
-          <div className="flex items-center justify-between text-slate-400">
-            <span className="text-[11px] font-bold uppercase tracking-wider">Pending Task Queue</span>
-            <Sparkles className="w-4 h-4 text-cyan-400" />
-          </div>
-          <div className="mt-2 flex items-baseline gap-2">
-            <span className="text-2xl font-black text-cyan-300 font-sans">{pendingTasks.length}</span>
-            <span className="text-[10px] text-slate-400">unallotted tasks</span>
-          </div>
-          <div className="mt-2 text-[10px] text-cyan-400/90 flex items-center gap-1 font-bold">
-            <ArrowRight className="w-3 h-3" />
-            <span>Click to Allot Crew</span>
-          </div>
-        </div>
-
-      </div>
-
-      {/* 🧭 Main Interactive Navigation Tabs */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-        
-        <button
-          onClick={() => setActiveTab("occupied")}
-          className={`p-4 rounded-2xl border flex items-center justify-between transition cursor-pointer ${
-            activeTab === "occupied"
-              ? "bg-gradient-to-r from-[#17120C] to-[#0E121A] border-amber-400 text-amber-300 shadow-lg"
-              : "bg-[#0B0F19] border-slate-800 text-slate-400 hover:text-white hover:border-slate-700"
-          }`}
-        >
-          <div className="flex items-center gap-3">
-            <div className={`p-2 rounded-xl ${activeTab === "occupied" ? "bg-amber-950/80 text-amber-400" : "bg-slate-900 text-slate-400"}`}>
-              <Truck className="w-5 h-5" />
-            </div>
-            <div className="text-left">
-              <div className="font-bold text-xs uppercase tracking-wider">1. Occupied Crews & Live Late Tracker</div>
-              <div className="text-[10px] text-slate-400 font-sans">Live countdown timers & delay monitor</div>
-            </div>
-          </div>
-          <span className="px-2.5 py-1 rounded-full bg-amber-950 border border-amber-500 font-extrabold text-amber-300 text-xs">
-            {occupiedTeams.length}
-          </span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab("allotment")}
-          className={`p-4 rounded-2xl border flex items-center justify-between transition cursor-pointer ${
-            activeTab === "allotment"
-              ? "bg-gradient-to-r from-[#0B1526] to-[#0E121A] border-cyan-400 text-cyan-300 shadow-lg"
-              : "bg-[#0B0F19] border-slate-800 text-slate-400 hover:text-white hover:border-slate-700"
-          }`}
-        >
-          <div className="flex items-center gap-3">
-            <div className={`p-2 rounded-xl ${activeTab === "allotment" ? "bg-cyan-950/80 text-cyan-400" : "bg-slate-900 text-slate-400"}`}>
-              <Sparkles className="w-5 h-5" />
-            </div>
-            <div className="text-left">
-              <div className="font-bold text-xs uppercase tracking-wider">2. Task Queue & Quick Allotment</div>
-              <div className="text-[10px] text-slate-400 font-sans">Assign available crews to reported defects</div>
-            </div>
-          </div>
-          <span className="px-2.5 py-1 rounded-full bg-cyan-950 border border-cyan-500 font-extrabold text-cyan-300 text-xs">
-            {pendingTasks.length}
-          </span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab("teams")}
-          className={`p-4 rounded-2xl border flex items-center justify-between transition cursor-pointer ${
-            activeTab === "teams"
-              ? "bg-gradient-to-r from-[#0B1914] to-[#0E121A] border-emerald-400 text-emerald-300 shadow-lg"
-              : "bg-[#0B0F19] border-slate-800 text-slate-400 hover:text-white hover:border-slate-700"
-          }`}
-        >
-          <div className="flex items-center gap-3">
-            <div className={`p-2 rounded-xl ${activeTab === "teams" ? "bg-emerald-950/80 text-emerald-400" : "bg-slate-900 text-slate-400"}`}>
-              <Users className="w-5 h-5" />
-            </div>
-            <div className="text-left">
-              <div className="font-bold text-xs uppercase tracking-wider">3. Teams Directory & Rosters</div>
-              <div className="text-[10px] text-slate-400 font-sans">Crew leads, phone numbers & machinery</div>
-            </div>
-          </div>
-          <span className="px-2.5 py-1 rounded-full bg-emerald-950 border border-emerald-500 font-extrabold text-emerald-300 text-xs">
-            {teams.length}
-          </span>
-        </button>
-
-      </div>
-
-      {/* ========================================================================= */}
-      {/* TAB 1: OCCUPIED CREWS & LIVE OVERDUE / LATE TRACKER                      */}
-      {/* ========================================================================= */}
-      {activeTab === "occupied" && (
-        <div className="space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 rounded-2xl bg-[#0B0F19] border border-slate-800">
-            <div className="flex items-center gap-2">
-              <Truck className="w-4 h-4 text-amber-400" />
-              <span className="text-sm font-bold text-white uppercase">
-                Active Crews Remediating In Field ({occupiedTeams.length})
-              </span>
-            </div>
-            <span className="text-slate-400 text-[11px]">
-              ⏱️ Real-time duration timer & delay penalty calculator active
+      {/* 4. VIEW 2: TEAMS LAID TO WORK (ACTIVE DEPLOYMENTS) */}
+      {currentView === "occupied" && (
+        <div className="space-y-4 font-mono-tech">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-bold text-white font-heading flex items-center gap-2">
+              <Truck className="w-5 h-5 text-amber-400" />
+              <span>Active Field Deployments & Real-Time Timers</span>
+            </h2>
+            <span className="text-xs text-slate-400">
+              Auto-refreshed every 10s • Real-time delay calculations
             </span>
           </div>
 
           {occupiedTeams.length === 0 ? (
-            <div className="p-16 rounded-3xl bg-[#0B0F19] border border-slate-800/80 text-center space-y-3">
-              <div className="w-14 h-14 rounded-2xl bg-emerald-950/70 border border-emerald-500/50 flex items-center justify-center mx-auto text-emerald-400">
-                <CheckCircle2 className="w-7 h-7" />
-              </div>
-              <h4 className="text-base font-bold text-white">All Municipal Field Teams are Ready on Standby</h4>
+            <div className="p-12 text-center rounded-2xl bg-[#0B0F19] border border-slate-800 space-y-3">
+              <CheckCircle2 className="w-12 h-12 text-emerald-400 mx-auto" />
+              <h3 className="text-base font-bold text-white font-heading">No Teams Currently Laid to Work</h3>
               <p className="text-xs text-slate-400 max-w-md mx-auto">
-                No active jobs currently in remediation. Open the <strong>Task Queue & Team Allotment</strong> tab to dispatch a team to reported civic defects.
+                All municipal crews are in available standby status. Go to Task Allotment to assign pending civic defects.
               </p>
               <button
-                onClick={() => setActiveTab("allotment")}
-                className="mt-2 px-5 py-2.5 rounded-xl bg-cyan-400 hover:bg-cyan-300 text-black font-extrabold text-xs uppercase tracking-wider transition cursor-pointer"
+                onClick={() => setActivePage("task-allotment")}
+                className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs uppercase cursor-pointer"
               >
-                Go to Task Queue →
+                Go to Task Allotment
               </button>
             </div>
           ) : (
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
               {occupiedTeams.map((team) => {
-                const job = team.activeJob;
-                const metrics = calculateJobTimeMetrics(job);
-
-                // Progress Percentage
-                const pct = Math.min(100, Math.round((metrics.elapsedMinutes / metrics.allottedMinutes) * 100));
+                const metrics = calculateJobTimeMetrics(team.activeJob);
+                const progressPct = Math.min(100, Math.round((metrics.elapsedMinutes / (metrics.allottedMinutes || 1)) * 100));
 
                 return (
                   <div
                     key={team.id}
-                    className={`p-6 rounded-3xl border transition-all relative overflow-hidden flex flex-col justify-between gap-5 ${
+                    className={`p-6 rounded-2xl border bg-[#0B0F19] shadow-xl space-y-4 relative overflow-hidden ${
                       metrics.isLate
-                        ? "bg-gradient-to-br from-[#1C0D0D] via-[#150A0A] to-[#0E0E12] border-red-500 shadow-[0_0_30px_rgba(239,68,68,0.25)]"
-                        : "bg-gradient-to-br from-[#12100E] via-[#0E1119] to-[#0A0D14] border-amber-500/60 shadow-xl"
+                        ? "border-red-500/80 shadow-red-950/30"
+                        : "border-amber-500/60 shadow-amber-950/20"
                     }`}
                   >
-                    {/* Top Team Header */}
-                    <div className="space-y-3">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-extrabold text-white text-base font-sans">
-                              {team.name}
-                            </span>
-                            <span className="px-2.5 py-0.5 rounded-md bg-amber-950/90 border border-amber-500/70 text-amber-300 text-[10px] font-bold">
-                              {team.department}
-                            </span>
-                          </div>
-                          
-                          <div className="text-xs text-slate-300 flex items-center gap-2 mt-1 font-sans">
-                            <MapPin className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
-                            <span>Job Site: <strong className="text-white">{job.locationName || team.ward}</strong></span>
-                          </div>
-                        </div>
-
-                        {/* Late / On-Schedule Status Tag */}
-                        <div>
-                          {metrics.isLate ? (
-                            <div className="px-3 py-1.5 rounded-xl bg-red-950 border border-red-500 text-red-300 font-extrabold text-xs flex items-center gap-1.5 animate-pulse shadow-md">
-                              <AlertTriangle className="w-4 h-4 text-red-400" />
-                              <span>🚨 {metrics.lateFormatted} OVERDUE</span>
-                            </div>
-                          ) : (
-                            <div className="px-3 py-1.5 rounded-xl bg-emerald-950 border border-emerald-500 text-emerald-300 font-extrabold text-xs flex items-center gap-1.5 shadow-md">
-                              <Clock className="w-4 h-4 text-emerald-400" />
-                              <span>🟢 {metrics.remainingFormatted} Left</span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Active Task Info Card */}
-                      <div className="p-3.5 rounded-2xl bg-[#070A10]/90 border border-slate-800 space-y-2">
-                        <div className="flex items-center justify-between text-[11px]">
-                          <span className="text-slate-400">Assigned Defect Task:</span>
-                          <span className="font-extrabold text-cyan-400">#{job.taskId}</span>
-                        </div>
-                        <p className="text-xs text-white font-sans font-semibold line-clamp-1">
-                          {job.taskTitle || "Infrastructure Remediation Work Order"}
-                        </p>
-                        <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1 border-t border-slate-800/80">
-                          <span>Dispatched: <strong>{new Date(job.dispatchedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</strong></span>
-                          <span>Duration Limit: <strong className="text-amber-300">{job.allottedHours} Hours</strong></span>
-                        </div>
-                      </div>
-
-                      {/* Visual Time Elapsed Progress Bar */}
-                      <div className="space-y-1.5">
-                        <div className="flex items-center justify-between text-[10px]">
-                          <span className="text-slate-400">Elapsed Time: <strong className="text-white">{metrics.elapsedFormatted}</strong></span>
-                          <span className={`font-bold ${metrics.isLate ? "text-red-400" : "text-amber-300"}`}>
-                            {pct}% of SLA Duration
+                    {/* Header */}
+                    <div className="flex items-start justify-between gap-3 border-b border-slate-800 pb-3">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-white text-base font-sans">{team.name}</span>
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-slate-900 border border-slate-700 text-amber-300">
+                            {team.id}
                           </span>
                         </div>
-
-                        <div className="w-full h-2.5 rounded-full bg-slate-900 border border-slate-800 overflow-hidden">
-                          <div
-                            className={`h-full transition-all duration-500 ${
-                              metrics.isLate
-                                ? "bg-gradient-to-r from-amber-500 to-red-500"
-                                : pct > 75
-                                ? "bg-amber-400"
-                                : "bg-gradient-to-r from-emerald-400 to-cyan-400"
-                            }`}
-                            style={{ width: `${pct}%` }}
-                          />
-                        </div>
+                        <div className="text-xs text-slate-400 mt-0.5">{team.department}</div>
                       </div>
 
-                      {/* Allotted Crew Members & Contact */}
-                      <div className="pt-1">
-                        <div className="text-[11px] text-slate-400 font-bold mb-1.5 flex items-center justify-between">
-                          <span className="flex items-center gap-1.5">
-                            <Users className="w-3.5 h-3.5 text-cyan-400" />
-                            <span>Allotted Field Crew ({team.members?.length || 3})</span>
-                          </span>
-                          <a
-                            href={`tel:${team.leaderPhone || "+919811200000"}`}
-                            className="text-cyan-400 hover:text-cyan-300 flex items-center gap-1 text-[11px] font-bold"
-                          >
-                            <Phone className="w-3 h-3" />
-                            <span>Call {team.leader} ({team.leaderPhone || "+91 98112-XXXXX"})</span>
-                          </a>
-                        </div>
+                      <span className={`px-2.5 py-1 rounded-lg text-xs font-bold uppercase flex items-center gap-1.5 ${
+                        metrics.isLate
+                          ? "bg-red-950 border border-red-500 text-red-300 animate-pulse"
+                          : "bg-amber-950 border border-amber-500 text-amber-300"
+                      }`}>
+                        <Timer className="w-3.5 h-3.5" />
+                        <span>{metrics.isLate ? `LATE BY ${metrics.formattedLate}` : "ON TRACK"}</span>
+                      </span>
+                    </div>
 
-                        <div className="flex flex-wrap gap-1.5">
-                          {team.members?.map((m, idx) => (
-                            <span
-                              key={idx}
-                              className="px-2 py-1 rounded-lg bg-[#070A10] border border-slate-800 text-[10px] text-slate-300"
-                            >
-                              <strong>{m.name}</strong> • <span className="text-slate-400">{m.role}</span>
-                            </span>
-                          ))}
-                        </div>
+                    {/* Active Job Details */}
+                    <div className="p-4 rounded-xl bg-[#070A10] border border-slate-800 space-y-2 text-xs">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-amber-400">TASK: {team.activeJob.taskId}</span>
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-red-950 text-red-300 border border-red-500/50">
+                          {team.activeJob.priority || "P1"} Hazard
+                        </span>
+                      </div>
+                      <div className="text-white font-bold text-sm font-sans">{team.activeJob.taskTitle}</div>
+                      <div className="text-slate-400 text-[11px] flex items-center gap-1.5">
+                        <MapPin className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                        <span>{team.activeJob.address || team.activeJob.ward}</span>
                       </div>
                     </div>
 
-                    {/* Stage Advancer & Action Controls */}
-                    <div className="pt-3 border-t border-slate-800/80 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-                      
-                      <div className="flex items-center gap-2">
-                        <span className="text-[11px] text-slate-400">Current Stage:</span>
-                        <span className="px-2.5 py-1 rounded-lg bg-cyan-950 border border-cyan-500/80 text-cyan-300 font-bold text-xs">
-                          {job.status || "Dispatched"}
+                    {/* Live Elapsed vs Allotted Time Bar */}
+                    <div className="space-y-1.5 text-xs">
+                      <div className="flex items-center justify-between text-slate-400">
+                        <span>Elapsed: <strong className="text-white">{metrics.formattedElapsed}</strong></span>
+                        <span>Allotted SLA: <strong className="text-amber-300">{team.activeJob.allottedHours} Hours</strong></span>
+                      </div>
+
+                      <div className="w-full h-2.5 rounded-full bg-slate-900 overflow-hidden border border-slate-800">
+                        <div
+                          className={`h-full rounded-full transition-all duration-500 ${
+                            metrics.isLate ? "bg-red-500" : "bg-gradient-to-r from-amber-500 to-amber-300"
+                          }`}
+                          style={{ width: `${progressPct}%` }}
+                        />
+                      </div>
+
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="text-slate-500">Progress: {progressPct}%</span>
+                        <span className={metrics.isLate ? "text-red-400 font-bold" : "text-emerald-400"}>
+                          {metrics.isLate ? `Overrun: +${metrics.formattedLate}` : `Remaining: ${metrics.formattedRemaining}`}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Crew Lead & Actions */}
+                    <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-800/80">
+                      <div className="flex items-center gap-2 text-xs text-slate-300">
+                        <UserCheck className="w-4 h-4 text-amber-400" />
+                        <span>Lead: <strong>{team.leader}</strong> ({team.members?.length || 4} Crew)</span>
+                      </div>
+
+                      <button
+                        onClick={() => handleCompleteJob(team.id)}
+                        className="px-4 py-2 rounded-xl bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-500 text-emerald-300 font-bold text-xs uppercase flex items-center gap-1.5 transition cursor-pointer active:scale-95 shadow-md"
+                      >
+                        <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                        <span>Mark Work Completed & Release Team</span>
+                      </button>
+                    </div>
+
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 5. VIEW 3: TEAM ALLOTMENT (TASK DISPATCH ENGINE) */}
+      {currentView === "allotment" && (
+        <div className="space-y-4 font-mono-tech">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-bold text-white font-heading flex items-center gap-2">
+                <Send className="w-5 h-5 text-amber-400" />
+                <span>Task Allotment & Workforce Dispatch Engine</span>
+              </h2>
+              <p className="text-xs text-slate-400">
+                Select an unassigned civic defect and assign it to an available municipal repair unit.
+              </p>
+            </div>
+
+            <div className="text-xs text-emerald-400 font-mono-tech px-3 py-1.5 rounded-lg bg-emerald-950/60 border border-emerald-500/50">
+              {availableTeams.length} Municipal Units Available for Dispatch
+            </div>
+          </div>
+
+          <div className="bg-[#0B0F19] border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+            <div className="p-4 border-b border-slate-800 bg-[#070A10] flex items-center justify-between text-xs font-mono-tech text-slate-400 font-bold uppercase">
+              <span>Unassigned Incident / Grievance</span>
+              <span>Allotment Action</span>
+            </div>
+
+            {unassignedIncidents.length === 0 ? (
+              <div className="p-12 text-center text-slate-400 space-y-2">
+                <CheckCircle2 className="w-10 h-10 text-emerald-400 mx-auto" />
+                <p className="font-bold text-white">All Active Incidents Assigned!</p>
+                <p className="text-xs">No pending civic defects currently awaiting workforce allotment.</p>
+              </div>
+            ) : (
+              <div className="divide-y divide-slate-800/80">
+                {unassignedIncidents.map((incident) => (
+                  <div
+                    key={incident.id}
+                    className="p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 hover:bg-slate-900/40 transition"
+                  >
+                    <div className="space-y-1.5">
+                      <div className="flex items-center gap-2 font-mono-tech">
+                        <span className="font-bold text-amber-400 text-xs">{incident.id}</span>
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-slate-900 border border-slate-700 text-slate-300">
+                          {incident.category}
+                        </span>
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-red-950/80 border border-red-500/60 text-red-300">
+                          {incident.priority || "P1"} Hazard
                         </span>
                       </div>
 
-                      <div className="flex items-center gap-2">
-                        {job.status !== "Quality Inspection" && (
-                          <button
-                            onClick={() => handleAdvanceJobStatus(team.id, job.status)}
-                            className="flex-1 sm:flex-none px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 font-bold text-xs transition cursor-pointer flex items-center justify-center gap-1.5"
-                          >
-                            <span>Advance Stage</span>
-                            <ChevronRight className="w-4 h-4 text-cyan-400" />
-                          </button>
-                        )}
-
-                        <button
-                          onClick={() => handleCompleteJob(team)}
-                          className="flex-1 sm:flex-none px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-400 to-teal-400 hover:from-emerald-300 hover:to-teal-300 text-black font-extrabold text-xs uppercase tracking-wider transition cursor-pointer shadow-lg active:scale-95 flex items-center justify-center gap-1.5"
-                        >
-                          <Check className="w-4 h-4" />
-                          <span>Job Completed ✓</span>
-                        </button>
+                      <h4 className="text-white font-bold font-sans text-sm">{incident.title}</h4>
+                      
+                      <div className="flex flex-wrap items-center gap-3 text-xs text-slate-400 font-mono-tech">
+                        <span className="flex items-center gap-1 text-slate-300">
+                          <MapPin className="w-3.5 h-3.5 text-amber-400" />
+                          <span>{incident.address || incident.ward}</span>
+                        </span>
+                        <span>SLA: <strong className="text-amber-300">{incident.slaHours || 4}h</strong></span>
+                        <span>Dept: <strong className="text-slate-300">{incident.assignedDepartment || "Road Works"}</strong></span>
                       </div>
-
                     </div>
+
+                    <button
+                      onClick={() => {
+                        setSelectedTaskToAllot(incident);
+                        setSelectedTeamId(availableTeams[0]?.id || "");
+                        setAllottedHours(incident.slaHours || 4);
+                        setIsAllotModalOpen(true);
+                      }}
+                      className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 text-black font-extrabold text-xs uppercase flex items-center justify-center gap-2 cursor-pointer shadow-md active:scale-95 transition shrink-0"
+                    >
+                      <Send className="w-3.5 h-3.5 text-black" />
+                      <span>Allot Team to Work</span>
+                    </button>
                   </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ========================================================================= */}
-      {/* TAB 2: TASK QUEUE & QUICK ALLOTMENT                                       */}
-      {/* ========================================================================= */}
-      {activeTab === "allotment" && (
-        <div className="space-y-4">
-          
-          {/* Search & Department Filters */}
-          <div className="p-4 rounded-3xl bg-[#0B0F19] border border-slate-800 space-y-3">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div className="relative flex-1">
-                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search defects by title, ID, category, or location..."
-                  className="w-full bg-[#070A10] border border-slate-800 rounded-xl pl-10 pr-3 py-2 text-white text-xs placeholder:text-slate-500 focus:outline-none focus:border-cyan-400"
-                />
-              </div>
-
-              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
-                {["All", "Roads", "Hydro", "Waste", "Power", "Bridges", "Forestry"].map((dept) => (
-                  <button
-                    key={dept}
-                    onClick={() => setSelectedDeptFilter(dept)}
-                    className={`px-3 py-1.5 rounded-xl font-bold text-xs transition cursor-pointer shrink-0 ${
-                      selectedDeptFilter === dept
-                        ? "bg-cyan-400 text-black shadow-md font-extrabold"
-                        : "bg-[#070A10] border border-slate-800 text-slate-400 hover:text-white"
-                    }`}
-                  >
-                    {dept}
-                  </button>
                 ))}
               </div>
-            </div>
+            )}
           </div>
+        </div>
+      )}
 
-          {filteredTasks.length === 0 ? (
-            <div className="p-16 rounded-3xl bg-[#0B0F19] border border-slate-800/80 text-center space-y-3">
-              <CheckCircle2 className="w-12 h-12 mx-auto text-cyan-400" />
-              <h4 className="text-base font-bold text-white">No Pending Defect Tasks Found</h4>
-              <p className="text-xs text-slate-400 max-w-md mx-auto">
-                All reported civic complaints in this filter have been allotted or resolved.
+      {/* 6. VIEW 4: TEAM DETAILS & MEMBER ROSTERS */}
+      {currentView === "teams" && (
+        <div className="space-y-4 font-mono-tech">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-bold text-white font-heading flex items-center gap-2">
+                <Users className="w-5 h-5 text-amber-400" />
+                <span>Municipal Field Teams & Member Rosters</span>
+              </h2>
+              <p className="text-xs text-slate-400">
+                Detailed roster of municipal units, equipment, assigned wards, and active member profiles.
               </p>
             </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filteredTasks.map((task) => {
-                const isAllotted = occupiedTeams.some((t) => t.activeJob?.taskId === task.id);
+          </div>
 
-                return (
-                  <div
-                    key={task.id}
-                    className="p-5 rounded-3xl bg-gradient-to-br from-[#0C111C] via-[#0B0F19] to-[#070A10] border border-slate-800 hover:border-cyan-500/60 transition-all shadow-xl flex flex-col justify-between gap-4 group"
-                  >
-                    <div className="space-y-3">
-                      
-                      {/* Image Preview if available */}
-                      {task.imageUrl && (
-                        <div className="w-full h-36 rounded-2xl overflow-hidden border border-slate-800/80 relative">
-                          <img
-                            src={task.imageUrl}
-                            alt={task.title}
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                          />
-                          <div className="absolute top-2 left-2 px-2.5 py-1 rounded-lg bg-black/80 backdrop-blur-md text-[10px] font-bold text-cyan-300 border border-cyan-500/50">
-                            Level {task.hazardLevel || task.problemLevel || 3} Defect
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            {teams.map((team) => (
+              <div
+                key={team.id}
+                className="p-6 rounded-2xl bg-[#0B0F19] border border-slate-800 shadow-xl space-y-4 relative"
+              >
+                {/* Team Header */}
+                <div className="flex items-start justify-between gap-3 border-b border-slate-800 pb-3">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-white text-base font-sans">{team.name}</span>
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-slate-900 border border-slate-700 text-amber-300">
+                        {team.id}
+                      </span>
+                    </div>
+                    <div className="text-xs text-slate-400 mt-0.5">{team.department}</div>
+                  </div>
+
+                  <span className={`px-2.5 py-1 rounded-lg text-xs font-bold uppercase ${
+                    team.status === "occupied"
+                      ? "bg-amber-950 border border-amber-500 text-amber-300"
+                      : "bg-emerald-950 border border-emerald-500 text-emerald-300"
+                  }`}>
+                    {team.status === "occupied" ? "⚡ LAID TO WORK" : "✅ AVAILABLE"}
+                  </span>
+                </div>
+
+                {/* Team Info Cards */}
+                <div className="grid grid-cols-2 gap-3 text-xs">
+                  <div className="p-3 rounded-xl bg-[#070A10] border border-slate-800/80 space-y-1">
+                    <span className="text-slate-500 text-[10px] uppercase font-bold">Crew Leader</span>
+                    <div className="text-white font-bold truncate">{team.leader}</div>
+                    <div className="text-slate-400 text-[11px] flex items-center gap-1">
+                      <Phone className="w-3 h-3 text-amber-400" />
+                      <span>{team.leaderPhone}</span>
+                    </div>
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-[#070A10] border border-slate-800/80 space-y-1">
+                    <span className="text-slate-500 text-[10px] uppercase font-bold">Assigned Ward</span>
+                    <div className="text-amber-300 font-bold truncate">{team.ward}</div>
+                    <div className="text-slate-400 text-[11px]">{team.equipment?.length || 2} Heavy Rigs</div>
+                  </div>
+                </div>
+
+                {/* Members Roster List */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-xs font-bold text-slate-300 uppercase">
+                    <span>Crew Members ({team.members?.length || 0})</span>
+                    <button
+                      onClick={() => {
+                        setActiveAddMemberTeam(team);
+                        setMemberNameInput("");
+                        setMemberRoleInput("Field Technician");
+                      }}
+                      className="text-amber-400 hover:text-amber-300 text-[11px] flex items-center gap-1 cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Add Member</span>
+                    </button>
+                  </div>
+
+                  <div className="divide-y divide-slate-800/60 rounded-xl bg-[#070A10] border border-slate-800/80 overflow-hidden">
+                    {team.members?.map((member, mIdx) => (
+                      <div
+                        key={mIdx}
+                        className="p-2.5 flex items-center justify-between text-xs hover:bg-slate-900/40 transition"
+                      >
+                        <div className="flex items-center gap-2">
+                          <div className="w-6 h-6 rounded-full bg-slate-800 text-amber-300 flex items-center justify-center font-bold text-[10px]">
+                            {member.name[0]}
+                          </div>
+                          <div>
+                            <span className="font-bold text-white font-sans">{member.name}</span>
+                            <span className="text-[10px] text-slate-400 ml-2 font-mono-tech">
+                              {member.role || "Technician"}
+                            </span>
                           </div>
                         </div>
-                      )}
 
-                      <div>
-                        <div className="flex items-center justify-between text-[11px]">
-                          <span className="px-2 py-0.5 rounded-md bg-cyan-950 border border-cyan-500/50 text-cyan-300 font-bold">
-                            {task.category || "Infrastructure Defect"}
-                          </span>
-                          <span className="text-slate-400 font-mono-tech">#{task.id}</span>
-                        </div>
-
-                        <h4 className="text-sm font-bold text-white font-sans mt-2 group-hover:text-cyan-300 transition-colors">
-                          {task.title || "Civic Complaint"}
-                        </h4>
-
-                        <p className="text-xs text-slate-400 font-sans mt-1 line-clamp-2">
-                          {task.description || "Public reported defect requiring municipal field engineering remediation."}
-                        </p>
-                      </div>
-
-                      <div className="p-2.5 rounded-xl bg-[#070A10] border border-slate-800/80 text-[11px] text-slate-300 space-y-1">
-                        <div className="flex items-center gap-1.5 text-cyan-400">
-                          <MapPin className="w-3.5 h-3.5 shrink-0" />
-                          <span className="truncate">{task.locationName || task.location || "Central Delhi Zone"}</span>
-                        </div>
-                        {task.ward && (
-                          <div className="text-[10px] text-amber-300 font-bold">
-                            Ward: {task.ward}
-                          </div>
+                        {team.members.length > 2 && (
+                          <button
+                            onClick={() => handleRemoveMember(team.id, mIdx)}
+                            className="text-slate-500 hover:text-red-400 p-1 cursor-pointer transition"
+                            title="Remove member from team"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
                         )}
                       </div>
-                    </div>
-
-                    {/* Allot Button */}
-                    <div className="pt-2 border-t border-slate-800/80">
-                      {isAllotted ? (
-                        <div className="w-full py-2.5 rounded-xl bg-amber-950/70 border border-amber-500/70 text-amber-300 font-extrabold text-xs flex items-center justify-center gap-1.5">
-                          <Truck className="w-4 h-4 text-amber-400" />
-                          <span>Crew Dispatched & Working</span>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => handleOpenAllotModal(task)}
-                          disabled={availableTeams.length === 0}
-                          className="w-full py-3 rounded-xl bg-gradient-to-r from-cyan-400 via-teal-300 to-cyan-400 hover:from-cyan-300 hover:to-teal-200 text-black font-extrabold text-xs uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer shadow-lg active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          <Sparkles className="w-4 h-4" />
-                          <span>{availableTeams.length > 0 ? "⚡ Allot Municipal Team" : "No Teams Available"}</span>
-                        </button>
-                      )}
-                    </div>
-
+                    ))}
                   </div>
-                );
-              })}
-            </div>
-          )}
+                </div>
 
+                {/* Equipment Fleet */}
+                <div className="text-[11px] text-slate-400 font-sans space-y-1">
+                  <span className="font-bold text-slate-500 uppercase text-[10px] font-mono-tech">Deployed Equipment:</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {team.equipment?.map((eq, i) => (
+                      <span key={i} className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-300 text-[10px]">
+                        🚜 {eq}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
-      {/* ========================================================================= */}
-      {/* TAB 3: ALL TEAMS DIRECTORY & ROSTERS                                     */}
-      {/* ========================================================================= */}
-      {activeTab === "teams" && (
-        <div className="space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-2xl bg-[#0B0F19] border border-slate-800">
-            <div className="flex items-center gap-2">
-              <Users className="w-4 h-4 text-emerald-400" />
-              <span className="text-sm font-bold text-white uppercase">
-                Municipal Field Teams Directory ({teams.length})
-              </span>
+      {/* 7. VIEW 5: ADD NEW MEMBER & CREW SIGNUP REQUESTS */}
+      {currentView === "new_member" && (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 font-mono-tech">
+          
+          {/* Left Form: Register New Crew Member */}
+          <div className="lg:col-span-7 space-y-4">
+            <div className="bg-[#0B0F19] border border-amber-500/50 rounded-2xl p-6 shadow-xl space-y-5">
+              
+              <div className="border-b border-slate-800 pb-4">
+                <h3 className="text-lg font-bold text-white font-heading flex items-center gap-2">
+                  <UserPlus className="w-5 h-5 text-amber-400" />
+                  <span>Register New Crew Member / Signup Request</span>
+                </h3>
+                <p className="text-xs text-slate-400 mt-1 font-sans">
+                  Onboard new municipal technicians, engineers, heavy machinery operators, and assign them to active units.
+                </p>
+              </div>
+
+              {reqSuccessMessage && (
+                <div className="p-3.5 rounded-xl bg-emerald-950/80 border border-emerald-500 text-emerald-200 text-xs font-bold flex items-center gap-2 animate-bounce">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <span>{reqSuccessMessage}</span>
+                </div>
+              )}
+
+              <form onSubmit={handleSubmitMemberRequest} className="space-y-4 text-xs">
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="block text-slate-300 font-bold uppercase">Full Name *</label>
+                    <input
+                      type="text"
+                      required
+                      value={reqName}
+                      onChange={(e) => setReqName(e.target.value)}
+                      placeholder="e.g. Rameshwar Dayal"
+                      className="w-full bg-[#070A10] border border-slate-800 rounded-xl p-3 text-white focus:outline-none focus:border-amber-400"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="block text-slate-300 font-bold uppercase">Employee / Badge ID</label>
+                    <input
+                      type="text"
+                      value={reqEmpId}
+                      onChange={(e) => setReqEmpId(e.target.value)}
+                      placeholder="e.g. EMP-7821"
+                      className="w-full bg-[#070A10] border border-slate-800 rounded-xl p-3 text-white focus:outline-none focus:border-amber-400"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="block text-slate-300 font-bold uppercase">Department Division</label>
+                    <select
+                      value={reqDept}
+                      onChange={(e) => setReqDept(e.target.value)}
+                      className="w-full bg-[#070A10] border border-slate-800 rounded-xl p-3 text-white focus:outline-none focus:border-amber-400"
+                    >
+                      <option>Road Works & Asphalt Pavement Division</option>
+                      <option>Municipal Hydro & Water Supply Grid</option>
+                      <option>Sanitation & Solid Waste Logistics Unit</option>
+                      <option>Municipal Power & Street Lighting Grid</option>
+                      <option>Structural Engineering & Bridge Safety Division</option>
+                      <option>Urban Forestry & Public Parks Department</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="block text-slate-300 font-bold uppercase">Role / Specialization</label>
+                    <input
+                      type="text"
+                      required
+                      value={reqRole}
+                      onChange={(e) => setReqRole(e.target.value)}
+                      placeholder="e.g. Compactor Operator, Leak Sonar Tech"
+                      className="w-full bg-[#070A10] border border-slate-800 rounded-xl p-3 text-white focus:outline-none focus:border-amber-400"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="block text-slate-300 font-bold uppercase">Contact Phone Number</label>
+                    <input
+                      type="tel"
+                      value={reqPhone}
+                      onChange={(e) => setReqPhone(e.target.value)}
+                      placeholder="e.g. +91 98123-45678"
+                      className="w-full bg-[#070A10] border border-slate-800 rounded-xl p-3 text-white focus:outline-none focus:border-amber-400"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="block text-slate-300 font-bold uppercase">Target Assigned Unit</label>
+                    <select
+                      value={reqTeamId}
+                      onChange={(e) => setReqTeamId(e.target.value)}
+                      className="w-full bg-[#070A10] border border-slate-800 rounded-xl p-3 text-white focus:outline-none focus:border-amber-400"
+                    >
+                      {teams.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.name} ({t.id})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  className="w-full py-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 text-black font-extrabold text-xs uppercase flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 cursor-pointer active:scale-95 transition"
+                >
+                  <UserPlus className="w-4 h-4 text-black" />
+                  <span>Submit Member Onboarding & Assign to Crew</span>
+                </button>
+
+              </form>
             </div>
-            
-            <button
-              onClick={() => setIsNewTeamModalOpen(true)}
-              className="px-4 py-2 rounded-xl bg-emerald-400 hover:bg-emerald-300 text-black font-extrabold text-xs uppercase tracking-wider transition cursor-pointer flex items-center gap-1.5 shadow-md self-start sm:self-auto"
-            >
-              <Plus className="w-4 h-4" />
-              <span>+ Register New Team</span>
-            </button>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {teams.map((team) => {
-              const isOccupied = team.status === "occupied";
+          {/* Right Panel: Pending Signup & Approval Queue */}
+          <div className="lg:col-span-5 space-y-4">
+            <div className="bg-[#0B0F19] border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
+              
+              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                <h3 className="text-base font-bold text-white font-heading flex items-center gap-2">
+                  <BadgeAlert className="w-4 h-4 text-amber-400" />
+                  <span>Crew Signup & Verification Queue</span>
+                </h3>
+                <span className="text-xs text-amber-300 font-bold bg-amber-950 px-2 py-0.5 rounded">
+                  {memberRequests.length} Pending
+                </span>
+              </div>
 
-              return (
-                <div
-                  key={team.id}
-                  className={`p-5 rounded-3xl border bg-[#0B0F19] space-y-4 transition shadow-xl ${
-                    isOccupied
-                      ? "border-amber-500/60 bg-gradient-to-br from-[#12100E] to-[#0B0F19]"
-                      : "border-emerald-500/40 bg-gradient-to-br from-[#0B1510] to-[#0B0F19]"
-                  }`}
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <h4 className="font-extrabold text-white text-base font-sans">{team.name}</h4>
-                      <p className="text-xs text-slate-400 font-sans mt-0.5">{team.department}</p>
-                    </div>
-
-                    <span
-                      className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase ${
-                        isOccupied
-                          ? "bg-amber-950 border border-amber-500 text-amber-300"
-                          : "bg-emerald-950 border border-emerald-500 text-emerald-300"
-                      }`}
+              {memberRequests.length === 0 ? (
+                <div className="p-8 text-center text-slate-400 space-y-2 text-xs">
+                  <CheckCircle2 className="w-8 h-8 text-emerald-400 mx-auto" />
+                  <p className="font-bold text-white">All Signup Requests Approved!</p>
+                  <p>New technician submissions will appear here for officer approval.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {memberRequests.map((req) => (
+                    <div
+                      key={req.id}
+                      className="p-4 rounded-xl bg-[#070A10] border border-slate-800 space-y-2 text-xs"
                     >
-                      {isOccupied ? "Occupied at Site" : "Available Ready"}
-                    </span>
-                  </div>
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-white font-sans text-sm">{req.name}</span>
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-950 border border-amber-500/60 text-amber-300">
+                          {req.employeeId}
+                        </span>
+                      </div>
 
-                  {/* Ward & Leader Contact */}
-                  <div className="p-3 rounded-2xl bg-[#070A10] border border-slate-800 space-y-1.5 text-xs text-slate-300">
-                    <div className="flex items-center gap-1.5 text-amber-300">
-                      <MapPin className="w-3.5 h-3.5" />
-                      <span>Zone: <strong>{team.ward}</strong></span>
-                    </div>
+                      <div className="text-slate-400 text-[11px] space-y-0.5">
+                        <div>Role: <strong className="text-slate-200">{req.role}</strong></div>
+                        <div>Dept: <span className="text-slate-300">{req.department}</span></div>
+                        <div>Assigned Team: <strong className="text-amber-400">{req.targetTeamId}</strong></div>
+                      </div>
 
-                    <div className="flex items-center justify-between text-cyan-300">
-                      <span className="flex items-center gap-1">
-                        <Users className="w-3.5 h-3.5" />
-                        <span>Lead: <strong>{team.leader}</strong></span>
-                      </span>
-                      <a
-                        href={`tel:${team.leaderPhone || "+919811200000"}`}
-                        className="hover:underline flex items-center gap-1 text-[11px]"
-                      >
-                        <Phone className="w-3 h-3" />
-                        <span>{team.leaderPhone || "+91 98112-XXXXX"}</span>
-                      </a>
-                    </div>
-                  </div>
-
-                  {/* Members Roster */}
-                  <div className="space-y-1.5">
-                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
-                      Crew Technicians ({team.members?.length || 0})
-                    </span>
-                    <div className="space-y-1">
-                      {team.members?.map((m, idx) => (
-                        <div
-                          key={idx}
-                          className="px-2.5 py-1 rounded-lg bg-[#070A10]/70 border border-slate-800/80 text-[11px] text-slate-300 flex items-center justify-between"
+                      <div className="pt-2 flex items-center justify-end">
+                        <button
+                          onClick={() => handleApproveMember(req.id)}
+                          className="px-3.5 py-1.5 rounded-lg bg-emerald-950 hover:bg-emerald-900 border border-emerald-500 text-emerald-300 font-bold text-xs flex items-center gap-1.5 cursor-pointer transition shadow-sm"
                         >
-                          <span className="font-bold text-white">{m.name}</span>
-                          <span className="text-[10px] text-slate-400">{m.role}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Equipment */}
-                  {team.equipment && team.equipment.length > 0 && (
-                    <div className="pt-2 border-t border-slate-800/80">
-                      <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-1">
-                        Assigned Machinery & Gear
-                      </span>
-                      <div className="flex flex-wrap gap-1">
-                        {team.equipment.map((eq, idx) => (
-                          <span
-                            key={idx}
-                            className="px-2 py-0.5 rounded-md bg-slate-900 text-slate-400 text-[10px] border border-slate-800"
-                          >
-                            {eq}
-                          </span>
-                        ))}
+                          <Check className="w-3.5 h-3.5 text-emerald-400" />
+                          <span>Approve & Add to Roster</span>
+                        </button>
                       </div>
                     </div>
-                  )}
-
+                  ))}
                 </div>
-              );
-            })}
+              )}
+
+            </div>
           </div>
+
         </div>
       )}
 
-      {/* ========================================================================= */}
-      {/* MODAL 1: ALLOT AVAILABLE CREW WITH DURATION PRESETS                       */}
-      {/* ========================================================================= */}
+      {/* MODAL 1: TASK ALLOTMENT MODAL */}
       {isAllotModalOpen && selectedTaskToAllot && (
-        <div className="fixed inset-0 z-[9999] bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-[#0B0F19] border border-cyan-500/50 rounded-3xl p-6 sm:p-8 max-w-xl w-full shadow-2xl space-y-6 relative">
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4 font-mono-tech">
+          <div className="bg-[#0B0F19] border border-amber-500/60 rounded-2xl p-6 sm:p-7 max-w-lg w-full shadow-[0_0_35px_rgba(245,158,11,0.25)] relative space-y-5 animate-hero-entrance max-h-[92vh] overflow-y-auto">
             
             <button
               onClick={() => setIsAllotModalOpen(false)}
@@ -970,222 +1059,175 @@ export default function MunicipalOfficerView({
             </button>
 
             <div className="flex items-center gap-3 border-b border-slate-800 pb-4">
-              <div className="w-11 h-11 rounded-2xl bg-cyan-950 border border-cyan-400 flex items-center justify-center text-cyan-400">
-                <Sparkles className="w-6 h-6" />
+              <div className="w-10 h-10 rounded-xl bg-amber-950/80 border border-amber-500/60 flex items-center justify-center text-amber-400">
+                <Send className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="text-xl font-bold text-white font-heading">
-                  Allot Municipal Field Team
+                <h3 className="text-lg font-bold text-white font-heading">
+                  Allot Municipal Crew to Task
                 </h3>
-                <p className="text-xs text-cyan-400">
-                  Assign available crew & set allocated SLA time limit
+                <p className="text-xs text-amber-400 uppercase tracking-wider">
+                  Field Dispatch & SLA Hours Setup
                 </p>
               </div>
             </div>
 
-            {/* Task Snapshot */}
-            <div className="p-4 rounded-2xl bg-[#070A10] border border-slate-800 space-y-2">
-              <div className="flex items-center justify-between text-xs">
-                <span className="font-extrabold text-cyan-400">Task #{selectedTaskToAllot.id}</span>
-                <span className="px-2 py-0.5 rounded bg-cyan-950 border border-cyan-500/50 text-cyan-300 font-bold text-[10px]">
+            {/* Task Info */}
+            <div className="p-3.5 rounded-xl bg-[#070A10] border border-slate-800 space-y-1 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-amber-400">{selectedTaskToAllot.id}</span>
+                <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-slate-900 border border-slate-700 text-slate-300">
                   {selectedTaskToAllot.category}
                 </span>
               </div>
-              <h4 className="font-bold text-white text-sm font-sans">{selectedTaskToAllot.title}</h4>
-              <p className="text-xs text-slate-400 font-sans">{selectedTaskToAllot.locationName || selectedTaskToAllot.location}</p>
+              <div className="text-white font-bold font-sans text-sm">{selectedTaskToAllot.title}</div>
+              <div className="text-slate-400 text-[11px] flex items-center gap-1">
+                <MapPin className="w-3.5 h-3.5 text-amber-400" />
+                <span>{selectedTaskToAllot.address || selectedTaskToAllot.ward}</span>
+              </div>
             </div>
 
-            {/* Available Team Picker */}
-            <div className="space-y-2">
-              <label className="block text-slate-200 font-bold text-xs uppercase tracking-wider">
-                Select Ready Response Crew:
-              </label>
-              <select
-                value={selectedTeamId}
-                onChange={(e) => setSelectedTeamId(e.target.value)}
-                className="w-full bg-[#070A10] border border-cyan-500/60 rounded-xl p-3.5 text-white text-xs focus:outline-none"
-              >
-                {availableTeams.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.name} ({t.department} • Lead: {t.leader})
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Allotted Time Duration with Presets */}
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <label className="block text-slate-200 font-bold text-xs uppercase tracking-wider">
-                  Allotted Time Limit:
+            <form onSubmit={handleConfirmAllotment} className="space-y-4 text-xs">
+              
+              {/* Select Team */}
+              <div className="space-y-1.5">
+                <label className="block text-slate-300 font-bold uppercase">
+                  Select Available Municipal Unit *
                 </label>
-                <span className="px-3 py-1 rounded-xl bg-amber-950 border border-amber-500 text-amber-300 font-extrabold text-xs">
-                  ⏱️ {allottedHours} Hours Maximum
-                </span>
+                <select
+                  required
+                  value={selectedTeamId}
+                  onChange={(e) => setSelectedTeamId(e.target.value)}
+                  className="w-full bg-[#070A10] border border-slate-700 text-white rounded-xl p-3 text-xs focus:outline-none focus:border-amber-400"
+                >
+                  {availableTeams.length === 0 ? (
+                    <option value="">No available teams (all occupied)</option>
+                  ) : (
+                    availableTeams.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.name} ({t.id} • Lead: {t.leader})
+                      </option>
+                    ))
+                  )}
+                </select>
               </div>
 
-              {/* Quick Presets */}
-              <div className="grid grid-cols-4 gap-2">
-                {[2, 4, 8, 12].map((hrs) => (
-                  <button
-                    key={hrs}
-                    type="button"
-                    onClick={() => setAllottedHours(hrs)}
-                    className={`py-2 px-2 rounded-xl text-xs font-bold transition cursor-pointer ${
-                      allottedHours === hrs
-                        ? "bg-amber-400 text-black font-extrabold shadow-md"
-                        : "bg-[#070A10] border border-slate-800 text-slate-400 hover:text-white"
-                    }`}
-                  >
-                    {hrs}h {hrs === 2 ? "(Rapid)" : hrs === 4 ? "(Standard)" : hrs === 8 ? "(Full Day)" : "(Major)"}
-                  </button>
-                ))}
+              {/* Allotted Hours */}
+              <div className="space-y-1.5">
+                <label className="block text-slate-300 font-bold uppercase">
+                  Allotted Remediation Duration (Hours) *
+                </label>
+                <input
+                  type="number"
+                  min="0.5"
+                  max="48"
+                  step="0.5"
+                  required
+                  value={allottedHours}
+                  onChange={(e) => setAllottedHours(Number(e.target.value))}
+                  className="w-full bg-[#070A10] border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-amber-400"
+                />
               </div>
 
-              <input
-                type="range"
-                min="1"
-                max="24"
-                step="1"
-                value={allottedHours}
-                onChange={(e) => setAllottedHours(Number(e.target.value))}
-                className="w-full accent-amber-400 cursor-pointer"
-              />
-              <p className="text-[10px] text-slate-400">
-                If remediation exceeds {allottedHours} hours, the crew will automatically trigger an Overdue Delay escalation flag on the officer dashboard.
-              </p>
-            </div>
+              <div className="flex gap-2.5 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsAllotModalOpen(false)}
+                  className="w-1/3 py-3 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 font-bold text-xs uppercase cursor-pointer"
+                >
+                  Cancel
+                </button>
 
-            {/* Confirm Dispatch Button */}
-            <div className="pt-3">
-              <button
-                type="button"
-                onClick={handleConfirmAllotment}
-                className="w-full py-4 rounded-2xl bg-gradient-to-r from-amber-400 via-orange-400 to-amber-300 hover:from-amber-300 hover:to-orange-300 text-black font-extrabold text-xs sm:text-sm tracking-wider uppercase flex items-center justify-center gap-2 cursor-pointer shadow-[0_0_25px_rgba(245,158,11,0.35)] active:scale-95"
-              >
-                <Truck className="w-5 h-5" />
-                <span>Dispatch Crew & Start Duration Timer</span>
-              </button>
-            </div>
+                <button
+                  type="submit"
+                  disabled={availableTeams.length === 0}
+                  className="w-2/3 py-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 text-black font-extrabold text-xs uppercase flex items-center justify-center gap-2 shadow-lg shadow-amber-500/30 cursor-pointer disabled:opacity-50"
+                >
+                  <Send className="w-4 h-4 text-black" />
+                  <span>Confirm Dispatch & Lay Team to Work</span>
+                </button>
+              </div>
+
+            </form>
 
           </div>
         </div>
       )}
 
-      {/* ========================================================================= */}
-      {/* MODAL 2: REGISTER NEW MUNICIPAL RESPONSE TEAM                             */}
-      {/* ========================================================================= */}
-      {isNewTeamModalOpen && (
-        <div className="fixed inset-0 z-[9999] bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-[#0B0F19] border border-cyan-500/50 rounded-3xl p-6 sm:p-8 max-w-xl w-full shadow-2xl space-y-5 relative max-h-[90vh] overflow-y-auto">
+      {/* MODAL 2: INLINE ADD MEMBER TO SPECIFIC TEAM MODAL */}
+      {activeAddMemberTeam && (
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4 font-mono-tech">
+          <div className="bg-[#0B0F19] border border-amber-500/60 rounded-2xl p-6 max-w-md w-full shadow-2xl relative space-y-4 animate-hero-entrance">
             
             <button
-              onClick={() => setIsNewTeamModalOpen(false)}
+              onClick={() => setActiveAddMemberTeam(null)}
               className="absolute top-5 right-5 text-slate-400 hover:text-white p-1 cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
 
-            <div className="flex items-center gap-3 border-b border-slate-800 pb-4">
-              <div className="w-11 h-11 rounded-2xl bg-emerald-950 border border-emerald-400 flex items-center justify-center text-emerald-400">
-                <Users className="w-6 h-6" />
+            <div className="flex items-center gap-3 border-b border-slate-800 pb-3">
+              <div className="w-9 h-9 rounded-xl bg-amber-950 border border-amber-500 flex items-center justify-center text-amber-400">
+                <UserPlus className="w-4 h-4" />
               </div>
               <div>
-                <h3 className="text-xl font-bold text-white font-heading">
-                  Register Field Response Team
+                <h3 className="text-base font-bold text-white font-heading">
+                  Add Member to {activeAddMemberTeam.name}
                 </h3>
-                <p className="text-xs text-emerald-400">
-                  Add specialized crew roster for municipal maintenance
-                </p>
+                <p className="text-xs text-amber-400">{activeAddMemberTeam.id}</p>
               </div>
             </div>
 
-            <form onSubmit={handleCreateTeamSubmit} className="space-y-4">
-              <div>
-                <label className="block mb-1 text-slate-200 font-bold">Team Name / Unit Code</label>
+            <form onSubmit={handleAddMemberToTeam} className="space-y-3 text-xs">
+              <div className="space-y-1">
+                <label className="block text-slate-300 font-bold uppercase">Member Full Name *</label>
                 <input
                   type="text"
                   required
-                  value={newTeamName}
-                  onChange={(e) => setNewTeamName(e.target.value)}
-                  placeholder="e.g. Unit Zeta - Rapid Pavement Crew"
-                  className="w-full bg-[#070A10] border border-slate-800 rounded-xl p-3 text-white text-xs focus:outline-none focus:border-cyan-400"
+                  value={memberNameInput}
+                  onChange={(e) => setMemberNameInput(e.target.value)}
+                  placeholder="e.g. Sunil Gavaskar"
+                  className="w-full bg-[#070A10] border border-slate-700 rounded-xl p-2.5 text-white"
                 />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block mb-1 text-slate-200 font-bold">Department</label>
-                  <select
-                    value={newTeamDept}
-                    onChange={(e) => setNewTeamDept(e.target.value)}
-                    className="w-full bg-[#070A10] border border-slate-800 rounded-xl p-3 text-white text-xs"
-                  >
-                    <option value="Road Works & Asphalt Pavement Division">Road Works & Asphalt</option>
-                    <option value="Municipal Hydro & Water Supply Grid">Hydro & Drainage</option>
-                    <option value="Sanitation & Solid Waste Logistics Unit">Solid Waste & Sanitation</option>
-                    <option value="Municipal Power & Street Lighting Grid">Power & Streetlights</option>
-                    <option value="Structural Engineering & Bridge Safety Division">Structural & Bridges</option>
-                    <option value="Urban Forestry & Public Parks Department">Urban Forestry & Parks</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block mb-1 text-slate-200 font-bold">Assigned Ward</label>
-                  <input
-                    type="text"
-                    required
-                    value={newTeamWard}
-                    onChange={(e) => setNewTeamWard(e.target.value)}
-                    placeholder="e.g. Central District - Ward 4"
-                    className="w-full bg-[#070A10] border border-slate-800 rounded-xl p-3 text-white text-xs focus:outline-none focus:border-cyan-400"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block mb-1 text-slate-200 font-bold">Crew Leader Name</label>
-                  <input
-                    type="text"
-                    required
-                    value={newTeamLeader}
-                    onChange={(e) => setNewTeamLeader(e.target.value)}
-                    placeholder="e.g. Inspector Ramesh Kumar"
-                    className="w-full bg-[#070A10] border border-slate-800 rounded-xl p-3 text-white text-xs focus:outline-none focus:border-cyan-400"
-                  />
-                </div>
-
-                <div>
-                  <label className="block mb-1 text-slate-200 font-bold">Direct Phone Number</label>
-                  <input
-                    type="text"
-                    required
-                    value={newTeamPhone}
-                    onChange={(e) => setNewTeamPhone(e.target.value)}
-                    placeholder="+91 98112-XXXXX"
-                    className="w-full bg-[#070A10] border border-slate-800 rounded-xl p-3 text-white text-xs focus:outline-none focus:border-cyan-400"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block mb-1 text-slate-200 font-bold">Crew Members (One name per line)</label>
-                <textarea
-                  rows="3"
-                  value={newTeamMembers}
-                  onChange={(e) => setNewTeamMembers(e.target.value)}
-                  placeholder="Sunil Verma&#10;Amit Saxena&#10;Kavita Devi"
-                  className="w-full bg-[#070A10] border border-slate-800 rounded-xl p-3 text-white text-xs focus:outline-none focus:border-cyan-400"
+              <div className="space-y-1">
+                <label className="block text-slate-300 font-bold uppercase">Role / Specialization</label>
+                <input
+                  type="text"
+                  required
+                  value={memberRoleInput}
+                  onChange={(e) => setMemberRoleInput(e.target.value)}
+                  placeholder="e.g. Heavy Roller Operator, Safety Marshall"
+                  className="w-full bg-[#070A10] border border-slate-700 rounded-xl p-2.5 text-white"
                 />
               </div>
 
-              <div className="pt-2">
+              <div className="space-y-1">
+                <label className="block text-slate-300 font-bold uppercase">Phone Number</label>
+                <input
+                  type="tel"
+                  value={memberPhoneInput}
+                  onChange={(e) => setMemberPhoneInput(e.target.value)}
+                  placeholder="e.g. +91 98112-99001"
+                  className="w-full bg-[#070A10] border border-slate-700 rounded-xl p-2.5 text-white"
+                />
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setActiveAddMemberTeam(null)}
+                  className="w-1/3 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-slate-300 font-bold"
+                >
+                  Cancel
+                </button>
                 <button
                   type="submit"
-                  className="w-full py-4 rounded-2xl bg-gradient-to-r from-emerald-400 to-teal-400 hover:from-emerald-300 hover:to-teal-300 text-black font-extrabold text-xs uppercase tracking-wider transition cursor-pointer shadow-lg active:scale-95"
+                  className="w-2/3 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold flex items-center justify-center gap-1.5"
                 >
-                  Save & Register Response Team
+                  <Plus className="w-4 h-4 text-black" />
+                  <span>Add to Crew</span>
                 </button>
               </div>
             </form>

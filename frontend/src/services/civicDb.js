@@ -398,3 +398,32 @@ export function deleteCivicIssue(issueId) {
   saveLocalCivicIssues(updated);
   return updated;
 }
+
+export function addCitizenFeedback(issueId, feedback) {
+  const issues = getLocalCivicIssues();
+  const updated = issues.map((issue) => {
+    if (issue.id === issueId) {
+      const existingFeedbacks = issue.citizenFeedbacks || [];
+      const newFeedback = {
+        id: `FB-${Date.now().toString().slice(-4)}`,
+        rating: feedback.rating || 5,
+        statusConfirmation: feedback.statusConfirmation || "Confirmed Resolved",
+        comment: feedback.comment || "",
+        citizenName: feedback.citizenName || "Resident Citizen",
+        citizenEmail: feedback.citizenEmail || "citizen@nexinfra.org",
+        createdAt: new Date().toISOString(),
+        isPositive: feedback.isPositive !== undefined ? feedback.isPositive : true
+      };
+      return {
+        ...issue,
+        citizenFeedbacks: [newFeedback, ...existingFeedbacks],
+        feedbackScore: Math.round(
+          (([newFeedback, ...existingFeedbacks].reduce((acc, f) => acc + (f.rating || 5), 0)) / ([newFeedback, ...existingFeedbacks].length)) * 10
+        ) / 10
+      };
+    }
+    return issue;
+  });
+  saveLocalCivicIssues(updated);
+  return updated;
+}

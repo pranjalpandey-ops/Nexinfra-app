@@ -50,6 +50,81 @@ const getSeverityPinIcon = (priority = "P2", status = "Reported", color = "#00F0
   });
 };
 
+const getDroneStationIcon = () => {
+  return L.divIcon({
+    className: "custom-drone-station-pin",
+    html: `
+      <div style="
+        width: 34px;
+        height: 34px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 8px;
+        background: #061A24;
+        border: 2px solid #00F0FF;
+        box-shadow: 0 0 18px rgba(0,240,255,0.7), inset 0 0 8px rgba(0,240,255,0.3);
+        position: relative;
+        cursor: pointer;
+        transform: rotate(45deg);
+      ">
+        <div style="
+          transform: rotate(-45deg);
+          font-size: 15px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        ">🛸</div>
+      </div>
+    `,
+    iconSize: [34, 34],
+    iconAnchor: [17, 17],
+    popupAnchor: [0, -18],
+  });
+};
+
+const getMunicipalTeamIcon = (isOccupied, isLate) => {
+  const borderColor = isLate ? "#EF4444" : isOccupied ? "#F59E0B" : "#10B981";
+  const glowColor = isLate ? "rgba(239,68,68,0.7)" : isOccupied ? "rgba(245,158,11,0.7)" : "rgba(16,185,129,0.7)";
+  const iconEmoji = isOccupied ? "🚜" : "🛠️";
+
+  return L.divIcon({
+    className: "custom-municipal-team-pin",
+    html: `
+      <div style="
+        width: 36px;
+        height: 36px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        background: #0B0F19;
+        border: 2px solid ${borderColor};
+        box-shadow: 0 0 16px ${glowColor}, inset 0 0 8px ${glowColor};
+        position: relative;
+        cursor: pointer;
+      ">
+        <span style="font-size: 17px; display: flex; align-items: center; justify-content: center;">${iconEmoji}</span>
+        ${isOccupied ? `
+          <div style="
+            position: absolute;
+            top: -2px;
+            right: -2px;
+            width: 9px;
+            height: 9px;
+            border-radius: 50%;
+            background: ${borderColor};
+            box-shadow: 0 0 6px ${borderColor};
+          "></div>
+        ` : ""}
+      </div>
+    `,
+    iconSize: [36, 36],
+    iconAnchor: [18, 18],
+    popupAnchor: [0, -19],
+  });
+};
+
 function ChangeView({ center, zoom }) {
   const map = useMap();
   map.setView(center, zoom);
@@ -77,41 +152,188 @@ export default function LeafletMap({
 
         <TileLayer url={tileUrl} attribution={attribution} />
 
-        {/* Heatmap / High-Density Grievance Clusters Layer */}
+        {/* 15km UAV Outer Patrol Radar Range Layer */}
         {showHeatmap &&
           markers
-            .filter((m) => m.position && m.position[0] && m.position[1])
+            .filter((m) => m.position && m.position[0] && m.position[1] && m.data?.type === "DRONE_STATION")
             .map((m, idx) => (
-              <React.Fragment key={`heat-${idx}`}>
-                <Circle
-                  center={m.position}
-                  radius={450}
-                  pathOptions={{
-                    color: m.data?.priority === "P1" ? "#EF4444" : "#00F0FF",
-                    fillColor: m.data?.priority === "P1" ? "#EF4444" : "#00F0FF",
-                    fillOpacity: 0.22,
-                    weight: 1,
-                  }}
-                />
-                <Circle
-                  center={m.position}
-                  radius={180}
-                  pathOptions={{
-                    color: m.data?.priority === "P1" ? "#EF4444" : "#00F0FF",
-                    fillColor: m.data?.priority === "P1" ? "#EF4444" : "#00F0FF",
-                    fillOpacity: 0.45,
-                    weight: 0,
-                  }}
-                />
-              </React.Fragment>
+              <Circle
+                key={`uav-outer-patrol-${idx}`}
+                center={m.position}
+                radius={15000}
+                pathOptions={{
+                  color: "#00F0FF",
+                  fillColor: "#00F0FF",
+                  fillOpacity: 0.08,
+                  weight: 2,
+                  dashArray: "6, 6",
+                }}
+              />
             ))}
 
-        {/* Interactive Defect Pins */}
+        {/* Interactive Defect Pins & Drone Station Hubs */}
         {markers && markers.length > 0 ? (
           markers.map((m, i) => {
             const data = m.data || {};
+            const isDroneStation = data.type === "DRONE_STATION";
             const isCritical = data.priority === "P1" || data.priority === "High";
             const isResolved = data.status === "Resolved";
+
+            if (isDroneStation) {
+              return (
+                <Marker
+                  key={`drone-st-${i}`}
+                  position={m.position}
+                  icon={getDroneStationIcon()}
+                  eventHandlers={{
+                    click: () => {
+                      if (onMarkerClick && m.data) {
+                        onMarkerClick(m.data);
+                      }
+                    },
+                  }}
+                >
+                  <Popup className="custom-dark-popup">
+                    <div className="p-3.5 font-mono-tech text-xs space-y-2 min-w-[250px] max-w-[280px]">
+                      <div className="flex items-center justify-between border-b border-cyan-500/40 pb-2">
+                        <span className="font-extrabold text-cyan-400 text-xs flex items-center gap-1.5">
+                          <span>🛸</span>
+                          <span>{data.code || "UAV DOCK"}</span>
+                        </span>
+                        <span className="px-2 py-0.5 rounded bg-cyan-950 text-cyan-300 border border-cyan-400 text-[10px] font-bold">
+                          {data.status || "ONLINE"}
+                        </span>
+                      </div>
+
+                      <div className="space-y-1">
+                        <h4 className="font-bold text-white text-xs font-sans">
+                          {data.name}
+                        </h4>
+                        <p className="text-[11px] text-cyan-300/80">
+                          {data.ward} • {data.assignedUnit}
+                        </p>
+                      </div>
+
+                      <div className="bg-[#070A10] p-2.5 rounded-lg border border-slate-800 space-y-1 text-[11px]">
+                        <div className="flex justify-between text-slate-300">
+                          <span className="text-slate-400">Available UAVs:</span>
+                          <span className="text-emerald-400 font-bold">{data.dronesAvailable} Drones Ready</span>
+                        </div>
+                        <div className="flex justify-between text-slate-300">
+                          <span className="text-slate-400">Active Recon:</span>
+                          <span className="text-cyan-400 font-bold">{data.dronesPatrolling} in Flight</span>
+                        </div>
+                        <div className="flex justify-between text-slate-300">
+                          <span className="text-slate-400">Grid Power:</span>
+                          <span className="text-amber-400 font-bold">{data.batteryStatus}</span>
+                        </div>
+                      </div>
+
+                      <div className="text-[10px] text-slate-400 italic">
+                        Launch Range: {data.rangeKm} • {data.launchPad}
+                      </div>
+                    </div>
+                  </Popup>
+                </Marker>
+              );
+            }
+
+            const isMunicipalTeam = data.type === "MUNICIPAL_TEAM";
+
+            if (isMunicipalTeam) {
+              const isOccupied = data.status === "occupied";
+              const isLate = data.timeMetrics?.isLate;
+              const borderColor = isLate ? "#EF4444" : isOccupied ? "#F59E0B" : "#10B981";
+
+              return (
+                <Marker
+                  key={`muni-team-${i}`}
+                  position={m.position}
+                  icon={getMunicipalTeamIcon(isOccupied, isLate)}
+                  eventHandlers={{
+                    click: () => {
+                      if (onMarkerClick && m.data) {
+                        onMarkerClick(m.data);
+                      }
+                    },
+                  }}
+                >
+                  <Popup className="custom-dark-popup">
+                    <div className="p-3.5 font-mono-tech text-xs space-y-2.5 min-w-[270px] max-w-[310px]">
+                      
+                      {/* Header */}
+                      <div className="flex items-center justify-between border-b pb-2" style={{ borderColor }}>
+                        <span className="font-extrabold text-xs flex items-center gap-1.5" style={{ color: borderColor }}>
+                          <span>🚜</span>
+                          <span>{data.id}</span>
+                        </span>
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase" style={{
+                          backgroundColor: isLate ? "rgba(239,68,68,0.2)" : isOccupied ? "rgba(245,158,11,0.2)" : "rgba(16,185,129,0.2)",
+                          color: borderColor,
+                          border: `1px solid ${borderColor}`
+                        }}>
+                          {isOccupied ? (isLate ? `⚡ LATE BY ${data.timeMetrics?.formattedLate}` : "⚡ ON WORK") : "✅ AVAILABLE"}
+                        </span>
+                      </div>
+
+                      {/* Team Name & Department */}
+                      <div className="space-y-0.5">
+                        <h4 className="font-bold text-white text-xs font-sans">
+                          {data.name}
+                        </h4>
+                        <p className="text-[11px] text-slate-400">
+                          {data.department}
+                        </p>
+                      </div>
+
+                      {/* Problem they are solving */}
+                      {data.activeJob ? (
+                        <div className="bg-[#070A10] p-2.5 rounded-xl border border-slate-800 space-y-1 text-[11px]">
+                          <div className="text-[10px] text-amber-400 font-bold uppercase flex items-center gap-1">
+                            <span>⚠️ ACTIVE PROBLEM SOLVING:</span>
+                          </div>
+                          <div className="text-white font-bold font-sans">
+                            {data.activeJob.taskTitle || data.activeJob.category}
+                          </div>
+                          <div className="text-slate-400 text-[10px]">
+                            Task ID: <strong className="text-amber-300">{data.activeJob.taskId}</strong> • [{data.activeJob.ward || data.ward}]
+                          </div>
+
+                          {/* Time Duration Telemetry */}
+                          {data.timeMetrics && (
+                            <div className="mt-1 pt-1 border-t border-slate-800/80 space-y-0.5 text-[10px]">
+                              <div className="flex justify-between text-slate-300">
+                                <span>Elapsed Duration:</span>
+                                <strong className="text-white">{data.timeMetrics.formattedElapsed}</strong>
+                              </div>
+                              <div className="flex justify-between text-slate-300">
+                                <span>Allotted SLA:</span>
+                                <strong className="text-amber-300">{data.activeJob.allottedHours} Hours</strong>
+                              </div>
+                              <div className="flex justify-between font-bold" style={{ color: borderColor }}>
+                                <span>Status:</span>
+                                <span>{data.timeMetrics.isLate ? `Overrun: +${data.timeMetrics.formattedLate}` : `Remaining: ${data.timeMetrics.formattedRemaining}`}</span>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="bg-[#070A10] p-2.5 rounded-xl border border-slate-800 text-[11px] text-emerald-300">
+                          Standby at base depot in {data.ward}. Ready for dispatch.
+                        </div>
+                      )}
+
+                      {/* Crew Lead & Contacts */}
+                      <div className="text-[11px] text-slate-300 flex items-center justify-between pt-1 border-t border-slate-800">
+                        <span>Lead: <strong>{data.leader}</strong></span>
+                        <span className="text-slate-400 font-mono-tech">{data.members?.length || 4} Crew</span>
+                      </div>
+
+                    </div>
+                  </Popup>
+                </Marker>
+              );
+            }
 
             return (
               <Marker

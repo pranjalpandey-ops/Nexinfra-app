@@ -367,7 +367,7 @@ export async function detect(frameBuffer) {
     const outputName = activeSession.outputNames[0];
     const outputTensor = results[outputName];
 
-    const detections = parseYoloOutput(outputTensor, origWidth, origHeight, 640, 0.12);
+    const detections = parseYoloOutput(outputTensor, origWidth, origHeight, 640, 0.65);
     return detections;
   } catch (err) {
     console.error("❌ ONNX Inference Exception:", err.message);

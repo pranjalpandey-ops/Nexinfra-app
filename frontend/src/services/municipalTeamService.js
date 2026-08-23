@@ -313,3 +313,135 @@ export function createMunicipalTeam(teamData) {
   saveMunicipalTeams(updated);
   return { success: true, team: newTeam };
 }
+
+/**
+ * Adds a new crew member to an existing team
+ */
+export function addCrewMemberToTeam(teamId, member) {
+  const teams = getMunicipalTeams();
+  const updated = teams.map((team) => {
+    if (team.id === teamId) {
+      const currentMembers = team.members || [];
+      return {
+        ...team,
+        members: [...currentMembers, {
+          name: member.name,
+          role: member.role || "Field Technician",
+          phone: member.phone || team.leaderPhone,
+          employeeId: member.employeeId || `EMP-${Math.floor(1000 + Math.random() * 9000)}`,
+          shift: member.shift || "Day Shift",
+          joinedAt: new Date().toISOString()
+        }]
+      };
+    }
+    return team;
+  });
+  saveMunicipalTeams(updated);
+  return { success: true, teams: updated };
+}
+
+/**
+ * Removes a crew member from a team
+ */
+export function removeCrewMemberFromTeam(teamId, memberIndex) {
+  const teams = getMunicipalTeams();
+  const updated = teams.map((team) => {
+    if (team.id === teamId) {
+      const currentMembers = team.members || [];
+      return {
+        ...team,
+        members: currentMembers.filter((_, idx) => idx !== memberIndex)
+      };
+    }
+    return team;
+  });
+  saveMunicipalTeams(updated);
+  return { success: true, teams: updated };
+}
+
+const STORAGE_KEY_MEMBER_REQUESTS = "nexinfra_pending_member_requests";
+
+export function getPendingMemberRequests() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_MEMBER_REQUESTS);
+    if (!raw) {
+      const initialRequests = [
+        {
+          id: "REQ-MEM-101",
+          name: "Vikas Chauhan",
+          employeeId: "EMP-4982",
+          department: "Road Works & Asphalt Pavement Division",
+          role: "Infrared Patch Heater Specialist",
+          phone: "+91 98110-33411",
+          targetTeamId: "TEAM-RD-01",
+          ward: "Central District - Ward 4",
+          status: "pending",
+          submittedAt: new Date(Date.now() - 3600 * 1000 * 4).toISOString()
+        },
+        {
+          id: "REQ-MEM-102",
+          name: "Deepali Deshmukh",
+          employeeId: "EMP-6214",
+          department: "Municipal Hydro & Water Supply Grid",
+          role: "Pressure Chamber Welder",
+          phone: "+91 98711-22904",
+          targetTeamId: "TEAM-HY-02",
+          ward: "South Zone - Ward 14",
+          status: "pending",
+          submittedAt: new Date(Date.now() - 3600 * 1000 * 12).toISOString()
+        }
+      ];
+      localStorage.setItem(STORAGE_KEY_MEMBER_REQUESTS, JSON.stringify(initialRequests));
+      return initialRequests;
+    }
+    return JSON.parse(raw);
+  } catch (e) {
+    return [];
+  }
+}
+
+export function submitNewMemberRequest(requestData) {
+  const requests = getPendingMemberRequests();
+  const newReq = {
+    id: `REQ-MEM-${Date.now().toString().slice(-4)}`,
+    name: requestData.name,
+    employeeId: requestData.employeeId || `EMP-${Math.floor(1000 + Math.random() * 9000)}`,
+    department: requestData.department || "Road Works & Asphalt Pavement Division",
+    role: requestData.role || "Field Technician",
+    phone: requestData.phone || "+91 98000-00000",
+    targetTeamId: requestData.targetTeamId || "TEAM-RD-01",
+    ward: requestData.ward || "Central District - Ward 4",
+    shift: requestData.shift || "Morning Shift (06:00 - 14:00)",
+    status: "pending",
+    submittedAt: new Date().toISOString()
+  };
+  const updated = [newReq, ...requests];
+  localStorage.setItem(STORAGE_KEY_MEMBER_REQUESTS, JSON.stringify(updated));
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("member_requests_updated", { detail: { requests: updated } }));
+  }
+  return { success: true, request: newReq };
+}
+
+export function approveMemberRequest(requestId) {
+  const requests = getPendingMemberRequests();
+  const req = requests.find((r) => r.id === requestId);
+  if (!req) return { success: false, error: "Request not found" };
+
+  if (req.targetTeamId) {
+    addCrewMemberToTeam(req.targetTeamId, {
+      name: req.name,
+      role: req.role,
+      phone: req.phone,
+      employeeId: req.employeeId,
+      shift: req.shift
+    });
+  }
+
+  const updated = requests.filter((r) => r.id !== requestId);
+  localStorage.setItem(STORAGE_KEY_MEMBER_REQUESTS, JSON.stringify(updated));
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("member_requests_updated", { detail: { requests: updated } }));
+  }
+  return { success: true };
+}

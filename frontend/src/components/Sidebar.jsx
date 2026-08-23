@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   LayoutDashboard,
+  Send,
   MapPin,
   FileText,
   Plane,
@@ -13,6 +14,7 @@ import {
   ShieldCheck,
   UserCheck,
   UserPlus,
+  Users,
   Building,
   Truck
 } from 'lucide-react';
@@ -53,9 +55,12 @@ export default function Sidebar({
   ];
 
   const officerMenuItems = [
-    { id: 'municipal-dashboard', label: 'Officer Dashboard & Teams', icon: Building },
+    { id: 'officer-map', label: 'Live Team GIS Map', icon: MapPin },
+    { id: 'teams-laid-to-work', label: 'Teams Laid to Work', icon: Truck },
+    { id: 'task-allotment', label: 'Task Allotment Engine', icon: Send },
+    { id: 'team-details', label: 'Team Details & Rosters', icon: Users },
+    { id: 'add-member', label: 'Add New Member / Crew', icon: UserPlus },
     { id: 'maintenance', label: 'Incident Logs', icon: FileText },
-    { id: 'live-map', label: 'Live Map', icon: MapPin },
     { id: 'cctv', label: 'CCTV Monitor', icon: Camera },
   ];
 
@@ -70,7 +75,6 @@ export default function Sidebar({
   const citySyncItems = [
     { id: 'report-issue', label: 'Report an Issue', icon: Sparkles },
     { id: 'citysync-map', label: 'CitySync AI Map', icon: MapPin },
-    { id: 'incident-detail', label: 'Incident Inspector', icon: AlertCircle },
   ];
 
   const isOfficerContext = isOfficer || activePage === 'municipal-dashboard';
@@ -79,7 +83,7 @@ export default function Sidebar({
   const menuToRender = showAdminControls ? adminMenuItems : isOfficerContext ? officerMenuItems : publicMenuItems;
 
   return (
-    <aside className="w-64 bg-[#0B0F19] border-r border-slate-800/80 flex flex-col justify-between shrink-0 min-h-screen text-slate-300 font-mono-tech select-none overflow-y-auto">
+    <aside className="w-64 bg-[#0B0F19] border-r border-slate-800/80 flex flex-col justify-between shrink-0 h-full text-slate-300 font-mono-tech select-none overflow-y-auto">
       <div>
         {/* Top Sidebar Header with Custom Theme Logo */}
         <div className="p-6 border-b border-slate-800/60 flex flex-col items-start gap-2">

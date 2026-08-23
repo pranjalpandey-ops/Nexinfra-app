@@ -25,16 +25,96 @@ import {
   Eye,
   Check,
   RefreshCw,
-  Volume2
+  Volume2,
+  MessageSquareHeart,
+  Camera,
+  Trash2
 } from "lucide-react";
 
 import LeafletMap from "../components/LeafletMap";
 import DisasterBroadcastModal from "../components/DisasterBroadcastModal";
+import CitizenFeedbackModal from "../components/CitizenFeedbackModal";
+import DeleteIncidentModal from "../components/DeleteIncidentModal";
+import OfficerOverrideModal from "../components/OfficerOverrideModal";
 import { getLocalCivicIssues, upvoteIssue, updateCivicIssueStatus } from "../services/civicDb";
 import { subscribeToComplaints } from "../services/getComplaints";
 
+export const mockDroneStations = [
+  {
+    id: "UAV-HUB-01",
+    type: "DRONE_STATION",
+    title: "Autonomous Drone Station Alpha",
+    name: "Sector 62 Autonomous UAV Base",
+    code: "UAV HUB ALPHA",
+    category: "Autonomous Drone Hangar",
+    ward: "Central District - Ward 4",
+    address: "SkyPort Hub Alpha, Sector 62 Expressway",
+    latitude: 28.6180,
+    longitude: 77.2250,
+    dronesAvailable: 4,
+    dronesPatrolling: 2,
+    hangarCapacity: 6,
+    batteryStatus: "98% Grid Charged",
+    status: "OPERATIONAL",
+    rangeKm: "15.0 km",
+    launchPad: "Pad A-1 & A-2 Active",
+    assignedUnit: "Alpha SkyRecon Wing",
+    slaHours: 0,
+    upvotes: 0,
+    description: "Automated rapid-deployment UAV launch hangar with AI thermal reconnaissance cameras and fast-swap charging pad."
+  },
+  {
+    id: "UAV-HUB-02",
+    type: "DRONE_STATION",
+    title: "Cyber Hub Autonomous UAV Station",
+    name: "Cyber Hub Tactical UAV Hangar",
+    code: "UAV HUB BRAVO",
+    category: "Autonomous Drone Hangar",
+    ward: "Cyber Hub - Ward 12",
+    address: "SkyPort Hangar Bravo, Cyber City Radial Corridor",
+    latitude: 28.6100,
+    longitude: 77.2020,
+    dronesAvailable: 3,
+    dronesPatrolling: 1,
+    hangarCapacity: 5,
+    batteryStatus: "100% Full",
+    status: "OPERATIONAL",
+    rangeKm: "15.0 km",
+    launchPad: "Pad B-1 Standby",
+    assignedUnit: "Bravo Grid Overwatch",
+    slaHours: 0,
+    upvotes: 0,
+    description: "High-altitude surveillance and traffic bottleneck scanning station equipped with autonomous return-to-base docking."
+  },
+  {
+    id: "UAV-HUB-03",
+    type: "DRONE_STATION",
+    title: "North Green Corridor Rapid Drone Dock",
+    name: "North Greenway UAV Patrol Base",
+    code: "UAV HUB CHARLIE",
+    category: "Autonomous Drone Hangar",
+    ward: "North Green Corridor - Ward 2",
+    address: "Greenway Base Pad C, North Logistics Junction",
+    latitude: 28.6320,
+    longitude: 77.2180,
+    dronesAvailable: 5,
+    dronesPatrolling: 2,
+    hangarCapacity: 8,
+    batteryStatus: "94% Solar Charged",
+    status: "OPERATIONAL",
+    rangeKm: "15.0 km",
+    launchPad: "Pad C-1 & C-2 Active",
+    assignedUnit: "Charlie Tactical Fleet",
+    slaHours: 0,
+    upvotes: 0,
+    description: "Solar-assisted perimeter drone docking bay providing 24/7 autonomous municipal surveillance and disaster reconnaissance."
+  }
+];
+
 export default function CitySyncMapView({ setActivePage, viewMode = "auto", user }) {
   const isAdmin = user?.role === "admin";
+  const isOfficer = user?.role === "officer";
+  const isPrivileged = isAdmin || isOfficer;
   const [searchQuery, setSearchQuery] = useState("");
   const [issues, setIssues] = useState([]);
   const [selectedIssue, setSelectedIssue] = useState(null);
@@ -49,6 +129,9 @@ export default function CitySyncMapView({ setActivePage, viewMode = "auto", user
   const [showFilterPanel, setShowFilterPanel] = useState(false);
   const [tileMode, setTileMode] = useState("dark"); // dark | light | satellite
   const [isDisasterModalOpen, setIsDisasterModalOpen] = useState(false);
+  const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [officerOverrideTarget, setOfficerOverrideTarget] = useState(null);
 
   // Panel View Controls
   const [isLeftPanelOpen, setIsLeftPanelOpen] = useState(true);
@@ -87,12 +170,31 @@ export default function CitySyncMapView({ setActivePage, viewMode = "auto", user
 
   const handleStatusUpdate = (issueId, newStatus, e) => {
     if (e) e.stopPropagation();
+    const issue = issues.find((i) => i.id === issueId) || selectedIssue;
+    const isCurrentInProgress = (issue?.status || "").toLowerCase() === "in progress";
+
+    // Admin requires Municipal Officer Permission to override active In Progress tasks
+    if (isCurrentInProgress && !isOfficer && isAdmin && newStatus !== "In Progress") {
+      setOfficerOverrideTarget({ incident: issue, targetStatus: newStatus });
+      return;
+    }
+
     const updated = updateCivicIssueStatus(issueId, newStatus);
     setIssues(updated);
     if (selectedIssue && selectedIssue.id === issueId) {
       const found = updated.find((i) => i.id === issueId);
       if (found) setSelectedIssue(found);
     }
+  };
+
+  const handleConfirmOfficerOverride = ({ incidentId, targetStatus }) => {
+    const updated = updateCivicIssueStatus(incidentId, targetStatus);
+    setIssues(updated);
+    if (selectedIssue && selectedIssue.id === incidentId) {
+      const found = updated.find((i) => i.id === incidentId);
+      if (found) setSelectedIssue(found);
+    }
+    setOfficerOverrideTarget(null);
   };
 
   // Filter Logic
@@ -137,30 +239,28 @@ export default function CitySyncMapView({ setActivePage, viewMode = "auto", user
     satellite: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
   };
 
-  const mapMarkers = filteredIssues
-    .filter((issue) => issue.latitude && issue.longitude)
-    .map((issue) => {
-      const isCritical = issue.priority === "P1" || issue.priority === "High";
-      const isResolved = issue.status === "Resolved";
-      const pinColor = isResolved ? "#10B981" : isCritical ? "#EF4444" : issue.priority === "P2" ? "#F97316" : "#FACC15";
+  const mapMarkers = [
+    ...filteredIssues
+      .filter((issue) => issue.latitude && issue.longitude)
+      .map((issue) => {
+        const isCritical = issue.priority === "P1" || issue.priority === "High";
+        const isResolved = issue.status === "Resolved";
+        const pinColor = isResolved ? "#10B981" : isCritical ? "#EF4444" : issue.priority === "P2" ? "#F97316" : "#FACC15";
 
-      return {
-        position: [issue.latitude, issue.longitude],
-        color: pinColor,
-        data: issue,
-        popup: `
-          <div style="font-family:'JetBrains Mono',monospace; min-width:210px; color:#0F172A; font-size:12px; padding:2px;">
-            <div style="font-weight:800; font-size:13px; margin-bottom:4px; color:#0F172A;">${issue.title}</div>
-            <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
-              <span style="color:#0284C7; font-weight:bold;">${issue.id}</span>
-              <span style="font-weight:bold; color:${pinColor};">${issue.priorityLabel || issue.priority}</span>
-            </div>
-            <div style="font-size:11px; color:#475569; margin-bottom:6px;">📍 ${issue.address || ""}</div>
-            <div style="font-size:11px; color:#047857; font-weight:bold;">Status: ${issue.status} • SLA: ${issue.slaHours || 4}h target</div>
-          </div>
-        `,
-      };
-    });
+        return {
+          position: [issue.latitude, issue.longitude],
+          color: pinColor,
+          data: issue,
+        };
+      }),
+    ...(isPrivileged
+      ? mockDroneStations.map((st) => ({
+          position: [st.latitude, st.longitude],
+          color: "#00F0FF",
+          data: st,
+        }))
+      : []),
+  ];
 
   const openIncidentDetails = (issue) => {
     const target = issue || activeIssue;
@@ -210,9 +310,6 @@ export default function CitySyncMapView({ setActivePage, viewMode = "auto", user
                   <span>LIVE 42ms</span>
                 </span>
               </div>
-              <p className="text-xs text-slate-400 font-mono-tech">
-                Sub-Meter Geospatial Defect Triaging • UAV Autonomous Recon • Automated SLA Engine
-              </p>
             </div>
           </div>
 
@@ -261,28 +358,50 @@ export default function CitySyncMapView({ setActivePage, viewMode = "auto", user
               <span>{showHeatmap ? "Heatmap ON" : "Heatmap"}</span>
             </button>
 
-            {/* UAV Drone Recon Loop Toggle */}
-            <button
-              onClick={() => setShowUavTrails(!showUavTrails)}
-              className={`px-3 py-1.5 rounded-xl border flex items-center gap-1.5 transition cursor-pointer font-bold ${
-                showUavTrails
-                  ? "bg-cyan-950/80 border-cyan-400 text-cyan-300 cyan-glow-sm shadow-md"
-                  : "bg-[#070A10] border-slate-800 text-slate-400 hover:text-white"
-              }`}
-              title="Toggle UAV Drone Recon Trails"
-            >
-              <Plane className="w-3.5 h-3.5 text-cyan-400" />
-              <span>UAV Patrols</span>
-            </button>
+            {/* UAV Drone Recon Loop Toggle - Only for Admin & Officers */}
+            {isPrivileged && (
+              <button
+                onClick={() => setShowUavTrails(!showUavTrails)}
+                className={`px-3 py-1.5 rounded-xl border flex items-center gap-1.5 transition cursor-pointer font-bold ${
+                  showUavTrails
+                    ? "bg-cyan-950/80 border-cyan-400 text-cyan-300 cyan-glow-sm shadow-md"
+                    : "bg-[#070A10] border-slate-800 text-slate-400 hover:text-white"
+                }`}
+                title="Toggle UAV Drone Recon Trails"
+              >
+                <Plane className="w-3.5 h-3.5 text-cyan-400" />
+                <span>UAV Patrols</span>
+              </button>
+            )}
 
-            {/* Level 5 Early Warning Broadcast Trigger */}
-            <button
-              onClick={() => setIsDisasterModalOpen(true)}
-              className="px-3.5 py-1.5 rounded-xl bg-red-950/90 border border-red-500 text-red-300 hover:bg-red-900 font-bold text-xs flex items-center gap-1.5 shadow-lg active:scale-95 transition cursor-pointer"
-            >
-              <ShieldAlert className="w-3.5 h-3.5 text-red-400 animate-bounce" />
-              <span>🚨 LEVEL 5 WARNING</span>
-            </button>
+            {/* Level 5 Early Warning Broadcast Trigger - Only for Admin & Officers */}
+            {isPrivileged && (
+              <button
+                onClick={() => setIsDisasterModalOpen(true)}
+                className="px-3.5 py-1.5 rounded-xl bg-red-950/90 border border-red-500 text-red-300 hover:bg-red-900 font-bold text-xs flex items-center gap-1.5 shadow-lg active:scale-95 transition cursor-pointer"
+              >
+                <ShieldAlert className="w-3.5 h-3.5 text-red-400 animate-bounce" />
+                <span>🚨 LEVEL 5 WARNING</span>
+              </button>
+            )}
+
+            {/* Track Issue Button - Only for Citizens */}
+            {!isPrivileged && (
+              <button
+                onClick={() => {
+                  if (activeIssue) {
+                    openIncidentDetails(activeIssue);
+                  } else {
+                    setActivePage("incident-detail");
+                  }
+                }}
+                className="px-3.5 py-1.5 bg-[#070A10] border border-cyan-500/60 hover:border-cyan-400 text-cyan-300 rounded-xl font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-md transition"
+                title="Track Incident by Ticket ID"
+              >
+                <Search className="w-3.5 h-3.5 text-cyan-400" />
+                <span>Track Issue</span>
+              </button>
+            )}
 
             {/* Report Defect Button */}
             <button
@@ -592,50 +711,96 @@ export default function CitySyncMapView({ setActivePage, viewMode = "auto", user
 
               {/* Quick Action Commands */}
               <div className="space-y-2 pt-1">
-                <div className="text-[11px] text-slate-400 uppercase font-bold">Field Dispatch & Workflow</div>
+                {isPrivileged && (
+                  <>
+                    <div className="text-[11px] text-slate-400 uppercase font-bold">Field Dispatch & Workflow</div>
 
-                <button
-                  onClick={(e) => handleStatusUpdate(activeIssue.id, "In Progress", e)}
-                  className="w-full py-2.5 rounded-xl bg-cyan-950/80 border border-cyan-500 hover:bg-cyan-900 text-cyan-300 font-bold flex items-center justify-center gap-2 transition cursor-pointer"
-                >
-                  <Send className="w-3.5 h-3.5" />
-                  <span>🚀 Dispatch Field Unit / Crew</span>
-                </button>
+                    <button
+                      onClick={(e) => handleStatusUpdate(activeIssue.id, "In Progress", e)}
+                      className="w-full py-2.5 rounded-xl bg-cyan-950/80 border border-cyan-500 hover:bg-cyan-900 text-cyan-300 font-bold flex items-center justify-center gap-2 transition cursor-pointer"
+                    >
+                      <Plane className="w-3.5 h-3.5 text-cyan-400" />
+                      <span>🚀 Dispatch UAV</span>
+                    </button>
 
-                <button
-                  onClick={(e) => handleStatusUpdate(activeIssue.id, "Resolved", e)}
-                  className="w-full py-2.5 rounded-xl bg-emerald-950/80 border border-emerald-500 hover:bg-emerald-900 text-emerald-300 font-bold flex items-center justify-center gap-2 transition cursor-pointer"
-                >
-                  <CheckCircle2 className="w-3.5 h-3.5" />
-                  <span>✅ Mark Defect Resolved</span>
-                </button>
+                    <button
+                      onClick={(e) => handleStatusUpdate(activeIssue.id, "Resolved", e)}
+                      className="w-full py-2.5 rounded-xl bg-emerald-950/80 border border-emerald-500 hover:bg-emerald-900 text-emerald-300 font-bold flex items-center justify-center gap-2 transition cursor-pointer"
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      <span>✅ Mark Defect Resolved</span>
+                    </button>
 
-                <button
-                  onClick={() => setIsDisasterModalOpen(true)}
-                  className="w-full py-2 rounded-xl bg-red-950/80 border border-red-500/80 hover:bg-red-900 text-red-300 font-bold flex items-center justify-center gap-2 transition cursor-pointer"
-                >
-                  <ShieldAlert className="w-3.5 h-3.5 text-red-400" />
-                  <span>🚨 Level 5 Warning Broadcast</span>
-                </button>
+                    {/* Delete / Dismiss Incident Log with Reason & Citizen Notification */}
+                    <button
+                      onClick={() => setIsDeleteModalOpen(true)}
+                      className="w-full py-2.5 rounded-xl bg-rose-950/70 border border-rose-500/70 hover:bg-rose-900/80 text-rose-300 font-bold flex items-center justify-center gap-2 transition cursor-pointer text-xs shadow-md active:scale-95"
+                      title="Permanently close / delete incident log and dispatch resolution notice to citizen"
+                    >
+                      <Trash2 className="w-3.5 h-3.5 text-rose-400" />
+                      <span>🗑️ Delete this log</span>
+                    </button>
+
+                    <button
+                      onClick={() => setIsDisasterModalOpen(true)}
+                      className="w-full py-2 rounded-xl bg-red-950/80 border border-red-500/80 hover:bg-red-900 text-red-300 font-bold flex items-center justify-center gap-2 transition cursor-pointer"
+                    >
+                      <ShieldAlert className="w-3.5 h-3.5 text-red-400" />
+                      <span>🚨 Level 5 Warning Broadcast</span>
+                    </button>
+
+                    {/* Nearby CCTV Optical Feed Redirect */}
+                    <button
+                      onClick={() => {
+                        localStorage.setItem("cctvTargetWard", activeIssue?.ward || "Sector 62");
+                        setActivePage("cctv");
+                      }}
+                      className="w-full py-2.5 rounded-xl bg-indigo-950/80 border border-indigo-500/80 hover:bg-indigo-900 text-indigo-300 font-bold flex items-center justify-center gap-2 transition cursor-pointer text-xs shadow-md active:scale-95"
+                      title="Inspect live optical CCTV camera feeds covering this zone"
+                    >
+                      <Camera className="w-3.5 h-3.5 text-indigo-400 animate-pulse" />
+                      <span>📹 Check Nearby CCTV</span>
+                    </button>
+                  </>
+                )}
 
                 <button
                   onClick={() => openIncidentDetails(activeIssue)}
                   className="w-full py-2.5 rounded-xl bg-gradient-to-r from-cyan-400 to-teal-300 hover:from-cyan-300 hover:to-cyan-200 text-black font-extrabold uppercase cyan-glow-sm flex items-center justify-center gap-2 shadow-lg cursor-pointer active:scale-95 transition"
                 >
-                  <span>Inspect Full Dossier</span>
+                  <Search className="w-4 h-4" />
+                  <span>Track Full Incident Dossier</span>
                   <ArrowRight className="w-4 h-4" />
                 </button>
               </div>
 
-              {/* Citizen Upvote Button */}
-              <div className="pt-2">
-                <button
-                  onClick={(e) => handleUpvote(activeIssue.id, e)}
-                  className="w-full py-2 rounded-xl bg-[#0E131F] border border-slate-800 hover:border-cyan-500 text-slate-300 hover:text-cyan-300 font-bold flex items-center justify-center gap-2 transition cursor-pointer"
-                >
-                  <ThumbsUp className="w-3.5 h-3.5 text-cyan-400" />
-                  <span>Citizen Upvote & Verification ({activeIssue.upvotes || 0})</span>
-                </button>
+              {/* Citizen Actions: Feedback and Upvote */}
+              <div className="pt-2 space-y-2">
+                {/* Citizen Ground Resolution & Status Feedback */}
+                {!isPrivileged && (
+                  <button
+                    onClick={() => setIsFeedbackModalOpen(true)}
+                    className="w-full py-2.5 rounded-xl bg-amber-950/70 border border-amber-500/80 hover:bg-amber-900/70 text-amber-300 font-bold flex items-center justify-center gap-2 transition cursor-pointer text-xs shadow-sm"
+                  >
+                    <MessageSquareHeart className="w-4 h-4 text-amber-400" />
+                    <span>
+                      {activeIssue.status === "Resolved"
+                        ? "⭐ Rate Resolution & Verify Work"
+                        : "💬 Submit Ground Status Feedback"}
+                    </span>
+                  </button>
+                )}
+
+                {/* Citizen Upvote Button - Only for Citizens */}
+                {!isPrivileged && (
+                  <button
+                    onClick={(e) => handleUpvote(activeIssue.id, e)}
+                    className="w-full py-2 rounded-xl bg-[#0E131F] border border-slate-800 hover:border-cyan-500 text-slate-300 hover:text-cyan-300 font-bold flex items-center justify-center gap-2 transition cursor-pointer"
+                  >
+                    <ThumbsUp className="w-3.5 h-3.5 text-cyan-400" />
+                    <span>Citizen Upvote & Verification ({activeIssue.upvotes || 0})</span>
+                  </button>
+                )}
               </div>
 
             </div>
@@ -644,6 +809,20 @@ export default function CitySyncMapView({ setActivePage, viewMode = "auto", user
 
       </div>
 
+      {/* Citizen Community Feedback Modal */}
+      {isFeedbackModalOpen && (
+        <CitizenFeedbackModal
+          isOpen={isFeedbackModalOpen}
+          onClose={() => setIsFeedbackModalOpen(false)}
+          incident={activeIssue}
+          user={user}
+          onFeedbackSubmitted={(updated) => {
+            setSelectedIssue(updated);
+            setIssues((prev) => prev.map((i) => (i.id === updated.id ? updated : i)));
+          }}
+        />
+      )}
+
       {/* Level 5 Early Warning Command Center Modal */}
       <DisasterBroadcastModal
         isOpen={isDisasterModalOpen}
@@ -651,6 +830,32 @@ export default function CitySyncMapView({ setActivePage, viewMode = "auto", user
         initialIncident={activeIssue}
         user={user}
       />
+
+      {/* Delete / Dismiss Incident Log Modal with Citizen Resolution Broadcast */}
+      {isDeleteModalOpen && (
+        <DeleteIncidentModal
+          isOpen={isDeleteModalOpen}
+          onClose={() => setIsDeleteModalOpen(false)}
+          incident={activeIssue}
+          user={user}
+          onDeleted={(deletedId) => {
+            const remaining = issues.filter((i) => i.id !== deletedId);
+            setIssues(remaining);
+            setSelectedIssue(remaining[0] || null);
+          }}
+        />
+      )}
+
+      {/* Municipal Officer Override Permission Modal for In Progress tasks */}
+      {officerOverrideTarget && (
+        <OfficerOverrideModal
+          isOpen={Boolean(officerOverrideTarget)}
+          onClose={() => setOfficerOverrideTarget(null)}
+          incident={officerOverrideTarget.incident}
+          targetStatus={officerOverrideTarget.targetStatus}
+          onConfirmOverride={handleConfirmOfficerOverride}
+        />
+      )}
 
     </div>
   );
