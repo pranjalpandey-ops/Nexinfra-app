@@ -1,4 +1,27 @@
-﻿import React, { useState } from "react";
+import React, { useState } from "react";
+
+// Helper function to format detected time & elapsed duration
+function formatDetectedTiming(isoDate) {
+  if (!isoDate) return { exactTime: "Just now", elapsed: "Just now", isRecent: true };
+  try {
+    const d = new Date(isoDate);
+    const exactTime = `${d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })} at ${d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}`;
+    const diffMs = Date.now() - d.getTime();
+    const diffMins = Math.floor(diffMs / (1000 * 60));
+    let elapsed = "Just now";
+    if (diffMins < 1) elapsed = "Just now";
+    else if (diffMins < 60) elapsed = `${diffMins}m ago`;
+    else {
+      const diffHours = Math.floor(diffMins / 60);
+      if (diffHours < 24) elapsed = `${diffHours}h ${diffMins % 60}m ago`;
+      else elapsed = `${Math.floor(diffHours / 24)}d ago`;
+    }
+    return { exactTime, elapsed, isRecent: diffMins < 120 };
+  } catch (e) {
+    return { exactTime: "Just now", elapsed: "Just now", isRecent: true };
+  }
+}
+
 import {
   Inbox,
   Sparkles,
@@ -11,7 +34,8 @@ import {
   Send,
   Eye,
   CheckSquare,
-  Square
+  Square,
+  ShieldAlert
 } from "lucide-react";
 
 export default function RequestsHubSubpage({
@@ -244,6 +268,18 @@ export default function RequestsHubSubpage({
                     <MapPin className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
                     <span className="truncate">{item.address || item.ward}</span>
                   </div>
+                  
+                  {/* Reported / Detected Timing Badge */}
+                  <div className="flex items-center justify-between text-[10px] bg-slate-900/80 px-2 py-1 rounded border border-slate-800">
+                    <div className="flex items-center gap-1 text-cyan-300 font-bold">
+                      <Clock className="w-3 h-3 text-cyan-400" />
+                      <span>{formatDetectedTiming(item.createdAt).exactTime}</span>
+                    </div>
+                    <span className="px-1.5 py-0.2 rounded bg-cyan-950 text-cyan-400 font-extrabold text-[9px]">
+                      {formatDetectedTiming(item.createdAt).elapsed}
+                    </span>
+                  </div>
+
                   <div className="text-slate-500 text-[10px]">
                     Reported by: {item.createdBy || "Resident Citizen"}
                   </div>

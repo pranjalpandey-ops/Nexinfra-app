@@ -16,7 +16,7 @@ import {
   UserPlus,
   Users,
   Building,
-  Truck
+  Truck,
 } from 'lucide-react';
 
 import { subscribeToAdminRequests } from '../services/adminRequestService';
@@ -47,27 +47,27 @@ export default function Sidebar({
 
   const adminMenuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'live-map', label: 'Live Map', icon: MapPin },
+    { id: 'citysync-map', label: 'CitySync AI Map', icon: MapPin },
     { id: 'maintenance', label: 'Incident Logs', icon: FileText },
+    { id: 'cctv', label: 'CCTV Monitor', icon: Camera },
     { id: 'drone-fleet', label: 'Drone Fleet', icon: Plane },
     { id: 'analytics', label: 'Analytics', icon: BarChart3 },
-    { id: 'cctv', label: 'CCTV Monitor', icon: Camera },
   ];
 
   const officerMenuItems = [
-    { id: 'officer-map', label: 'Live Team GIS Map', icon: MapPin },
-    { id: 'teams-laid-to-work', label: 'Teams Laid to Work', icon: Truck },
-    { id: 'task-allotment', label: 'Task Allotment Engine', icon: Send },
-    { id: 'team-details', label: 'Team Details & Rosters', icon: Users },
-    { id: 'add-member', label: 'Add New Member / Crew', icon: UserPlus },
-    { id: 'maintenance', label: 'Incident Logs', icon: FileText },
-    { id: 'cctv', label: 'CCTV Monitor', icon: Camera },
+    { id: 'officer-map', label: 'Live Map' },
+    { id: 'teams-laid-to-work', label: 'Active Teams' },
+    { id: 'task-allotment', label: 'Task Allotment' },
+    { id: 'team-details', label: 'Team Details' },
+    { id: 'add-member', label: 'Add Member' },
+    { id: 'team-analytics', label: 'Analytics' },
   ];
 
   const publicMenuItems = [
     { id: 'dashboard', label: 'Citizen Dashboard', icon: LayoutDashboard },
     { id: 'citysync-map', label: 'CitySync AI Map', icon: MapPin },
     { id: 'report-issue', label: 'Report Issue', icon: Sparkles },
+    { id: 'cctv', label: 'CCTV Monitor', icon: Camera },
     { id: 'analytics', label: 'Civic Analytics', icon: BarChart3 },
     { id: 'incident-detail', label: 'Track Complaint', icon: AlertCircle },
   ];
@@ -83,7 +83,8 @@ export default function Sidebar({
     'teams-laid-to-work',
     'task-allotment',
     'team-details',
-    'add-member'
+    'add-member',
+    'team-analytics'
   ].includes(activePage);
   const showAdminControls = isAdmin && !isOfficerContext;
 
@@ -172,7 +173,9 @@ export default function Sidebar({
                     : 'text-slate-300 hover:text-white hover:bg-slate-800/40'
                 }`}
               >
-                <Icon className={`w-4 h-4 ${isActive ? (isOfficerContext ? 'text-amber-400' : 'text-cyan-400') : 'text-slate-400'}`} />
+                {!isOfficerContext && Icon && (
+                  <Icon className={`w-4 h-4 ${isActive ? 'text-cyan-400' : 'text-slate-400'}`} />
+                )}
                 <span className="font-medium text-sm">{item.label}</span>
               </button>
             );

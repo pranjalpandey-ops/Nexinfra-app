@@ -34,6 +34,8 @@ import {
 import LeafletMap from "../components/LeafletMap";
 import DisasterBroadcastModal from "../components/DisasterBroadcastModal";
 import CitizenFeedbackModal from "../components/CitizenFeedbackModal";
+import CitizenEscalationModal from "../components/CitizenEscalationModal";
+import { BellRing } from "lucide-react";
 import DeleteIncidentModal from "../components/DeleteIncidentModal";
 import OfficerOverrideModal from "../components/OfficerOverrideModal";
 import { getLocalCivicIssues, upvoteIssue, updateCivicIssueStatus } from "../services/civicDb";
@@ -111,6 +113,58 @@ export const mockDroneStations = [
   }
 ];
 
+
+function getIssueTimeInfo(issue) {
+  if (!issue) return { formattedReported: "Today", formattedElapsed: "1h 15m", isOverdue: false, formattedDelay: "0m", slaHours: 4 };
+  
+  let reportedDate = null;
+  if (issue.createdAt) {
+    if (issue.createdAt.seconds) {
+      reportedDate = new Date(issue.createdAt.seconds * 1000);
+    } else {
+      reportedDate = new Date(issue.createdAt);
+    }
+  } else {
+    reportedDate = new Date(Date.now() - 4.5 * 3600 * 1000);
+  }
+
+  const now = Date.now();
+  const elapsedMs = Math.max(0, now - reportedDate.getTime());
+  const elapsedMins = Math.floor(elapsedMs / (1000 * 60));
+  const elapsedHours = Math.floor(elapsedMins / 60);
+  const remainingMins = elapsedMins % 60;
+
+  const formattedElapsed =
+    elapsedHours > 24
+      ? `${Math.floor(elapsedHours / 24)}d ${elapsedHours % 24}h`
+      : elapsedHours > 0
+      ? `${elapsedHours}h ${remainingMins}m`
+      : `${elapsedMins}m`;
+
+  const formattedReported = reportedDate.toLocaleString("en-IN", {
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit"
+  });
+
+  const slaHours = issue.slaHours || 4;
+  const slaTotalMins = slaHours * 60;
+  const isOverdue = elapsedMins > slaTotalMins && issue.status !== "Resolved" && issue.status !== "Closed";
+  const delayMins = isOverdue ? elapsedMins - slaTotalMins : 0;
+  const delayHours = Math.floor(delayMins / 60);
+  const delayRemainingMins = delayMins % 60;
+  const formattedDelay = delayHours > 0 ? `${delayHours}h ${delayRemainingMins}m` : `${delayMins}m`;
+
+  return {
+    formattedReported,
+    formattedElapsed,
+    isOverdue,
+    formattedDelay,
+    slaHours
+  };
+}
+
 export default function CitySyncMapView({ setActivePage, viewMode = "auto", user }) {
   const isAdmin = user?.role === "admin";
   const isOfficer = user?.role === "officer";
@@ -131,6 +185,7 @@ export default function CitySyncMapView({ setActivePage, viewMode = "auto", user
   const [isDisasterModalOpen, setIsDisasterModalOpen] = useState(false);
   const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isEscalationModalOpen, setIsEscalationModalOpen] = useState(false);
   const [officerOverrideTarget, setOfficerOverrideTarget] = useState(null);
 
   // Panel View Controls
@@ -344,19 +399,21 @@ export default function CitySyncMapView({ setActivePage, viewMode = "auto", user
               </button>
             </div>
 
-            {/* Heatmap Toggle */}
-            <button
-              onClick={() => setShowHeatmap(!showHeatmap)}
-              className={`px-3 py-1.5 rounded-xl border flex items-center gap-1.5 transition cursor-pointer font-bold ${
-                showHeatmap
-                  ? "bg-amber-950/80 border-amber-400 text-amber-300 cyan-glow-sm shadow-md"
-                  : "bg-[#070A10] border-slate-800 text-slate-400 hover:text-white"
-              }`}
-              title="Toggle Cluster Heatmap Intensity"
-            >
-              <Flame className={`w-3.5 h-3.5 ${showHeatmap ? "text-amber-400 animate-pulse" : ""}`} />
-              <span>{showHeatmap ? "Heatmap ON" : "Heatmap"}</span>
-            </button>
+            {/* Heatmap Toggle - Only for Admin & Officers */}
+            {isPrivileged && (
+              <button
+                onClick={() => setShowHeatmap(!showHeatmap)}
+                className={`px-3 py-1.5 rounded-xl border flex items-center gap-1.5 transition cursor-pointer font-bold ${
+                  showHeatmap
+                    ? "bg-amber-950/80 border-amber-400 text-amber-300 cyan-glow-sm shadow-md"
+                    : "bg-[#070A10] border-slate-800 text-slate-400 hover:text-white"
+                }`}
+                title="Toggle Cluster Heatmap Intensity"
+              >
+                <Flame className={`w-3.5 h-3.5 ${showHeatmap ? "text-amber-400 animate-pulse" : ""}`} />
+                <span>{showHeatmap ? "Heatmap ON" : "Heatmap"}</span>
+              </button>
+            )}
 
             {/* UAV Drone Recon Loop Toggle - Only for Admin & Officers */}
             {isPrivileged && (
@@ -677,26 +734,49 @@ export default function CitySyncMapView({ setActivePage, viewMode = "auto", user
                 </h3>
               </div>
 
-              {/* SLA Real-Time Clock & Progress */}
-              <div className="p-3 rounded-xl bg-[#070A12] border border-slate-800 space-y-2">
-                <div className="flex justify-between items-center text-slate-300">
-                  <span className="flex items-center gap-1 text-cyan-400 font-bold">
-                    <Clock className="w-3.5 h-3.5" />
-                    <span>SLA Target Clock</span>
-                  </span>
-                  <span className="text-emerald-400 font-bold">
-                    {activeIssue.slaHours ? `${activeIssue.slaHours}h Max` : "4h Target"}
-                  </span>
-                </div>
+              {/* Citizen Real-Time Reported Clock & SLA Progress */}
+              {(() => {
+                const timeInfo = getIssueTimeInfo(activeIssue);
+                return (
+                  <div className="p-3.5 rounded-xl bg-[#070A12] border border-slate-800 space-y-2.5">
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="flex items-center gap-1.5 text-cyan-400 font-bold">
+                        <Clock className="w-3.5 h-3.5" />
+                        <span>Reported: {timeInfo.formattedReported}</span>
+                      </span>
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                        timeInfo.isOverdue
+                          ? "bg-red-950 text-red-300 border border-red-800 animate-pulse"
+                          : "bg-emerald-950 text-emerald-300 border border-emerald-800"
+                      }`}>
+                        {timeInfo.isOverdue ? `Overdue +${timeInfo.formattedDelay}` : `${timeInfo.slaHours}h Target`}
+                      </span>
+                    </div>
 
-                <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
-                  <div className="bg-gradient-to-r from-cyan-400 to-emerald-400 h-full w-[65%]" />
-                </div>
-                <div className="flex justify-between text-[10px] text-slate-400">
-                  <span>Elapsed: 1h 15m</span>
-                  <span className="text-cyan-300 font-bold">65% SLA Window Remaining</span>
-                </div>
-              </div>
+                    <div className="flex items-center justify-between text-[11px] text-slate-300">
+                      <span>Time Passed: <strong className="text-amber-400">{timeInfo.formattedElapsed}</strong></span>
+                      <span className="text-slate-400">Target SLA: {timeInfo.slaHours}.0h</span>
+                    </div>
+
+                    {/* Citizen Delay Notice & Escalation Button */}
+                    {timeInfo.isOverdue && !isPrivileged && (
+                      <div className="pt-2 border-t border-slate-800/80 space-y-2">
+                        <div className="text-[10px] text-amber-300 flex items-center gap-1">
+                          <AlertTriangle className="w-3 h-3 text-amber-400 shrink-0" />
+                          <span>Remediation taking too long? Escalate to Municipal Officer.</span>
+                        </div>
+                        <button
+                          onClick={() => setIsEscalationModalOpen(true)}
+                          className="w-full py-2 rounded-lg bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 text-black font-extrabold text-[11px] uppercase flex items-center justify-center gap-1.5 shadow-md cursor-pointer transition active:scale-95"
+                        >
+                          <BellRing className="w-3.5 h-3.5 text-black" />
+                          <span>Report / Escalate Delay</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
 
               {/* Location & Ward Info */}
               <div className="p-3 rounded-xl bg-[#070A12] border border-slate-800 space-y-1.5 text-slate-300">
@@ -857,6 +937,19 @@ export default function CitySyncMapView({ setActivePage, viewMode = "auto", user
         />
       )}
 
+          {/* Citizen Delay Escalation Modal */}
+      {isEscalationModalOpen && (
+        <CitizenEscalationModal
+          isOpen={isEscalationModalOpen}
+          onClose={() => setIsEscalationModalOpen(false)}
+          incident={activeIssue}
+          user={user}
+          elapsedFormatted={getIssueTimeInfo(activeIssue).formattedElapsed}
+          onEscalated={() => {
+            setSelectedIssue((prev) => prev ? ({ ...prev, isEscalated: true }) : prev);
+          }}
+        />
+      )}
     </div>
   );
 }

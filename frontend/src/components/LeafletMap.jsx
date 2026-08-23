@@ -83,45 +83,74 @@ const getDroneStationIcon = () => {
   });
 };
 
+
+const getDeptCenterIcon = (category = "Road Damage / Pothole", color = "#00F0FF", iconEmoji = "🏢") => {
+  return L.divIcon({
+    className: "custom-dept-center-pin",
+    html: `
+      <div style="
+        width: 26px;
+        height: 26px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 8px;
+        background: #0B0F19;
+        border: 1.5px solid ${color};
+        box-shadow: 0 0 10px ${color}80;
+        position: relative;
+        cursor: pointer;
+      ">
+        <span style="font-size: 13px; display: flex; align-items: center; justify-content: center;">${iconEmoji}</span>
+      </div>
+    `,
+    iconSize: [26, 26],
+    iconAnchor: [13, 13],
+    popupAnchor: [0, -14],
+  });
+};
+
 const getMunicipalTeamIcon = (isOccupied, isLate) => {
   const borderColor = isLate ? "#EF4444" : isOccupied ? "#F59E0B" : "#10B981";
-  const glowColor = isLate ? "rgba(239,68,68,0.7)" : isOccupied ? "rgba(245,158,11,0.7)" : "rgba(16,185,129,0.7)";
+  const glowColor = isLate ? "rgba(239,68,68,0.9)" : isOccupied ? "rgba(245,158,11,0.9)" : "rgba(16,185,129,0.9)";
   const iconEmoji = isOccupied ? "🚜" : "🛠️";
 
   return L.divIcon({
     className: "custom-municipal-team-pin",
     html: `
       <div style="
-        width: 36px;
-        height: 36px;
+        width: 44px;
+        height: 44px;
         display: flex;
         align-items: center;
         justify-content: center;
         border-radius: 50%;
-        background: #0B0F19;
-        border: 2px solid ${borderColor};
-        box-shadow: 0 0 16px ${glowColor}, inset 0 0 8px ${glowColor};
+        background: #090D16;
+        border: 2.5px solid ${borderColor};
+        box-shadow: 0 0 24px ${glowColor}, 0 0 0 4px rgba(245,158,11,0.25);
         position: relative;
         cursor: pointer;
+        animation: pulse 2s infinite;
       ">
-        <span style="font-size: 17px; display: flex; align-items: center; justify-content: center;">${iconEmoji}</span>
+        <span style="font-size: 22px; display: flex; align-items: center; justify-content: center;">${iconEmoji}</span>
         ${isOccupied ? `
           <div style="
             position: absolute;
-            top: -2px;
-            right: -2px;
-            width: 9px;
-            height: 9px;
+            top: -3px;
+            right: -3px;
+            width: 12px;
+            height: 12px;
             border-radius: 50%;
             background: ${borderColor};
-            box-shadow: 0 0 6px ${borderColor};
+            box-shadow: 0 0 10px ${borderColor};
+            border: 2px solid #000;
           "></div>
         ` : ""}
       </div>
     `,
-    iconSize: [36, 36],
-    iconAnchor: [18, 18],
-    popupAnchor: [0, -19],
+    iconSize: [44, 44],
+    iconAnchor: [22, 22],
+    popupAnchor: [0, -24],
   });
 };
 
@@ -171,6 +200,25 @@ export default function LeafletMap({
               />
             ))}
 
+        {/* 7.5km Department Center Rapid-Response Service Radius Circles */}
+        {showHeatmap &&
+          markers
+            .filter((m) => m.position && m.position[0] && m.position[1] && m.data?.type === "DEPARTMENT_CENTER")
+            .map((m, idx) => (
+              <Circle
+                key={`dept-center-radius-${idx}`}
+                center={m.position}
+                radius={7500}
+                pathOptions={{
+                  color: m.data.color || "#00F0FF",
+                  fillColor: m.data.color || "#00F0FF",
+                  fillOpacity: 0.12,
+                  weight: 2,
+                  dashArray: "5, 5",
+                }}
+              />
+            ))}
+
         {/* Interactive Defect Pins & Drone Station Hubs */}
         {markers && markers.length > 0 ? (
           markers.map((m, i) => {
@@ -178,6 +226,53 @@ export default function LeafletMap({
             const isDroneStation = data.type === "DRONE_STATION";
             const isCritical = data.priority === "P1" || data.priority === "High";
             const isResolved = data.status === "Resolved";
+
+            if (data.type === "DEPARTMENT_CENTER") {
+              return (
+                <Marker
+                  key={`dept-center-${i}`}
+                  position={m.position}
+                  icon={getDeptCenterIcon(data.category, data.color, data.iconEmoji || "🏢")}
+                  eventHandlers={{
+                    click: () => {
+                      if (onMarkerClick && m.data) {
+                        onMarkerClick(m.data);
+                      }
+                    },
+                  }}
+                >
+                  <Popup className="custom-dark-popup">
+                    <div className="p-3 font-mono-tech text-xs space-y-2 min-w-[240px] max-w-[280px]">
+                      <div className="flex items-center justify-between border-b pb-2" style={{ borderColor: `${data.color}40` }}>
+                        <span className="font-extrabold text-xs flex items-center gap-1.5" style={{ color: data.color }}>
+                          <span>{data.iconEmoji || "🏢"}</span>
+                          <span>{data.code || "DEPT HQ"}</span>
+                        </span>
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold" style={{ backgroundColor: `${data.color}20`, color: data.color, border: `1px solid ${data.color}60` }}>
+                          7.5 KM RADIAL COVERAGE
+                        </span>
+                      </div>
+
+                      <div className="space-y-0.5">
+                        <h4 className="font-bold text-white text-xs font-sans">
+                          {data.name}
+                        </h4>
+                        <p className="text-[11px] text-slate-300">
+                          {data.ward} • {data.zone}
+                        </p>
+                      </div>
+
+                      {/* Officer In-Charge */}
+                      <div className="bg-[#070A10] p-2.5 rounded-xl border border-slate-800 space-y-0.5 text-[11px] pt-1.5">
+                        <div className="text-slate-400 text-[10px]">Officer In-Charge:</div>
+                        <strong className="text-amber-300 text-xs block">{data.inchargeName}</strong>
+                      </div>
+
+                    </div>
+                  </Popup>
+                </Marker>
+              );
+            }
 
             if (isDroneStation) {
               return (

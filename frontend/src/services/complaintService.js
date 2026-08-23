@@ -5,8 +5,8 @@ export async function createComplaint(complaintData) {
   try {
     const docRef = await addDoc(collection(db, "complaints"), {
       ...complaintData,
-      status: "Submitted",
-      priority: complaintData.priority || "Medium",
+      status: complaintData.status || "AI Verified",
+      priority: complaintData.priority || "P1",
       createdAt: serverTimestamp(),
     });
 

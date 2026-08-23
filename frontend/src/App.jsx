@@ -28,12 +28,68 @@ import SettingsModal from "./components/SettingsModal";
 import AdminApprovalModal from "./components/AdminApprovalModal";
 import AlertsDrawerModal from "./components/AlertsDrawerModal";
 import LiveAlertToast from "./components/LiveAlertToast";
+import { HardHat, ShieldCheck, Sparkles, Loader2 } from "lucide-react";
 
-const ADMIN_ONLY_PAGES = ["drone-fleet"];
+/**
+ * CENTRAL ROLE PERMISSIONS CONFIGURATION
+ * Strict role-based route mapping.
+ */
+export const ROLE_PAGES = {
+  admin: [
+    "dashboard",
+    "live-map",
+    "citysync-map",
+    "report-issue",
+    "incident-detail",
+    "maintenance",
+    "cctv",
+    "drone-fleet",
+    "analytics"
+  ],
+  officer: [
+    "municipal-dashboard",
+    "officer-map",
+    "teams-laid-to-work",
+    "task-allotment",
+    "team-details",
+    "add-member",
+    "team-analytics",
+    "analytics",
+    "maintenance",
+    "cctv",
+    "live-map",
+    "citysync-map",
+    "report-issue",
+    "incident-detail"
+  ],
+  public: [
+    "dashboard",
+    "citysync-map",
+    "report-issue",
+    "incident-detail",
+    "analytics",
+    "cctv"
+  ]
+};
+
+export function getRoleLandingPage(role) {
+  if (role === "admin") return "dashboard";
+  if (role === "officer") return "municipal-dashboard";
+  return "dashboard";
+}
+
+export function canAccessPage(role, targetPage) {
+  if (targetPage === "landing" || targetPage === "login" || targetPage === "signup") {
+    return true;
+  }
+  const allowed = ROLE_PAGES[role] || ROLE_PAGES.public;
+  return allowed.includes(targetPage);
+}
 
 export default function App() {
   const [activePage, setActivePage] = useState("landing");
   const [user, setUser] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
   const [viewMode, setViewMode] = useState("auto");
 
   // Alert System States
@@ -46,32 +102,38 @@ export default function App() {
   });
 
   useEffect(() => {
-    document.documentElement.setAttribute("data-theme", theme);
     localStorage.setItem("nexinfra-theme", theme);
   }, [theme]);
 
-  // Firebase Authentication State & Role Synchronization
+  // Firebase Authentication State & Firestore Role Synchronization
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      setAuthLoading(true);
       if (firebaseUser) {
-        const resolvedProfile = await resolveUserWithRole(firebaseUser);
-        setUser(resolvedProfile);
+        try {
+          const resolvedProfile = await resolveUserWithRole(firebaseUser);
+          setUser(resolvedProfile);
 
-        if (
-          activePage === "landing" ||
-          activePage === "login" ||
-          activePage === "signup"
-        ) {
-          if (resolvedProfile.role === "officer") {
-            setActivePage("municipal-dashboard");
-          } else {
-            setActivePage("dashboard");
-          }
+          // Route to role-specific landing page if currently on auth/landing screens
+          setActivePage((prev) => {
+            if (prev === "landing" || prev === "login" || prev === "signup") {
+              return getRoleLandingPage(resolvedProfile?.role);
+            }
+            // If on a page not allowed for their resolved role, redirect appropriately
+            if (!canAccessPage(resolvedProfile?.role, prev)) {
+              return getRoleLandingPage(resolvedProfile?.role);
+            }
+            return prev;
+          });
+        } catch (err) {
+          console.error("Role resolution error:", err);
+          setUser(null);
         }
       } else {
         setUser(null);
-        setActivePage("landing");
+        setActivePage((prev) => (prev === "login" || prev === "signup" ? prev : "landing"));
       }
+      setAuthLoading(false);
     });
 
     return unsubscribe;
@@ -82,7 +144,6 @@ export default function App() {
     const unsubscribe = subscribeToLiveAlerts((liveAlerts) => {
       setAlerts(liveAlerts);
 
-      // Trigger toast for most recent unacknowledged critical alert
       const latestCritical = liveAlerts.find(
         (a) => (a.level === "CRITICAL" || a.priority === "P1") && !a.acknowledged
       );
@@ -95,63 +156,22 @@ export default function App() {
     return unsubscribe;
   }, []);
 
-  // Protected Route Handler with Role Based Access Control
+  // Protected Navigation Guard
   const handleNavigate = (targetPage) => {
     if (!user && targetPage !== "landing" && targetPage !== "login" && targetPage !== "signup") {
       setActivePage("login");
       return;
     }
 
-    // 1. Municipal Officer Account Route Isolation
-    if (user?.role === "officer") {
-      const officerAllowedPages = [
-        "municipal-dashboard",
-        "officer-map",
-        "teams-laid-to-work",
-        "task-allotment",
-        "team-details",
-        "add-member",
-        "maintenance",
-        "cctv",
-        "live-map",
-        "landing",
-        "login",
-        "signup",
-        "dashboard"
-      ];
-      if (targetPage === "dashboard") {
-        setActivePage("officer-map");
+    if (user) {
+      // Municipal Officer redirect mapping
+      if (user.role === "officer" && targetPage === "dashboard") {
+        setActivePage("municipal-dashboard");
         return;
       }
-      if (!officerAllowedPages.includes(targetPage)) {
-        setActivePage("officer-map");
-        return;
-      }
-    }
 
-    // 2. Public Citizen Account Route Isolation
-    if (user?.role === "public") {
-      const publicAllowedPages = [
-        "dashboard",
-        "citysync-map",
-        "report-issue",
-        "incident-detail",
-        "analytics",
-        "landing",
-        "login",
-        "signup"
-      ];
-      if (!publicAllowedPages.includes(targetPage)) {
-        setActivePage("dashboard");
-        return;
-      }
-    }
-
-    // 3. Admin-Only Modules
-    if (ADMIN_ONLY_PAGES.includes(targetPage)) {
-      if (!user || user.role !== "admin") {
-        alert("Access Restricted: This module requires Command Administrator clearance.");
-        setActivePage(user?.role === "officer" ? "municipal-dashboard" : user ? "dashboard" : "login");
+      if (!canAccessPage(user.role, targetPage)) {
+        setActivePage(getRoleLandingPage(user.role));
         return;
       }
     }
@@ -161,124 +181,152 @@ export default function App() {
 
   const handleLoginSuccess = (userData) => {
     setUser(userData);
-    if (userData?.role === "officer") {
-      setActivePage("municipal-dashboard");
-    } else {
-      setActivePage("dashboard");
-    }
+    setActivePage(getRoleLandingPage(userData?.role));
   };
 
   const handleLogout = async () => {
     try {
       await signOut(auth);
+      setUser(null);
+      setActivePage("landing");
+      localStorage.removeItem("selectedComplaint");
     } catch (error) {
       console.error("Logout Error:", error);
     }
   };
 
-  // Inspect Incident directly from Alert
-  const handleInspectAlert = (alertItem) => {
-    setActiveAlertToast(null);
-    if (alertItem.incidentId) {
-      localStorage.setItem("selectedComplaint", JSON.stringify({
-        id: alertItem.incidentId,
-        title: alertItem.title,
-        description: alertItem.message,
-        ward: alertItem.location,
-        priority: "P1",
-        status: "AI Verified"
-      }));
-    }
-    setActivePage("incident-detail");
-  };
-
-  // Modals & Controls
+  // Modals state
   const [isDispatchModalOpen, setIsDispatchModalOpen] = useState(false);
   const [isWorkOrderModalOpen, setIsWorkOrderModalOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isApprovalModalOpen, setIsApprovalModalOpen] = useState(false);
 
-  const handleOpenDispatch = () => {
-    if (user?.role !== "admin") {
-      alert("Administrator Clearance required to dispatch Tactical UAVs.");
-      return;
-    }
-    setIsDispatchModalOpen(true);
-  };
+  const handleOpenDispatch = () => setIsDispatchModalOpen(true);
+  const handleOpenWorkOrder = () => setIsWorkOrderModalOpen(true);
+  const handleOpenApproval = () => setIsApprovalModalOpen(true);
 
-  const handleOpenWorkOrder = () => {
-    if (user?.role !== "admin") {
-      alert("Administrator Clearance required to generate official work orders.");
-      return;
-    }
-    setIsWorkOrderModalOpen(true);
-  };
-
-  const handleOpenApproval = () => {
-    if (user?.role !== "admin") {
-      alert("Only Predefined Administrators can review personnel clearance applications.");
-      return;
-    }
-    setIsApprovalModalOpen(true);
-  };
-
-  const isPublicPage =
-    activePage === "landing" ||
-    activePage === "signup" ||
-    activePage === "login";
-
-  return (
-    <div className="h-screen bg-[#07090E] text-slate-100 flex flex-col font-sans selection:bg-cyan-500 selection:text-black overflow-hidden">
-      {/* Navbar */}
-      <Navbar
-        activePage={activePage}
-        setActivePage={handleNavigate}
-        isAuth={!!user}
-        user={user}
-        theme={theme}
-        setTheme={setTheme}
-        onOpenSettings={() => setIsSettingsOpen(true)}
-        onOpenAlerts={() => setIsAlertsOpen(true)}
-        onLogout={handleLogout}
-      />
-
-      {/* Public Unauthenticated Views */}
-      {isPublicPage ? (
-        <div className="flex-1 min-h-0 overflow-y-auto">
-          {activePage === "landing" && (
-            <LandingView setActivePage={handleNavigate} />
-          )}
-
-          {activePage === "signup" && (
-            <SignUpView
-              setActivePage={handleNavigate}
-              onLoginSuccess={handleLoginSuccess}
-            />
-          )}
-
-          {activePage === "login" && (
-            <LoginView
-              setActivePage={handleNavigate}
-              onLoginSuccess={handleLoginSuccess}
-            />
-          )}
+  // Authentication Loading Screen
+  if (authLoading) {
+    return (
+      <div className="flex h-screen w-screen items-center justify-center bg-[#070A10] text-slate-100 font-mono">
+        <div className="flex flex-col items-center gap-4 p-8 rounded-2xl bg-[#0B0F19] border border-slate-800 shadow-2xl animate-pulse">
+          <div className="w-12 h-12 rounded-xl bg-cyan-950 border border-cyan-500/60 flex items-center justify-center text-cyan-400">
+            <Loader2 className="w-6 h-6 animate-spin" />
+          </div>
+          <div className="text-center space-y-1">
+            <h3 className="text-base font-bold text-white tracking-wider">NEXINFRA SECURE GATEWAY</h3>
+            <p className="text-xs text-slate-400">Authenticating Credentials & Resolving Role Clearance...</p>
+          </div>
         </div>
-      ) : activePage === "report-issue" ||
-        activePage === "citysync-map" ||
-        activePage === "incident-detail" ? (
-        <div className="flex-1 min-h-0 overflow-y-auto bg-[#07090E] flex flex-col justify-center items-center py-4">
-          {activePage === "report-issue" && (
-            <CitySyncReportView
+      </div>
+    );
+  }
+
+  // 1. PUBLIC UN-AUTHENTICATED LANDING & AUTH PAGES
+  if (activePage === "landing") {
+    return (
+      <div className="min-h-screen flex flex-col bg-[#04050c] text-slate-100">
+        <Navbar
+          activePage={activePage}
+          setActivePage={handleNavigate}
+          isAuth={Boolean(user)}
+          user={user}
+          theme={theme}
+          setTheme={setTheme}
+          onLogout={handleLogout}
+          onOpenSettings={() => setIsSettingsOpen(true)}
+          onOpenAlerts={() => setIsAlertsOpen(true)}
+        />
+        <div className="flex-1">
+          <LandingView
+            setActivePage={handleNavigate}
+            user={user}
+            onLoginSuccess={handleLoginSuccess}
+            onLogout={handleLogout}
+            theme={theme}
+            setTheme={setTheme}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  if (activePage === "login") {
+    return (
+      <div className="min-h-screen flex flex-col bg-[#070A10] text-slate-100">
+        <Navbar
+          activePage={activePage}
+          setActivePage={handleNavigate}
+          isAuth={Boolean(user)}
+          user={user}
+          theme={theme}
+          setTheme={setTheme}
+          onLogout={handleLogout}
+        />
+        <div className="flex-1">
+          <LoginView
+            setActivePage={handleNavigate}
+            onLoginSuccess={handleLoginSuccess}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  if (activePage === "signup") {
+    return (
+      <div className="min-h-screen flex flex-col bg-[#070A10] text-slate-100">
+        <Navbar
+          activePage={activePage}
+          setActivePage={handleNavigate}
+          isAuth={Boolean(user)}
+          user={user}
+          theme={theme}
+          setTheme={setTheme}
+          onLogout={handleLogout}
+        />
+        <div className="flex-1">
+          <SignUpView
+            setActivePage={handleNavigate}
+            onSignUpSuccess={handleLoginSuccess}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  // 2. REPORTING, CITYSYNC MAP & TRACKING PORTAL (CLEAN FULL-PAGE VIEW FOR ALL USERS)
+  const isCitizenOnlyView =
+    activePage === "citysync-map" ||
+    activePage === "report-issue" ||
+    activePage === "incident-detail";
+
+  if (isCitizenOnlyView) {
+    return (
+      <div className="flex flex-col h-screen w-screen overflow-hidden bg-[#070A10] text-slate-100 font-sans">
+        <Navbar
+          activePage={activePage}
+          setActivePage={handleNavigate}
+          isAuth={Boolean(user)}
+          user={user}
+          theme={theme}
+          setTheme={setTheme}
+          onLogout={handleLogout}
+          onOpenSettings={() => setIsSettingsOpen(true)}
+          onOpenAlerts={() => setIsAlertsOpen(true)}
+        />
+
+        <main className="flex-1 min-h-0 overflow-y-auto flex flex-col">
+          {activePage === "citysync-map" && (
+            <CitySyncMapView
               setActivePage={handleNavigate}
-              viewMode={viewMode}
               user={user}
             />
           )}
 
-          {activePage === "citysync-map" && (
-            <CitySyncMapView
+          {activePage === "report-issue" && (
+            <CitySyncReportView
               setActivePage={handleNavigate}
-              viewMode={viewMode}
               user={user}
             />
           )}
@@ -286,14 +334,32 @@ export default function App() {
           {activePage === "incident-detail" && (
             <IncidentDetailView
               setActivePage={handleNavigate}
-              viewMode={viewMode}
               user={user}
             />
           )}
-        </div>
-      ) : user ? (
-        <div className="flex flex-1 min-h-0 w-full overflow-hidden">
-          {/* Sidebar */}
+        </main>
+      </div>
+    );
+  }
+
+  // 3. MAIN CONSOLE INTERFACE (ADMIN & MUNICIPAL OFFICER PORTALS)
+  return (
+    <div className="flex flex-col h-screen w-screen overflow-hidden bg-[#070A10] text-slate-100 font-sans">
+      <Navbar
+        activePage={activePage}
+        setActivePage={handleNavigate}
+        isAuth={Boolean(user)}
+        user={user}
+        theme={theme}
+        setTheme={setTheme}
+        onLogout={handleLogout}
+        onOpenSettings={() => setIsSettingsOpen(true)}
+        onOpenAlerts={() => setIsAlertsOpen(true)}
+      />
+
+      {user ? (
+        <div className="flex flex-1 min-h-0 overflow-hidden">
+          {/* Role-Aware Sidebar */}
           <Sidebar
             activePage={activePage}
             setActivePage={handleNavigate}
@@ -304,19 +370,20 @@ export default function App() {
             onOpenApprovalModal={handleOpenApproval}
           />
 
-          {/* Main Console */}
+          {/* Main Console Body */}
           <main className="flex-1 flex flex-col min-w-0 bg-[#070A10] h-full overflow-hidden">
-            {/* Console Header */}
+            
+            {/* Top Console Header Status */}
             <div className="h-14 bg-[#090D16] border-b border-slate-800/80 px-6 flex items-center justify-between font-mono-tech text-xs shrink-0">
               <div className="flex items-center gap-3">
                 <span className={`font-bold uppercase tracking-wider text-sm ${
-                  user?.role === "officer" || activePage === "municipal-dashboard"
+                  user.role === "officer"
                     ? "text-amber-400"
-                    : user?.role === "admin"
+                    : user.role === "admin"
                     ? "text-cyan-400"
                     : "text-emerald-400"
                 }`}>
-                  NEXINFRA {user?.role === "officer" || activePage === "municipal-dashboard" ? "MUNICIPAL DESK" : user?.role === "admin" ? "COMMAND CONSOLE" : "CITIZEN PORTAL"}
+                  NEXINFRA {user.role === "officer" ? "MUNICIPAL DESK" : user.role === "admin" ? "COMMAND CONSOLE" : "CITIZEN PORTAL"}
                 </span>
 
                 <span className="text-slate-600">/</span>
@@ -325,31 +392,20 @@ export default function App() {
                   {activePage.replace("-", " ")}
                 </span>
 
-                {user?.role && (
-                  <span
-                    className={`ml-2 px-2.5 py-0.5 rounded text-[11px] font-bold uppercase tracking-wider ${
-                      user.role === "officer" || activePage === "municipal-dashboard"
-                        ? "bg-amber-950 border border-amber-500 text-amber-300"
-                        : user.role === "admin"
-                        ? "bg-cyan-950 border border-cyan-500 text-cyan-300"
-                        : user.role === "pending_admin" || user.role === "pending_officer"
-                        ? "bg-amber-950 border border-amber-500 text-amber-300"
-                        : "bg-emerald-950 border border-emerald-500 text-emerald-300"
-                    }`}
-                  >
-                    {user.role === "officer" || activePage === "municipal-dashboard"
-                      ? "OFFICER"
+                <span
+                  className={`ml-2 px-2.5 py-0.5 rounded text-[11px] font-bold uppercase tracking-wider ${
+                    user.role === "officer"
+                      ? "bg-amber-950 border border-amber-500 text-amber-300"
                       : user.role === "admin"
-                      ? "ADMIN"
-                      : user.role === "pending_admin" || user.role === "pending_officer"
-                      ? "PENDING"
-                      : "CITIZEN"}
-                  </span>
-                )}
+                      ? "bg-cyan-950 border border-cyan-500 text-cyan-300"
+                      : "bg-emerald-950 border border-emerald-500 text-emerald-300"
+                  }`}
+                >
+                  {user.role === "officer" ? "OFFICER" : user.role === "admin" ? "ADMIN" : "CITIZEN"}
+                </span>
               </div>
 
               <div className="flex items-center gap-4">
-                {/* Live Alert Status Indicator in Header */}
                 <button
                   onClick={() => setIsAlertsOpen(true)}
                   className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-red-400 cursor-pointer"
@@ -358,7 +414,7 @@ export default function App() {
                   <span>Live Alerts ({alerts.filter((a) => !a.acknowledged).length})</span>
                 </button>
 
-                {user?.role === "admin" && activePage !== "municipal-dashboard" && (
+                {user.role === "admin" && (
                   <button
                     onClick={handleOpenApproval}
                     className="text-cyan-400 hover:text-cyan-300 transition-colors cursor-pointer text-xs font-bold flex items-center gap-1"
@@ -382,17 +438,25 @@ export default function App() {
                 </button>
 
                 <div
-                  className="w-8 h-8 rounded-full bg-cyan-950 border border-cyan-500/40 flex items-center justify-center text-cyan-400 font-bold text-sm"
-                  title={`${user?.name || "User"} (${user?.role || "public"})`}
+                  className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm border ${
+                    user.role === "officer"
+                      ? "bg-amber-950 border-amber-500/50 text-amber-300"
+                      : user.role === "admin"
+                      ? "bg-cyan-950 border-cyan-500/50 text-cyan-300"
+                      : "bg-emerald-950 border-emerald-500/50 text-emerald-300"
+                  }`}
+                  title={`${user.name || "User"} (${user.role})`}
                 >
-                  {user?.name ? user.name[0].toUpperCase() : "U"}
+                  {user.name ? user.name[0].toUpperCase() : "U"}
                 </div>
               </div>
             </div>
 
-            {/* Active Console Views */}
+            {/* Active Views Area */}
             <div className="flex-1 overflow-y-auto flex flex-col">
-              {activePage === "dashboard" && user?.role !== "officer" && (
+              
+              {/* ADMIN DASHBOARD */}
+              {activePage === "dashboard" && user.role === "admin" && (
                 <DashboardView
                   setActivePage={handleNavigate}
                   user={user}
@@ -400,13 +464,24 @@ export default function App() {
                 />
               )}
 
+              {/* CITIZEN DASHBOARD */}
+              {activePage === "dashboard" && user.role === "public" && (
+                <DashboardView
+                  setActivePage={handleNavigate}
+                  user={user}
+                  onOpenDispatchModal={handleOpenDispatch}
+                />
+              )}
+
+              {/* MUNICIPAL OFFICER PORTAL VIEWS */}
               {(activePage === "municipal-dashboard" ||
                 activePage === "officer-map" ||
                 activePage === "teams-laid-to-work" ||
                 activePage === "task-allotment" ||
                 activePage === "team-details" ||
                 activePage === "add-member" ||
-                (activePage === "dashboard" && user?.role === "officer")) && (
+                activePage === "team-analytics" ||
+                activePage === "analytics") && user.role === "officer" && (
                 <div className="p-6">
                   <MunicipalOfficerView
                     user={user}
@@ -416,7 +491,8 @@ export default function App() {
                 </div>
               )}
 
-              {activePage === "maintenance" && (user?.role === "admin" || user?.role === "officer") && (
+              {/* INCIDENT LOGS (ACCESSIBLE TO BOTH ADMIN & OFFICER - SEPARATED INSIDE COMPONENT) */}
+              {activePage === "maintenance" && (user.role === "admin" || user.role === "officer") && (
                 <MaintenanceView
                   user={user}
                   setActivePage={handleNavigate}
@@ -425,7 +501,8 @@ export default function App() {
                 />
               )}
 
-              {activePage === "live-map" && (user?.role === "admin" || user?.role === "officer") && (
+              {/* LIVE GIS MAP (ADMIN & OFFICER) */}
+              {activePage === "live-map" && (user.role === "admin" || user.role === "officer") && (
                 <LiveMapView
                   onOpenDispatchModal={handleOpenDispatch}
                   setActivePage={handleNavigate}
@@ -433,22 +510,53 @@ export default function App() {
                 />
               )}
 
-              {activePage === "drone-fleet" && user?.role === "admin" && (
+              {/* CCTV MONITOR (ACCESSIBLE TO ALL CLEARANCE ROLES) */}
+              {activePage === "cctv" && (
+                <CCTVMonitor
+                  user={user}
+                  setActivePage={handleNavigate}
+                />
+              )}
+
+              {/* DRONE FLEET (STRICTLY ADMIN ONLY) */}
+              {activePage === "drone-fleet" && user.role === "admin" && (
                 <DroneFleetView
                   onOpenDispatchModal={handleOpenDispatch}
                 />
               )}
 
-              {activePage === "cctv" && (user?.role === "admin" || user?.role === "officer") && (
-                <CCTVMonitor user={user} setActivePage={handleNavigate} />
-              )}
-
+              {/* ANALYTICS */}
               {activePage === "analytics" && (
                 <AnalyticsView
                   setActivePage={handleNavigate}
                 />
               )}
+
+              {/* CITYSYNC MAP (ACCESSIBLE TO ADMIN & ALL ROLES WITH DRONES, HEATMAP, INCIDENTS) */}
+              {activePage === "citysync-map" && (
+                <CitySyncMapView
+                  setActivePage={handleNavigate}
+                  user={user}
+                />
+              )}
+
+              {/* REPORT ISSUE (ACCESSIBLE TO ADMIN & ALL ROLES) */}
+              {activePage === "report-issue" && (
+                <CitySyncReportView
+                  setActivePage={handleNavigate}
+                  user={user}
+                />
+              )}
+
+              {/* INCIDENT INSPECTOR / DETAIL VIEW */}
+              {activePage === "incident-detail" && (
+                <IncidentDetailView
+                  setActivePage={handleNavigate}
+                  user={user}
+                />
+              )}
             </div>
+
           </main>
         </div>
       ) : (
@@ -460,52 +568,76 @@ export default function App() {
         </div>
       )}
 
-      {/* Global Modals & Live Alerts */}
+      {/* Global Admin Modals */}
       {user?.role === "admin" && (
         <>
           <DispatchDroneModal
             isOpen={isDispatchModalOpen}
             onClose={() => setIsDispatchModalOpen(false)}
           />
-
-          <WorkOrderModal
-            isOpen={isWorkOrderModalOpen}
-            onClose={() => setIsWorkOrderModalOpen(false)}
-          />
-
           <AdminApprovalModal
             isOpen={isApprovalModalOpen}
             onClose={() => setIsApprovalModalOpen(false)}
-            user={user}
           />
         </>
       )}
 
-      <AlertsDrawerModal
-        isOpen={isAlertsOpen}
-        onClose={() => setIsAlertsOpen(false)}
-        alerts={alerts}
-        onSelectIncident={(incId) => {
-          handleInspectAlert({ incidentId: incId });
-        }}
-      />
-
-      <LiveAlertToast
-        alert={activeAlertToast}
-        onInspect={handleInspectAlert}
-        onDismiss={() => setActiveAlertToast(null)}
+      <WorkOrderModal
+        isOpen={isWorkOrderModalOpen}
+        onClose={() => setIsWorkOrderModalOpen(false)}
       />
 
       <SettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
-        viewMode={viewMode}
-        setViewMode={setViewMode}
-        theme={theme}
-        setTheme={setTheme}
         user={user}
-        onOpenApprovalModal={handleOpenApproval}
       />
+
+      <AlertsDrawerModal
+        isOpen={isAlertsOpen}
+        onClose={() => setIsAlertsOpen(false)}
+        alerts={alerts}
+        onAcknowledge={(alertId) => {
+          setAlerts((prev) =>
+            prev.map((a) => (a.id === alertId ? { ...a, acknowledged: true } : a))
+          );
+        }}
+      />
+
+      {activeAlertToast && (
+        <LiveAlertToast
+          alert={activeAlertToast}
+          onClose={() => setActiveAlertToast(null)}
+          onDismiss={() => setActiveAlertToast(null)}
+          onInspect={(alertData) => {
+            const dataToInspect = alertData || activeAlertToast;
+            setActiveAlertToast(null);
+            if (dataToInspect) {
+              try {
+                localStorage.setItem("selectedComplaint", JSON.stringify(dataToInspect));
+              } catch (e) {
+                console.error("Storage error:", e);
+              }
+              // Route to incident-detail or maintenance
+              handleNavigate("incident-detail");
+            } else {
+              handleNavigate("maintenance");
+            }
+          }}
+          onViewIncident={(alertData) => {
+            const dataToInspect = alertData || activeAlertToast;
+            setActiveAlertToast(null);
+            if (dataToInspect) {
+              try {
+                localStorage.setItem("selectedComplaint", JSON.stringify(dataToInspect));
+              } catch (e) {}
+              handleNavigate("incident-detail");
+            } else {
+              handleNavigate("maintenance");
+            }
+          }}
+        />
+      )}
     </div>
   );
 }

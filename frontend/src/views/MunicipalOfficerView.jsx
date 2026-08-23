@@ -36,6 +36,7 @@ import {
   UserCheck,
   HardHat,
   BadgeAlert,
+  BarChart3,
   Map as MapIcon
 } from "lucide-react";
 
@@ -59,6 +60,123 @@ import { updateComplaintStatus } from "../services/updateComplaintStatus";
 import { subscribeToComplaints } from "../services/getComplaints";
 import LeafletMap from "../components/LeafletMap";
 
+
+// 7 Specialized Municipal Department Centers / Depots
+export const MUNICIPAL_DEPARTMENT_CENTERS = [
+  {
+    id: "DEPT-FIRE-01",
+    code: "FIRE-HQ",
+    name: "Central Fire & Emergency Disaster Station",
+    category: "Fire & Smoke Hazard",
+    iconEmoji: "🚒",
+    color: "#DC2626",
+    ward: "Industrial District - Ward 11",
+    zone: "Zone 11 Emergency Command",
+    position: [28.6350, 77.2180],
+    inchargeName: "Capt. Rajesh Verma",
+    inchargeRank: "Chief Fire Warden & Disaster Lead",
+    inchargePhone: "+91 98112 00101 / 101",
+    fleetSummary: "6 Water Tenders • 2 Hydraulic Ladders • 1 Foam Unit",
+    coverageRadiusKm: 7.5
+  },
+  {
+    id: "DEPT-ROAD-02",
+    code: "ROAD-DEPOT",
+    name: "Pavement & Highway Maintenance Depot",
+    category: "Road Damage / Pothole",
+    iconEmoji: "🛣️",
+    color: "#EF4444",
+    ward: "Central District - Ward 4",
+    zone: "Zone 4 Arterial Highway Unit",
+    position: [28.6180, 77.2250],
+    inchargeName: "Er. Amit Saxena",
+    inchargeRank: "Executive Engineer (Civil & Roads)",
+    inchargePhone: "+91 98112 00102",
+    fleetSummary: "4 Cold-Mix Asphalt Rollers • 3 Pavers • 2 Dump Trucks",
+    coverageRadiusKm: 7.5
+  },
+  {
+    id: "DEPT-HYDRO-03",
+    code: "HYDRO-GRID",
+    name: "Hydro Grid & Water Supply Headworks",
+    category: "Water / Drainage Burst",
+    iconEmoji: "💧",
+    color: "#00F0FF",
+    ward: "Sector 18 Ward - Zone A",
+    zone: "Zone A Potable Feeder Hub",
+    position: [28.6220, 77.2140],
+    inchargeName: "Er. S. Venkat",
+    inchargeRank: "Chief Hydro Superintendent",
+    inchargePhone: "+91 98112 00103",
+    fleetSummary: "5 De-watering Heavy Pumps • 3 High-Pressure Jetting Tankers",
+    coverageRadiusKm: 7.5
+  },
+  {
+    id: "DEPT-SAN-04",
+    code: "SAN-YARD",
+    name: "Sanitation & Solid Waste Logistics Yard",
+    category: "Solid Waste Overflow",
+    iconEmoji: "🗑️",
+    color: "#F59E0B",
+    ward: "South Green Corridor - Ward 9",
+    zone: "Zone 9 Bio-Waste Logistics",
+    position: [28.6060, 77.1945],
+    inchargeName: "Mr. Vikram Rawat",
+    inchargeRank: "Zonal Sanitation Director",
+    inchargePhone: "+91 98112 00104",
+    fleetSummary: "8 Hydraulic Compactors • 12 Tipper Trucks",
+    coverageRadiusKm: 7.5
+  },
+  {
+    id: "DEPT-ELEC-05",
+    code: "GRID-CNTRL",
+    name: "Power Grid & Substation Control Center",
+    category: "Electrical & Streetlight",
+    iconEmoji: "⚡",
+    color: "#F97316",
+    ward: "East Ring Ward 8",
+    zone: "Zone 8 High-Tension Ring",
+    position: [28.6010, 77.2280],
+    inchargeName: "Er. Priya Nair",
+    inchargeRank: "Grid Maintenance Head",
+    inchargePhone: "+91 98112 00105",
+    fleetSummary: "4 Cherry Picker Lift Cranes • 2 Mobile Transformer Vans",
+    coverageRadiusKm: 7.5
+  },
+  {
+    id: "DEPT-STR-06",
+    code: "STRUCT-DIV",
+    name: "Structural Safety & Bridge Division",
+    category: "Structural Anomaly / Bridge Crack",
+    iconEmoji: "🧱",
+    color: "#8B5CF6",
+    ward: "Cyber Hub Transit Corridor - Ward 12",
+    zone: "Zone 12 Viaduct Audit Center",
+    position: [28.6290, 77.2020],
+    inchargeName: "Dr. K. Ramanathan",
+    inchargeRank: "Chief Structural Safety Auditor",
+    inchargePhone: "+91 98112 00106",
+    fleetSummary: "3 Ultrasonic Flaw Detectors • 2 Scaffolding Support Units",
+    coverageRadiusKm: 7.5
+  },
+  {
+    id: "DEPT-PARK-07",
+    code: "FOREST-DEPOT",
+    name: "Urban Forestry & Public Parks Depot",
+    category: "Public Park & Greenery Hazard",
+    iconEmoji: "🌳",
+    color: "#10B981",
+    ward: "South Perimeter Parks - Ward 15",
+    zone: "Zone 15 Greenery Maintenance",
+    position: [28.6065, 77.1950],
+    inchargeName: "Ms. Neha Sundaram",
+    inchargeRank: "District Forest Warden",
+    inchargePhone: "+91 98112 00107",
+    fleetSummary: "3 Wood Chipper Cranes • 6 Hydraulic Chain Teams",
+    coverageRadiusKm: 7.5
+  }
+];
+
 export default function MunicipalOfficerView({
   user,
   activePage = "officer-map",
@@ -72,6 +190,12 @@ export default function MunicipalOfficerView({
   
   // Selected Team on Map
   const [selectedMapTeam, setSelectedMapTeam] = useState(null);
+  const [mapCenter, setMapCenter] = useState([28.6180, 77.2180]);
+  const [mapZoom, setMapZoom] = useState(13);
+  const [showHeatmap, setShowHeatmap] = useState(false);
+  const [selectedCenter, setSelectedCenter] = useState(null);
+  const [rightSidebarTab, setRightSidebarTab] = useState('teams'); // 'teams' | 'defects'
+  const [selectedDefect, setSelectedDefect] = useState(null);
 
   // Allotment Modal State
   const [selectedTaskToAllot, setSelectedTaskToAllot] = useState(null);
@@ -107,7 +231,15 @@ export default function MunicipalOfficerView({
       ? "teams"
       : activePage === "add-member"
       ? "new_member"
-      : "map";
+      : activePage === "officer-map"
+      ? "map"
+      : activePage === "team-analytics" || activePage === "analytics"
+      ? "analytics"
+      : "dashboard";
+
+  const [dashboardStatusFilter, setDashboardStatusFilter] = useState("ALL");
+  const [selectedTeamForRosterModal, setSelectedTeamForRosterModal] = useState(null);
+  const [analyticsTimeRange, setAnalyticsTimeRange] = useState("30d");
 
   // Live timer tick every 10 seconds to recalculate late metrics in real time
   const [tick, setTick] = useState(0);
@@ -160,30 +292,44 @@ export default function MunicipalOfficerView({
     "TEAM-FR-06": [28.6320, 77.2180]
   };
 
-  // Convert Municipal Teams to Map Markers
-  const teamMapMarkers = teams.map((team, idx) => {
-    const coords = teamPositions[team.id] || [28.6139 + (idx * 0.006), 77.2090 + (idx * 0.005)];
-    const timeMetrics = team.activeJob ? calculateJobTimeMetrics(team.activeJob) : null;
+  // 1. ALLOTTED TASK TEAMS ONLY (Active on jobs)
+  const allottedTeamsMarkers = teams
+    .filter((team) => team.status === "occupied" && team.activeJob)
+    .map((team, idx) => {
+      const coords = teamPositions[team.id] || [28.6139 + (idx * 0.006), 77.2090 + (idx * 0.005)];
+      const timeMetrics = team.activeJob ? calculateJobTimeMetrics(team.activeJob) : null;
 
-    return {
-      position: coords,
-      data: {
-        ...team,
-        type: "MUNICIPAL_TEAM",
-        timeMetrics
-      }
-    };
-  });
+      return {
+        position: coords,
+        data: {
+          ...team,
+          type: "MUNICIPAL_TEAM",
+          timeMetrics
+        }
+      };
+    });
 
-  // Convert Civic Incidents to Map Markers
+  // 2. 7 SPECIALIZED DEFECT DEPARTMENT CENTERS (With Incharge & 7.5km Range)
+  const departmentCenterMarkers = MUNICIPAL_DEPARTMENT_CENTERS.map((center) => ({
+    position: center.position,
+    data: {
+      ...center,
+      type: "DEPARTMENT_CENTER"
+    }
+  }));
+
+  // 3. SYNCHRONIZED CIVIC DEFECTS & DRONE HOTSPOTS (From Admin's Live Dataset)
   const incidentMapMarkers = incidents
     .filter((inc) => inc.latitude && inc.longitude)
     .map((inc) => ({
       position: [inc.latitude, inc.longitude],
-      data: inc
+      data: {
+        ...inc,
+        type: "CIVIC_DEFECT"
+      }
     }));
 
-  const allOfficerMapMarkers = [...teamMapMarkers, ...incidentMapMarkers];
+  const allOfficerMapMarkers = [...allottedTeamsMarkers, ...departmentCenterMarkers, ...incidentMapMarkers];
 
   // Filter unassigned / actionable incidents for Allotment
   const unassignedIncidents = incidents.filter((inc) => {
@@ -289,110 +435,784 @@ export default function MunicipalOfficerView({
   return (
     <div className="space-y-6 text-slate-100 font-sans pb-12">
       
-      {/* 1. TOP MUNICIPAL COMMAND HEADER */}
-      <div className="bg-[#0B0F19] border border-amber-500/40 rounded-2xl p-6 shadow-xl relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-amber-500/5 rounded-full blur-3xl pointer-events-none" />
+      {/* 1. TOP MUNICIPAL COMMAND HEADER & STATS BAR (SHOWN ONLY ON DASHBOARD) */}
+      {currentView === "dashboard" && (
+        <div className="bg-[#0B0F19] border border-amber-500/40 rounded-2xl p-6 shadow-xl relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-96 h-96 bg-amber-500/5 rounded-full blur-3xl pointer-events-none" />
 
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 relative z-10">
-          <div className="space-y-1.5">
-            <div className="flex items-center gap-2.5">
-              <span className="px-3 py-1 rounded-full text-xs font-mono font-bold uppercase bg-amber-950/90 border border-amber-500/80 text-amber-300 flex items-center gap-1.5">
-                <HardHat className="w-3.5 h-3.5 text-amber-400" />
-                MUNICIPAL OFFICER SUITE • WORKFORCE DISPATCH
-              </span>
-              <span className="px-2.5 py-0.5 rounded text-[11px] font-mono bg-slate-900 border border-slate-700 text-slate-400">
-                OFFICER: {user?.name || "Field Officer Desk"}
-              </span>
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 relative z-10">
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2.5">
+                <span className="px-3 py-1 rounded-full text-xs font-mono font-bold uppercase bg-amber-950/90 border border-amber-500/80 text-amber-300 flex items-center gap-1.5">
+                  <HardHat className="w-3.5 h-3.5 text-amber-400" />
+                  MUNICIPAL OFFICER SUITE • WORKFORCE DISPATCH
+                </span>
+                <span className="px-2.5 py-0.5 rounded text-[11px] font-mono bg-slate-900 border border-slate-700 text-slate-400">
+                  OFFICER: {user?.name || "Field Officer Desk"}
+                </span>
+              </div>
+              <h1 className="text-2xl sm:text-3xl font-extrabold text-white font-heading tracking-tight">
+                Municipal Workforce & Team Allotment Console
+              </h1>
+              <p className="text-slate-400 text-xs sm:text-sm max-w-2xl font-sans">
+                Live GIS tracking of deployed field repair crews, task duration timers, defect remediation, and ground crew member rosters.
+              </p>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-white font-heading tracking-tight">
-              Municipal Workforce & Team Allotment Console
-            </h1>
-            <p className="text-slate-400 text-xs sm:text-sm max-w-2xl font-sans">
-              Live GIS tracking of deployed field repair crews, task duration timers, defect remediation, and ground crew member rosters.
-            </p>
+
+            {/* Quick Module Triggers */}
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                onClick={() => setActivePage("officer-map")}
+                className={`px-4 py-2.5 rounded-xl font-bold text-xs uppercase flex items-center gap-2 cursor-pointer transition shadow-md ${
+                  currentView === "map"
+                    ? "bg-amber-500 text-black font-extrabold shadow-amber-500/30"
+                    : "bg-slate-900 border border-amber-500/50 text-amber-300 hover:bg-slate-800"
+                }`}
+              >
+                <MapIcon className="w-4 h-4" />
+                <span>Live Team GIS Map</span>
+              </button>
+
+              <button
+                onClick={() => setActivePage("task-allotment")}
+                className={`px-4 py-2.5 rounded-xl font-extrabold text-xs uppercase flex items-center gap-2 shadow-lg cursor-pointer active:scale-95 transition ${
+                  currentView === "allotment"
+                    ? "bg-gradient-to-r from-amber-400 to-amber-500 text-black"
+                    : "bg-amber-950/80 border border-amber-500 text-amber-300 hover:bg-amber-900"
+                }`}
+              >
+                <Send className="w-4 h-4" />
+                <span>Allot Task to Team</span>
+              </button>
+            </div>
           </div>
 
-          {/* Quick Module Triggers */}
-          <div className="flex flex-wrap items-center gap-3">
+          {/* 2. STATS KPI TELEMETRY BAR */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-6 pt-6 border-t border-slate-800/80 font-mono-tech">
+            
             <button
-              onClick={() => setActivePage("officer-map")}
-              className={`px-4 py-2.5 rounded-xl font-bold text-xs uppercase flex items-center gap-2 cursor-pointer transition shadow-md ${
-                currentView === "map"
-                  ? "bg-amber-500 text-black font-extrabold shadow-amber-500/30"
-                  : "bg-slate-900 border border-amber-500/50 text-amber-300 hover:bg-slate-800"
-              }`}
+              onClick={() => setActivePage("teams-laid-to-work")}
+              className="p-4 rounded-xl bg-[#070A10] border border-slate-800/80 hover:border-amber-500/60 transition text-left space-y-1 cursor-pointer"
             >
-              <MapIcon className="w-4 h-4" />
-              <span>Live Team GIS Map</span>
+              <div className="text-[11px] text-slate-400 uppercase font-bold flex items-center gap-1.5">
+                <Truck className="w-3.5 h-3.5 text-amber-400" />
+                <span>Teams Laid to Work</span>
+              </div>
+              <div className="text-2xl font-extrabold text-amber-400">{totalOccupiedCount} Units</div>
+              <div className="text-[10px] text-slate-500">Actively resolving on site</div>
             </button>
 
             <button
               onClick={() => setActivePage("task-allotment")}
-              className={`px-4 py-2.5 rounded-xl font-extrabold text-xs uppercase flex items-center gap-2 shadow-lg cursor-pointer active:scale-95 transition ${
-                currentView === "allotment"
-                  ? "bg-gradient-to-r from-amber-400 to-amber-500 text-black"
-                  : "bg-amber-950/80 border border-amber-500 text-amber-300 hover:bg-amber-900"
-              }`}
+              className="p-4 rounded-xl bg-[#070A10] border border-slate-800/80 hover:border-emerald-500/60 transition text-left space-y-1 cursor-pointer"
             >
-              <Send className="w-4 h-4" />
-              <span>Allot Task to Team</span>
+              <div className="text-[11px] text-slate-400 uppercase font-bold flex items-center gap-1.5">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Teams Available</span>
+              </div>
+              <div className="text-2xl font-extrabold text-emerald-400">{totalAvailableCount} Units</div>
+              <div className="text-[10px] text-slate-500">Ready for instant dispatch</div>
             </button>
+
+            <button
+              onClick={() => setActivePage("teams-laid-to-work")}
+              className="p-4 rounded-xl bg-[#070A10] border border-slate-800/80 hover:border-red-500/60 transition text-left space-y-1 cursor-pointer"
+            >
+              <div className="text-[11px] text-slate-400 uppercase font-bold flex items-center gap-1.5">
+                <AlertTriangle className="w-3.5 h-3.5 text-red-400" />
+                <span>Late Time Overruns</span>
+              </div>
+              <div className="text-2xl font-extrabold text-red-400">{lateTeamsCount} Late</div>
+              <div className="text-[10px] text-slate-500">Exceeding allotted SLA</div>
+            </button>
+
+            <button
+              onClick={() => setActivePage("team-details")}
+              className="p-4 rounded-xl bg-[#070A10] border border-slate-800/80 hover:border-cyan-500/60 transition text-left space-y-1 cursor-pointer"
+            >
+              <div className="text-[11px] text-slate-400 uppercase font-bold flex items-center gap-1.5">
+                <Users className="w-3.5 h-3.5 text-cyan-400" />
+                <span>Total Crew Members</span>
+              </div>
+              <div className="text-2xl font-extrabold text-cyan-400">{totalCrewMembers} Personnel</div>
+              <div className="text-[10px] text-slate-500">Across {teams.length} Specialized Units</div>
+            </button>
+
           </div>
         </div>
+      )}
 
-        {/* 2. STATS KPI TELEMETRY BAR */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-6 pt-6 border-t border-slate-800/80 font-mono-tech">
+      {/* 2.5 VIEW 0: MUNICIPAL INCIDENT LOGS DASHBOARD (DETAILS ONLY - NO MAP) */}
+      {currentView === "dashboard" && (
+        <div className="space-y-6 font-mono-tech">
           
-          <button
-            onClick={() => setActivePage("teams-laid-to-work")}
-            className="p-4 rounded-xl bg-[#070A10] border border-slate-800/80 hover:border-amber-500/60 transition text-left space-y-1 cursor-pointer"
-          >
-            <div className="text-[11px] text-slate-400 uppercase font-bold flex items-center gap-1.5">
-              <Truck className="w-3.5 h-3.5 text-amber-400" />
-              <span>Teams Laid to Work</span>
+          {/* Header & Quick Stats */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+            <div>
+              <h2 className="text-xl font-bold text-white font-heading flex items-center gap-2">
+                <span>📋</span>
+                <span>Municipal Incident Logs & Remediation Pipeline</span>
+              </h2>
+              <p className="text-xs text-slate-400 font-sans mt-0.5">
+                Real-time defect tracking, multi-frame AI verification telemetry, SLA turnaround, and team assignment desk.
+              </p>
             </div>
-            <div className="text-2xl font-extrabold text-amber-400">{totalOccupiedCount} Units</div>
-            <div className="text-[10px] text-slate-500">Actively resolving on site</div>
-          </button>
 
-          <button
-            onClick={() => setActivePage("task-allotment")}
-            className="p-4 rounded-xl bg-[#070A10] border border-slate-800/80 hover:border-emerald-500/60 transition text-left space-y-1 cursor-pointer"
-          >
-            <div className="text-[11px] text-slate-400 uppercase font-bold flex items-center gap-1.5">
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Teams Available</span>
-            </div>
-            <div className="text-2xl font-extrabold text-emerald-400">{totalAvailableCount} Units</div>
-            <div className="text-[10px] text-slate-500">Ready for instant dispatch</div>
-          </button>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setActivePage("task-allotment")}
+                className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-extrabold text-xs uppercase flex items-center gap-1.5 cursor-pointer shadow-lg shadow-amber-500/20 transition"
+              >
+                <Send className="w-3.5 h-3.5" />
+                <span>Allot Task to Team</span>
+              </button>
 
-          <button
-            onClick={() => setActivePage("teams-laid-to-work")}
-            className="p-4 rounded-xl bg-[#070A10] border border-slate-800/80 hover:border-red-500/60 transition text-left space-y-1 cursor-pointer"
-          >
-            <div className="text-[11px] text-slate-400 uppercase font-bold flex items-center gap-1.5">
-              <AlertTriangle className="w-3.5 h-3.5 text-red-400" />
-              <span>Late Time Overruns</span>
+              <button
+                onClick={() => setActivePage("officer-map")}
+                className="px-4 py-2 rounded-xl bg-slate-900 border border-amber-500/50 hover:bg-slate-800 text-amber-300 font-bold text-xs uppercase flex items-center gap-1.5 cursor-pointer transition"
+              >
+                <MapIcon className="w-3.5 h-3.5" />
+                <span>Switch to Live Map</span>
+              </button>
             </div>
-            <div className="text-2xl font-extrabold text-red-400">{lateTeamsCount} Late</div>
-            <div className="text-[10px] text-slate-500">Exceeding allotted SLA</div>
-          </button>
+          </div>
 
-          <button
-            onClick={() => setActivePage("team-details")}
-            className="p-4 rounded-xl bg-[#070A10] border border-slate-800/80 hover:border-cyan-500/60 transition text-left space-y-1 cursor-pointer"
-          >
-            <div className="text-[11px] text-slate-400 uppercase font-bold flex items-center gap-1.5">
-              <Users className="w-3.5 h-3.5 text-cyan-400" />
-              <span>Total Crew Members</span>
+          {/* Filter Bar & Search */}
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-[#0B0F19] border border-slate-800 p-4 rounded-2xl">
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              {[
+                { id: "ALL", label: `All Logs (${incidents.length})` },
+                { id: "P1", label: `🚨 Critical P1 (${incidents.filter(i => i.priority === "P1" || i.severity === "Critical").length})` },
+                { id: "AI_VERIFIED", label: `🤖 AI Verified (${incidents.filter(i => i.aiVerified).length})` },
+                { id: "IN_PROGRESS", label: `🚜 In Progress (${occupiedTeams.length})` },
+                { id: "RESOLVED", label: `✅ Resolved (${incidents.filter(i => i.status === "Resolved" || i.status === "Closed").length})` }
+              ].map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setDashboardStatusFilter(tab.id)}
+                  className={`px-3 py-1.5 rounded-xl font-bold transition cursor-pointer text-xs ${
+                    dashboardStatusFilter === tab.id
+                      ? "bg-amber-500 text-black shadow-md shadow-amber-500/20 font-extrabold"
+                      : "bg-[#070A10] border border-slate-800 text-slate-400 hover:text-white"
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
             </div>
-            <div className="text-2xl font-extrabold text-cyan-400">{totalCrewMembers} Personnel</div>
-            <div className="text-[10px] text-slate-500">Across {teams.length} Specialized Units</div>
-          </button>
+
+            <div className="relative">
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search ticket ID, ward, defect..."
+                className="bg-[#070A10] border border-slate-800 rounded-xl px-3.5 py-1.5 text-xs text-white placeholder-slate-500 w-full sm:w-64 focus:outline-none focus:border-amber-400 font-sans"
+              />
+            </div>
+          </div>
+
+          {/* Incident Cards Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+            {incidents
+              .filter((inc) => {
+                if (dashboardStatusFilter === "P1") return inc.priority === "P1" || inc.severity === "Critical";
+                if (dashboardStatusFilter === "AI_VERIFIED") return Boolean(inc.aiVerified);
+                if (dashboardStatusFilter === "IN_PROGRESS") return inc.status === "In Progress" || inc.status === "Dispatched";
+                if (dashboardStatusFilter === "RESOLVED") return inc.status === "Resolved" || inc.status === "Closed";
+                return true;
+              })
+              .filter((inc) => {
+                if (!searchQuery.trim()) return true;
+                const q = searchQuery.toLowerCase();
+                return (
+                  (inc.id || "").toLowerCase().includes(q) ||
+                  (inc.title || "").toLowerCase().includes(q) ||
+                  (inc.category || "").toLowerCase().includes(q) ||
+                  (inc.ward || "").toLowerCase().includes(q) ||
+                  (inc.address || "").toLowerCase().includes(q)
+                );
+              })
+              .map((inc) => {
+                const isCritical = inc.priority === "P1" || inc.severity === "Critical";
+                const isResolved = inc.status === "Resolved" || inc.status === "Closed";
+                const assignedTeam = teams.find((t) => t.activeJob?.taskId === inc.id);
+                const dateDetected = inc.createdAt ? new Date(inc.createdAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "Aug 23, 2026";
+
+                return (
+                  <div
+                    key={inc.id}
+                    className={`bg-[#0B0F19] rounded-2xl border p-5 space-y-4 shadow-xl hover:border-amber-500/50 transition flex flex-col justify-between ${
+                      isCritical ? "border-red-500/50" : "border-slate-800"
+                    }`}
+                  >
+                    <div className="space-y-3">
+                      {/* Card Header: Ticket ID + Status */}
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-amber-300 font-mono text-xs">
+                          {inc.id}
+                        </span>
+                        <div className="flex items-center gap-2">
+                          {inc.aiVerified && (
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-cyan-950 text-cyan-300 border border-cyan-500/60 flex items-center gap-1">
+                              <Sparkles className="w-3 h-3 text-cyan-400" />
+                              <span>AI VERIFIED</span>
+                            </span>
+                          )}
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                            isResolved
+                              ? "bg-emerald-950 text-emerald-300 border border-emerald-500"
+                              : isCritical
+                              ? "bg-red-950 text-red-300 border border-red-500"
+                              : "bg-amber-950 text-amber-300 border border-amber-500"
+                          }`}>
+                            {inc.priority || "P1"}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Image Preview if available */}
+                      {inc.imageUrl && (
+                        <div className="relative rounded-xl overflow-hidden h-36 border border-slate-800">
+                          <img
+                            src={inc.imageUrl}
+                            alt={inc.title}
+                            className="w-full h-full object-cover"
+                          />
+                          <span className="absolute bottom-2 right-2 px-2 py-0.5 rounded bg-black/85 text-[10px] text-cyan-300 font-bold border border-cyan-500/60 font-mono">
+                            AI {(inc.aiConfidence ? (inc.aiConfidence * 100).toFixed(1) : 96.4)}%
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Title & Description */}
+                      <div className="space-y-1">
+                        <h4 className="text-white font-bold text-sm font-sans line-clamp-1">
+                          {inc.title || inc.category}
+                        </h4>
+                        <p className="text-xs text-slate-400 font-sans line-clamp-2">
+                          {inc.description || "Civic infrastructure defect recorded in municipal database."}
+                        </p>
+                      </div>
+
+                      {/* Detection Timing & Location Details */}
+                      <div className="bg-[#070A10] p-3 rounded-xl border border-slate-800/80 space-y-1.5 text-[11px] font-sans">
+                        <div className="flex items-center justify-between text-slate-300">
+                          <span className="text-slate-400">🕒 Detected:</span>
+                          <strong className="text-amber-300 font-mono">{dateDetected}</strong>
+                        </div>
+                        <div className="flex items-center justify-between text-slate-300">
+                          <span className="text-slate-400">📍 Ward:</span>
+                          <span className="text-white truncate max-w-[160px]">{inc.ward || inc.address || "Central Ward 4"}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-slate-300">
+                          <span className="text-slate-400">🏢 Department:</span>
+                          <span className="text-cyan-300 font-mono text-[10px]">{inc.assignedDepartment || "Municipal Public Works"}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-slate-300">
+                          <span className="text-slate-400">🚜 Allotted Unit:</span>
+                          <span className="text-amber-400 font-bold">{assignedTeam ? assignedTeam.name : "Unallotted (Pending)"}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Action Controls */}
+                    <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between gap-2">
+                      {!assignedTeam && !isResolved ? (
+                        <button
+                          onClick={() => {
+                            setSelectedTaskToAllot(inc);
+                            setIsAllotModalOpen(true);
+                          }}
+                          className="flex-1 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-extrabold text-xs uppercase flex items-center justify-center gap-1.5 cursor-pointer shadow-md transition"
+                        >
+                          <Send className="w-3.5 h-3.5" />
+                          <span>Allot Team</span>
+                        </button>
+                      ) : isResolved ? (
+                        <div className="flex-1 py-1.5 rounded-xl bg-emerald-950/60 border border-emerald-500/50 text-emerald-300 font-bold text-center text-xs">
+                          ✓ REMEDIATED & RESOLVED
+                        </div>
+                      ) : (
+                        <div className="flex-1 py-1.5 rounded-xl bg-amber-950/60 border border-amber-500/50 text-amber-300 font-bold text-center text-xs">
+                          🚜 CREW DEPLOYED ON SITE
+                        </div>
+                      )}
+
+                      <button
+                        onClick={() => {
+                          try {
+                            localStorage.setItem("selectedComplaint", JSON.stringify(inc));
+                          } catch (e) {}
+                          setActivePage("incident-detail");
+                        }}
+                        className="px-3 py-2 rounded-xl bg-[#070A10] border border-slate-700 hover:border-slate-500 text-slate-300 text-xs font-bold flex items-center gap-1 cursor-pointer transition"
+                      >
+                        <Eye className="w-3.5 h-3.5 text-cyan-400" />
+                        <span>Inspect</span>
+                      </button>
+                    </div>
+
+                  </div>
+                );
+              })}
+          </div>
 
         </div>
-      </div>
+      )}
+
+      {/* 2.8 VIEW: WORKFORCE, DEPARTMENT & TASK ANALYSIS */}
+      {currentView === "analytics" && (
+        <div className="space-y-6 font-mono-tech">
+          
+          {/* Top Analytics Header & Controls */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+            <div>
+              <h2 className="text-xl font-bold text-white font-heading flex items-center gap-2">
+                <BarChart3 className="w-5 h-5 text-amber-400" />
+                <span>Municipal Workforce & Team Performance Analytics</span>
+              </h2>
+              <p className="text-xs text-slate-400 font-sans mt-0.5">
+                Data-driven workload analytics, problems solved velocity, department resolution ratios, and team member assignments.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2">
+              {["24h", "7d", "30d"].map((range) => (
+                <button
+                  key={range}
+                  type="button"
+                  onClick={() => setAnalyticsTimeRange(range)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold font-mono transition cursor-pointer ${
+                    analyticsTimeRange === range
+                      ? "bg-amber-500 text-black shadow-md shadow-amber-500/25"
+                      : "bg-[#0B0F19] border border-slate-800 text-slate-400 hover:text-white"
+                  }`}
+                >
+                  {range.toUpperCase()}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* High-Level Analytical KPI Metrics */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="p-5 rounded-2xl bg-[#0B0F19] border border-emerald-500/30 space-y-1 shadow-lg">
+              <div className="text-xs text-emerald-400 font-bold uppercase flex items-center gap-1.5">
+                <CheckCircle2 className="w-4 h-4" />
+                <span>Total Problems Solved</span>
+              </div>
+              <div className="text-3xl font-extrabold text-white font-heading">
+                {incidents.filter(i => i.status === "Resolved" || i.status === "Closed").length + 286}
+              </div>
+              <div className="text-[11px] text-emerald-400/90 font-sans flex items-center gap-1">
+                <span>↑ 18.4% velocity increase</span>
+              </div>
+            </div>
+
+            <div className="p-5 rounded-2xl bg-[#0B0F19] border border-amber-500/30 space-y-1 shadow-lg">
+              <div className="text-xs text-amber-400 font-bold uppercase flex items-center gap-1.5">
+                <Truck className="w-4 h-4" />
+                <span>Active Work Deployments</span>
+              </div>
+              <div className="text-3xl font-extrabold text-white font-heading">
+                {occupiedTeams.length} <span className="text-sm font-normal text-slate-400 font-sans">/ {teams.length} Units</span>
+              </div>
+              <div className="text-[11px] text-amber-300/90 font-sans">
+                {availableTeams.length} standby units ready at depots
+              </div>
+            </div>
+
+            <div className="p-5 rounded-2xl bg-[#0B0F19] border border-cyan-500/30 space-y-1 shadow-lg">
+              <div className="text-xs text-cyan-400 font-bold uppercase flex items-center gap-1.5">
+                <Clock className="w-4 h-4" />
+                <span>Avg Resolution Time</span>
+              </div>
+              <div className="text-3xl font-extrabold text-white font-heading">
+                1.9 <span className="text-sm font-normal text-slate-400 font-sans">Hours</span>
+              </div>
+              <div className="text-[11px] text-cyan-300/90 font-sans">
+                Standard SLA: 4.0h (52.5% faster)
+              </div>
+            </div>
+
+            <div className="p-5 rounded-2xl bg-[#0B0F19] border border-purple-500/30 space-y-1 shadow-lg">
+              <div className="text-xs text-purple-400 font-bold uppercase flex items-center gap-1.5">
+                <Users className="w-4 h-4" />
+                <span>Deployed Personnel</span>
+              </div>
+              <div className="text-3xl font-extrabold text-white font-heading">
+                {totalCrewMembers} <span className="text-sm font-normal text-slate-400 font-sans">Crew</span>
+              </div>
+              <div className="text-[11px] text-purple-300/90 font-sans">
+                6 Specialized Municipal Divisions
+              </div>
+            </div>
+          </div>
+
+          {/* Visual Analytical Charts Section */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            
+            {/* Chart 1: Problems Solved by Department Breakdown */}
+            <div className="lg:col-span-6 p-5 rounded-2xl bg-[#0B0F19] border border-slate-800 space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                <h3 className="font-bold text-white text-sm flex items-center gap-2">
+                  <span>📊</span>
+                  <span>Problems Solved by Department ({analyticsTimeRange.toUpperCase()})</span>
+                </h3>
+                <span className="text-[10px] text-emerald-400 font-bold bg-emerald-950 px-2 py-0.5 rounded">
+                  96.2% On-Time
+                </span>
+              </div>
+
+              <div className="space-y-3 pt-1">
+                {[
+                  { name: "Sanitation & Waste Logistics", emoji: "🚮", count: 86, rate: "98.2%", color: "#10b981", percent: 94 },
+                  { name: "Road & Transport Engineering", emoji: "🛣️", count: 68, rate: "95.6%", color: "#f59e0b", percent: 86 },
+                  { name: "Hydro-Grid & Water Works", emoji: "💧", count: 54, rate: "94.1%", color: "#06b6d4", percent: 74 },
+                  { name: "Electrical & Streetlight Grid", emoji: "⚡", count: 42, rate: "92.8%", color: "#eab308", percent: 62 },
+                  { name: "Urban Forestry & Greenery", emoji: "🌳", count: 32, rate: "96.4%", color: "#22c55e", percent: 48 },
+                  { name: "Structural Safety & Bridges", emoji: "🏢", count: 24, rate: "97.0%", color: "#a855f7", percent: 38 },
+                ].map((dept) => (
+                  <div key={dept.name} className="space-y-1">
+                    <div className="flex items-center justify-between text-xs font-sans">
+                      <span className="text-slate-300 font-medium flex items-center gap-1.5">
+                        <span>{dept.emoji}</span>
+                        <span>{dept.name}</span>
+                      </span>
+                      <span className="font-mono text-xs">
+                        <strong className="text-white">{dept.count} Solved</strong>{" "}
+                        <span className="text-emerald-400">({dept.rate} SLA)</span>
+                      </span>
+                    </div>
+                    <div className="w-full bg-slate-900 rounded-full h-2 overflow-hidden border border-slate-800">
+                      <div
+                        className="h-full rounded-full transition-all duration-500"
+                        style={{ width: `${dept.percent}%`, backgroundColor: dept.color }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Chart 2: Resolution Velocity vs Ingestion Timeline Spline Graph */}
+            <div className="lg:col-span-6 p-5 rounded-2xl bg-[#0B0F19] border border-slate-800 space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                <h3 className="font-bold text-white text-sm flex items-center gap-2">
+                  <span>📈</span>
+                  <span>Workload Ingestion vs Resolution Velocity</span>
+                </h3>
+                <span className="text-[10px] text-cyan-400 font-bold bg-cyan-950 px-2 py-0.5 rounded">
+                  Daily Workload Trend
+                </span>
+              </div>
+
+              {/* SVG Spline Graph */}
+              <div className="h-44 w-full relative pt-2">
+                <svg viewBox="0 0 500 150" className="w-full h-full overflow-visible">
+                  <defs>
+                    <linearGradient id="resolvedGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#10b981" stopOpacity="0.45" />
+                      <stop offset="100%" stopColor="#10b981" stopOpacity="0.0" />
+                    </linearGradient>
+                    <linearGradient id="ingestedGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#f59e0b" stopOpacity="0.3" />
+                      <stop offset="100%" stopColor="#f59e0b" stopOpacity="0.0" />
+                    </linearGradient>
+                  </defs>
+
+                  {/* Grid Lines */}
+                  <line x1="0" y1="30" x2="500" y2="30" stroke="#1e293b" strokeDasharray="3 3" />
+                  <line x1="0" y1="75" x2="500" y2="75" stroke="#1e293b" strokeDasharray="3 3" />
+                  <line x1="0" y1="120" x2="500" y2="120" stroke="#1e293b" strokeDasharray="3 3" />
+
+                  {/* Ingested Path Area */}
+                  <path
+                    d="M 0,90 Q 70,50 140,70 T 280,45 T 420,60 T 500,40 L 500,140 L 0,140 Z"
+                    fill="url(#ingestedGrad)"
+                  />
+                  <path
+                    d="M 0,90 Q 70,50 140,70 T 280,45 T 420,60 T 500,40"
+                    fill="none"
+                    stroke="#f59e0b"
+                    strokeWidth="2.5"
+                  />
+
+                  {/* Resolved Path Area */}
+                  <path
+                    d="M 0,110 Q 70,80 140,60 T 280,35 T 420,40 T 500,25 L 500,140 L 0,140 Z"
+                    fill="url(#resolvedGrad)"
+                  />
+                  <path
+                    d="M 0,110 Q 70,80 140,60 T 280,35 T 420,40 T 500,25"
+                    fill="none"
+                    stroke="#10b981"
+                    strokeWidth="3"
+                  />
+                </svg>
+
+                {/* Day Labels */}
+                <div className="flex justify-between text-[10px] text-slate-500 font-mono pt-2">
+                  <span>Mon</span>
+                  <span>Tue</span>
+                  <span>Wed</span>
+                  <span>Thu</span>
+                  <span>Fri</span>
+                  <span>Sat</span>
+                  <span>Sun (Today)</span>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-center gap-6 pt-2 border-t border-slate-800/80 text-xs font-sans">
+                <div className="flex items-center gap-2">
+                  <span className="w-3 h-3 rounded-full bg-emerald-400 inline-block" />
+                  <span className="text-slate-300">Problems Resolved (Avg 32/day)</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="w-3 h-3 rounded-full bg-amber-400 inline-block" />
+                  <span className="text-slate-300">New Tasks Ingested (Avg 26/day)</span>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          {/* TEAM-CENTRIC ANALYTICAL CARDS SECTION */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-bold text-white text-base font-heading flex items-center gap-2">
+                  <Truck className="w-4 h-4 text-amber-400" />
+                  <span>Municipal Team Work Analytics & Problem Resolution</span>
+                </h3>
+                <p className="text-xs text-slate-400 font-sans">
+                  Detailed task allocation, work status, solved problems tally, and crew member profiles.
+                </p>
+              </div>
+              <span className="text-xs text-slate-400 font-mono">
+                {teams.length} Specialized Teams Tracked
+              </span>
+            </div>
+
+            {/* Teams Analytics Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+              {teams.map((team, idx) => {
+                const isOccupied = team.status === "occupied" && team.activeJob;
+                const metrics = team.activeJob ? calculateJobTimeMetrics(team.activeJob) : null;
+                const solvedCount = 38 + (idx * 9) + (team.id.charCodeAt(team.id.length - 1) % 15);
+                const efficiencyRate = (94.5 + ((idx * 1.3) % 4.5)).toFixed(1);
+
+                return (
+                  <div
+                    key={team.id}
+                    className={`bg-[#0B0F19] rounded-2xl border p-5 space-y-4 shadow-xl hover:border-amber-500/40 transition flex flex-col justify-between ${
+                      isOccupied ? "border-amber-500/50" : "border-slate-800"
+                    }`}
+                  >
+                    <div className="space-y-3">
+                      
+                      {/* Team Header */}
+                      <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                        <div className="truncate">
+                          <span className="font-bold text-white font-sans text-sm block truncate">
+                            {team.name}
+                          </span>
+                          <span className="text-[11px] text-amber-300 font-mono">
+                            {team.id} • {team.department || "Municipal Division"}
+                          </span>
+                        </div>
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase shrink-0 ${
+                          isOccupied
+                            ? metrics?.isLate ? "bg-red-950 text-red-300 border border-red-500" : "bg-amber-950 text-amber-300 border border-amber-500"
+                            : "bg-emerald-950 text-emerald-300 border border-emerald-500"
+                        }`}>
+                          {isOccupied ? (metrics?.isLate ? `LATE +${metrics.formattedLate}` : "ON WORK") : "AVAILABLE"}
+                        </span>
+                      </div>
+
+                      {/* Analytics Metrics Box */}
+                      <div className="grid grid-cols-2 gap-2 bg-[#070A10] p-3 rounded-xl border border-slate-800/80">
+                        <div>
+                          <span className="text-[10px] text-slate-400 block font-sans">Problems Solved:</span>
+                          <strong className="text-emerald-400 text-sm font-mono">{solvedCount} Defects</strong>
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-slate-400 block font-sans">SLA Efficiency:</span>
+                          <strong className="text-cyan-300 text-sm font-mono">{efficiencyRate}%</strong>
+                        </div>
+                      </div>
+
+                      {/* Current Assigned Work / Standby Status */}
+                      <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800 space-y-1.5 text-xs font-sans">
+                        <div className="flex items-center justify-between">
+                          <span className="text-slate-400">Current Task:</span>
+                          {isOccupied ? (
+                            <span className="text-amber-300 font-bold text-[11px] flex items-center gap-1">
+                              <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
+                              <span>Remediating On-Site</span>
+                            </span>
+                          ) : (
+                            <span className="text-emerald-400 font-bold text-[11px]">
+                              ✓ Standby at Depot ({team.ward})
+                            </span>
+                          )}
+                        </div>
+
+                        {team.activeJob ? (
+                          <div className="text-white text-[11px] font-bold bg-amber-950/40 p-2 rounded-lg border border-amber-500/40 space-y-1">
+                            <div className="truncate">⚠️ {team.activeJob.taskTitle || team.activeJob.category}</div>
+                            <div className="flex items-center justify-between text-[10px] text-slate-400 font-mono">
+                              <span>Elapsed: <strong className="text-white">{metrics?.formattedElapsed}</strong></span>
+                              <span>Allotted: <strong className="text-amber-300">{team.activeJob.allottedHours}h</strong></span>
+                            </div>
+                          </div>
+                        ) : (
+                          <p className="text-[11px] text-slate-500">
+                            Available for instant dispatch across {team.ward}.
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Lead & Personnel Count */}
+                      <div className="flex items-center justify-between text-[11px] text-slate-400 font-sans pt-1">
+                        <span>Lead: <strong className="text-slate-200">{team.leader}</strong></span>
+                        <span className="text-cyan-400 font-mono">{team.members?.length || 4} Crew Members</span>
+                      </div>
+
+                    </div>
+
+                    {/* Interactive Button to View Team Members */}
+                    <div className="pt-2 border-t border-slate-800 flex items-center justify-between gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedTeamForRosterModal(team)}
+                        className="flex-1 py-2 rounded-xl bg-slate-900 border border-slate-700 hover:border-amber-400 hover:text-amber-300 text-white font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer transition shadow-md"
+                      >
+                        <Users className="w-3.5 h-3.5 text-amber-400" />
+                        <span>View Team Members ({team.members?.length || 4})</span>
+                      </button>
+
+                      {isOccupied && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setActivePage("officer-map");
+                          }}
+                          className="px-3 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-extrabold text-xs flex items-center gap-1 cursor-pointer transition shadow-md"
+                          title="Locate team on GIS Map"
+                        >
+                          <MapIcon className="w-3.5 h-3.5" />
+                          <span>Map</span>
+                        </button>
+                      )}
+                    </div>
+
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* INTERACTIVE TEAM MEMBERS MODAL POPUP */}
+          {selectedTeamForRosterModal && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in font-mono-tech">
+              <div className="bg-[#0B0F19] border border-amber-500/50 rounded-2xl p-6 max-w-xl w-full space-y-5 shadow-2xl relative">
+                
+                {/* Modal Header */}
+                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                  <div>
+                    <h3 className="text-lg font-bold text-white font-heading flex items-center gap-2">
+                      <Users className="w-5 h-5 text-amber-400" />
+                      <span>{selectedTeamForRosterModal.name} — Crew Roster</span>
+                    </h3>
+                    <p className="text-xs text-slate-400 font-sans mt-0.5">
+                      {selectedTeamForRosterModal.department || "Municipal Division"} • Depot Ward: {selectedTeamForRosterModal.ward}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedTeamForRosterModal(null)}
+                    className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                {/* Supervisor & Contact Banner */}
+                <div className="bg-[#070A10] p-3.5 rounded-xl border border-slate-800 space-y-1 text-xs font-sans">
+                  <div className="text-slate-300">
+                    Lead Supervisor: <strong className="text-amber-300">{selectedTeamForRosterModal.leader}</strong>
+                  </div>
+                  <div className="text-slate-400 flex items-center justify-between">
+                    <span>Direct Hotline: <strong className="text-emerald-400 font-mono">{selectedTeamForRosterModal.leaderPhone}</strong></span>
+                    <span className="text-slate-500 font-mono">Status: {selectedTeamForRosterModal.status.toUpperCase()}</span>
+                  </div>
+                </div>
+
+                {/* Members List */}
+                <div className="space-y-2.5 max-h-64 overflow-y-auto pr-1">
+                  {(selectedTeamForRosterModal.members || [
+                    { name: selectedTeamForRosterModal.leader, role: "Team Lead & Senior Field Engineer", employeeId: `EMP-${selectedTeamForRosterModal.id}-01`, shift: "Morning Shift (06:00 - 14:00)" },
+                    { name: "Sunil Kumar", role: "Heavy Equipment Tech", employeeId: `EMP-${selectedTeamForRosterModal.id}-02`, shift: "Morning Shift (06:00 - 14:00)" },
+                    { name: "Vikas Yadav", role: "Field Safety Specialist", employeeId: `EMP-${selectedTeamForRosterModal.id}-03`, shift: "Evening Shift (14:00 - 22:00)" },
+                    { name: "Pooja Sharma", role: "Remediation Tech", employeeId: `EMP-${selectedTeamForRosterModal.id}-04`, shift: "Morning Shift (06:00 - 14:00)" }
+                  ]).map((member, idx) => (
+                    <div
+                      key={idx}
+                      className="p-3 rounded-xl bg-[#070A10] border border-slate-800/80 flex items-center justify-between text-xs font-sans hover:border-slate-700 transition"
+                    >
+                      <div className="space-y-0.5">
+                        <div className="font-bold text-white flex items-center gap-2">
+                          <span>{member.name}</span>
+                          {idx === 0 && (
+                            <span className="px-1.5 py-0.2 rounded text-[9px] bg-amber-950 text-amber-300 border border-amber-500 font-mono font-bold">
+                              LEAD
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-[11px] text-slate-400 font-mono block">
+                          {member.role || "Municipal Field Tech"}
+                        </span>
+                      </div>
+
+                      <div className="text-right font-mono text-[11px]">
+                        <span className="text-cyan-400 font-bold block">{member.employeeId || `EMP-${idx + 101}`}</span>
+                        <span className="text-slate-500 text-[10px]">{member.shift || "Morning Shift"}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Modal Footer Actions */}
+                <div className="pt-2 border-t border-slate-800 flex items-center justify-between gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedTeamForRosterModal(null);
+                      setActivePage("add-member");
+                    }}
+                    className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold font-sans cursor-pointer transition flex items-center gap-1.5"
+                  >
+                    <UserPlus className="w-3.5 h-3.5 text-cyan-400" />
+                    <span>Add Member to Team</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setSelectedTeamForRosterModal(null)}
+                    className="px-5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-extrabold text-xs font-sans uppercase cursor-pointer transition shadow-md"
+                  >
+                    Close
+                  </button>
+                </div>
+
+              </div>
+            </div>
+          )}
+
+        </div>
+      )}
 
       {/* 3. VIEW 1: LIVE FIELD TEAMS GIS MAP */}
       {currentView === "map" && (
@@ -408,121 +1228,356 @@ export default function MunicipalOfficerView({
               </p>
             </div>
 
-            <div className="flex items-center gap-2 text-xs">
-              <span className="px-3 py-1 rounded-lg bg-[#0B0F19] border border-amber-500/50 text-amber-300 font-bold flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
-                <span>🚜 {occupiedTeams.length} Active On-Site Units</span>
-              </span>
-              <span className="px-3 py-1 rounded-lg bg-[#0B0F19] border border-emerald-500/50 text-emerald-300 font-bold">
-                🛠️ {availableTeams.length} Standby Base Units
-              </span>
+            <div className="flex items-center gap-2 text-xs font-mono">
+              {/* Heatmap ON / OFF Button */}
+              <button
+                type="button"
+                onClick={() => setShowHeatmap(!showHeatmap)}
+                className={`px-3.5 py-1.5 rounded-xl border flex items-center gap-1.5 transition cursor-pointer font-bold ${
+                  showHeatmap
+                    ? "bg-amber-950/90 border-amber-400 text-amber-300 shadow-lg shadow-amber-500/25"
+                    : "bg-[#0B0F19] border-slate-700 text-slate-400 hover:text-white"
+                }`}
+                title="Toggle 7.5km Department Service Heatmap Radius"
+              >
+                <Flame className={`w-3.5 h-3.5 ${showHeatmap ? "text-amber-400 animate-pulse" : "text-slate-500"}`} />
+                <span>Heatmap: {showHeatmap ? "ON (7.5km)" : "OFF"}</span>
+              </button>
             </div>
           </div>
 
           <div className="grid grid-cols-1 xl:grid-cols-12 gap-5">
             
-            {/* Map Viewport Container */}
-            <div className="xl:col-span-8 bg-[#0B0F19] border border-slate-800 rounded-2xl overflow-hidden shadow-2xl h-[580px] relative">
+            {/* 1. LEFT SIDE: INCIDENT LOGS & TELEMETRY PANEL */}
+            <div className="xl:col-span-4 bg-[#0B0F19] border border-slate-800 rounded-2xl p-5 shadow-xl flex flex-col justify-between space-y-4 max-h-[580px] overflow-y-auto order-2 xl:order-1">
+              
+              <div className="space-y-3">
+                
+                {/* 3-Tab Right Menu Navigation */}
+                <div className="grid grid-cols-3 gap-1.5 rounded-xl bg-[#070A10] border border-slate-800 p-1.5 font-mono-tech text-xs">
+                  
+                  {/* Tab 1: Incident Details (Active default) */}
+                  <button
+                    type="button"
+                    onClick={() => setRightSidebarTab("defects")}
+                    className={`py-2 px-1 rounded-lg font-bold transition flex items-center justify-center gap-1 cursor-pointer text-[11px] truncate ${
+                      rightSidebarTab === "defects"
+                        ? "bg-red-500 text-white shadow-md shadow-red-500/20 font-extrabold"
+                        : "text-slate-400 hover:text-white hover:bg-slate-800/60"
+                    }`}
+                    title="Civic Defect Pinpoints"
+                  >
+                    <span>📍</span>
+                    <span className="truncate">Incidents ({incidents.length})</span>
+                  </button>
+
+                  {/* Tab 2: Teams Location */}
+                  <button
+                    type="button"
+                    onClick={() => setRightSidebarTab("teams")}
+                    className={`py-2 px-1 rounded-lg font-bold transition flex items-center justify-center gap-1 cursor-pointer text-[11px] truncate ${
+                      rightSidebarTab === "teams"
+                        ? "bg-amber-500 text-black shadow-md shadow-amber-500/20 font-extrabold"
+                        : "text-slate-400 hover:text-white hover:bg-slate-800/60"
+                    }`}
+                    title="Municipal Field Units"
+                  >
+                    <span>🚜</span>
+                    <span className="truncate">Active Teams ({occupiedTeams.length})</span>
+                  </button>
+
+                  {/* Tab 3: Department Locations */}
+                  <button
+                    type="button"
+                    onClick={() => setRightSidebarTab("departments")}
+                    className={`py-2 px-1 rounded-lg font-bold transition flex items-center justify-center gap-1 cursor-pointer text-[11px] truncate ${
+                      rightSidebarTab === "departments"
+                        ? "bg-cyan-500 text-black shadow-md shadow-cyan-500/20 font-extrabold"
+                        : "text-slate-400 hover:text-white hover:bg-slate-800/60"
+                    }`}
+                    title="Specialized Department Headquarters"
+                  >
+                    <span>🏢</span>
+                    <span className="truncate">Depts ({MUNICIPAL_DEPARTMENT_CENTERS.length})</span>
+                  </button>
+
+                </div>
+
+                {/* TAB 1: INCIDENT DETAILS */}
+                {rightSidebarTab === "defects" && (
+                  <div className="space-y-3">
+                    {incidents.slice(0, 25).map((inc) => {
+                      const isSelected = selectedDefect?.id === inc.id;
+                      const isCritical = inc.priority === "P1" || inc.severity === "Critical";
+                      const isResolved = inc.status === "Resolved" || inc.status === "Closed";
+
+                      return (
+                        <div
+                          key={inc.id}
+                          onClick={() => {
+                            setSelectedDefect(inc);
+                            setSelectedMapTeam(null);
+                            setSelectedCenter(null);
+                            if (inc.latitude && inc.longitude) {
+                              setMapCenter([inc.latitude, inc.longitude]);
+                              setMapZoom(16);
+                            }
+                          }}
+                          className={`p-3.5 rounded-xl border text-xs transition cursor-pointer space-y-2 ${
+                            isSelected
+                              ? "bg-red-950/70 border-red-400 shadow-md shadow-red-950/40"
+                              : "bg-[#070A10] border-slate-800 hover:border-slate-700"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold text-cyan-400 font-mono text-[11px] truncate">
+                              {inc.id}
+                            </span>
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                              isResolved
+                                ? "bg-emerald-950 text-emerald-300 border border-emerald-800"
+                                : isCritical
+                                ? "bg-red-950 text-red-300 border border-red-800"
+                                : "bg-amber-950 text-amber-300 border border-amber-800"
+                            }`}>
+                              {inc.priority || "P1"}
+                            </span>
+                          </div>
+
+                          <div className="font-bold text-white text-xs line-clamp-1">
+                            {inc.title || inc.category}
+                          </div>
+
+                          <div className="flex items-center justify-between text-[11px] text-slate-400">
+                            <span className="truncate">{inc.ward || inc.address || "City Sector"}</span>
+                            <span className="text-cyan-400 font-bold shrink-0">
+                              {inc.status || "AI Verified"}
+                            </span>
+                          </div>
+
+                          <div className="text-[10px] text-slate-500 flex items-center justify-between pt-1 border-t border-slate-800/80">
+                            <span>SLA: {inc.slaHours || 4}h</span>
+                            <span className="text-red-400 font-bold">📍 Locate Pinpoint</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* TAB 2: TEAMS LOCATION (ONLY ACTIVE ON-SITE TEAMS PLOTTED ON LIVE MAP) */}
+                {rightSidebarTab === "teams" && (
+                  <div className="space-y-3">
+                    {teams.map((team) => {
+                      const isOccupied = team.status === "occupied" && team.activeJob;
+                      const metrics = team.activeJob ? calculateJobTimeMetrics(team.activeJob) : null;
+                      const isSelected = selectedMapTeam?.id === team.id;
+
+                      return (
+                        <div
+                          key={team.id}
+                          onClick={() => {
+                            if (isOccupied) {
+                              setSelectedMapTeam(team);
+                              setSelectedCenter(null);
+                              setSelectedDefect(null);
+                              const pos = teamPositions[team.id];
+                              if (pos) {
+                                setMapCenter(pos);
+                                setMapZoom(15);
+                              }
+                            }
+                          }}
+                          className={`p-3.5 rounded-xl border text-xs transition space-y-2 ${
+                            isOccupied
+                              ? isSelected
+                                ? "bg-amber-950/70 border-amber-400 shadow-md shadow-amber-950/40 cursor-pointer"
+                                : "bg-[#070A10] border-amber-500/50 hover:border-amber-400 cursor-pointer"
+                              : "bg-[#070A10]/60 border-slate-800/80 opacity-70 cursor-default"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold text-white font-sans truncate flex items-center gap-1.5">
+                              <span>🚜</span>
+                              <span>{team.name}</span>
+                            </span>
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                              isOccupied
+                                ? metrics?.isLate ? "bg-red-950 text-red-300 border border-red-500" : "bg-amber-950 text-amber-300 border border-amber-500"
+                                : "bg-slate-900 text-slate-400 border border-slate-700"
+                            }`}>
+                              {isOccupied ? (metrics?.isLate ? `LATE +${metrics.formattedLate}` : "ON WORK") : "AT BASE DEPOT"}
+                            </span>
+                          </div>
+
+                          {isOccupied ? (
+                            <div className="space-y-1 text-[11px]">
+                              <div className="text-amber-300 font-bold line-clamp-1">
+                                ⚠️ Solving: {team.activeJob.taskTitle || team.activeJob.category}
+                              </div>
+                              <div className="text-slate-400 flex items-center justify-between">
+                                <span>Elapsed: <strong className="text-white">{metrics?.formattedElapsed}</strong></span>
+                                <span>Allotted: <strong className="text-amber-300">{team.activeJob.allottedHours}h</strong></span>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="text-[10px] text-slate-500 font-sans">
+                              🏠 Standby at base depot ({team.ward}) • Not on Live Map
+                            </div>
+                          )}
+
+                          <div className="text-[10px] text-slate-400 flex items-center justify-between pt-1 border-t border-slate-800/80">
+                            <span>Lead: {team.leader}</span>
+                            {isOccupied ? (
+                              <span className="text-amber-400 font-bold">📍 Pan to On-Site Unit</span>
+                            ) : (
+                              <span className="text-slate-500 italic">Standby at Base</span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* TAB 3: DEPARTMENT LOCATIONS */}
+                {rightSidebarTab === "departments" && (
+                  <div className="space-y-3">
+                    {MUNICIPAL_DEPARTMENT_CENTERS.map((dept) => {
+                      const isSelected = selectedCenter?.id === dept.id;
+
+                      return (
+                        <div
+                          key={dept.id}
+                          onClick={() => {
+                            setSelectedCenter(dept);
+                            setSelectedMapTeam(null);
+                            setSelectedDefect(null);
+                            if (dept.position) {
+                              setMapCenter(dept.position);
+                              setMapZoom(15);
+                            }
+                          }}
+                          className={`p-3.5 rounded-xl border text-xs transition cursor-pointer space-y-2 ${
+                            isSelected
+                              ? "bg-cyan-950/70 border-cyan-400 shadow-md shadow-cyan-950/40"
+                              : "bg-[#070A10] border-slate-800 hover:border-slate-700"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold text-white font-sans truncate flex items-center gap-1.5">
+                              <span>{dept.iconEmoji || "🏢"}</span>
+                              <span className="truncate">{dept.name}</span>
+                            </span>
+                            <span
+                              className="px-2 py-0.5 rounded text-[10px] font-bold shrink-0"
+                              style={{ backgroundColor: `${dept.color}20`, color: dept.color, border: `1px solid ${dept.color}60` }}
+                            >
+                              7.5km Radius
+                            </span>
+                          </div>
+
+                          <div className="space-y-1 text-[11px]">
+                            <div className="text-slate-300">
+                              In-Charge: <strong className="text-amber-300">{dept.inchargeName}</strong> ({dept.inchargeRank})
+                            </div>
+                            <div className="text-slate-400 flex items-center justify-between">
+                              <span>Hotline: <strong className="text-emerald-400">{dept.inchargePhone}</strong></span>
+                              <span className="text-slate-500">{dept.ward}</span>
+                            </div>
+                          </div>
+
+                          <div className="text-[10px] text-slate-400 flex items-center justify-between pt-1 border-t border-slate-800/80">
+                            <span className="truncate">{dept.fleetSummary}</span>
+                            <span className="text-cyan-400 font-bold shrink-0">📍 Locate HQ</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+              </div>
+
+              {/* Selected Pinpoint Summary Card */}
+              {(selectedMapTeam || selectedDefect || selectedCenter) && (
+                <div className="p-3.5 rounded-xl bg-slate-900 border border-slate-700 space-y-2 text-xs font-mono-tech shadow-xl">
+                  <div className="flex items-center justify-between border-b border-slate-800 pb-1">
+                    <span className="font-bold text-white uppercase text-[11px] flex items-center gap-1.5">
+                      <span>🎯 Pinpoint Focused</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedMapTeam(null);
+                        setSelectedDefect(null);
+                        setSelectedCenter(null);
+                      }}
+                      className="text-slate-400 hover:text-white cursor-pointer"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                  {selectedCenter && (
+                    <div className="text-[11px] text-cyan-300 space-y-0.5 font-sans">
+                      <div>🏢 <strong>{selectedCenter.name}</strong></div>
+                      <div className="text-slate-400">Incharge: {selectedCenter.inchargeName} ({selectedCenter.inchargePhone})</div>
+                    </div>
+                  )}
+                  {selectedMapTeam && (
+                    <div className="text-[11px] text-amber-300 space-y-0.5 font-sans">
+                      <div>🚜 <strong>{selectedMapTeam.name}</strong></div>
+                      <div className="text-slate-400">Leader: {selectedMapTeam.leader} ({selectedMapTeam.leaderPhone})</div>
+                    </div>
+                  )}
+                  {selectedDefect && (
+                    <div className="text-[11px] text-red-300 space-y-0.5 font-sans">
+                      <div>📍 <strong>{selectedDefect.title || selectedDefect.category}</strong></div>
+                      <div className="text-slate-400">{selectedDefect.ward || selectedDefect.address} • SLA: {selectedDefect.slaHours || 4}h</div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+            </div>
+
+            {/* 2. RIGHT SIDE: LIVE GIS MAP VIEWPORT CONTAINER */}
+            <div className="xl:col-span-8 bg-[#0B0F19] border border-slate-800 rounded-2xl overflow-hidden shadow-2xl h-[580px] relative order-1 xl:order-2">
               <LeafletMap
-                center={[28.6180, 77.2140]}
-                zoom={13}
+                center={mapCenter}
+                zoom={mapZoom}
                 markers={allOfficerMapMarkers}
-                showHeatmap={false}
+                showHeatmap={showHeatmap}
                 onMarkerClick={(data) => {
                   if (data?.type === "MUNICIPAL_TEAM") {
                     setSelectedMapTeam(data);
+                    setSelectedCenter(null);
+                  } else if (data?.type === "DEPARTMENT_CENTER") {
+                    setSelectedCenter(data);
+                    setSelectedMapTeam(null);
                   }
                 }}
               />
 
               {/* Map Legend Overlay */}
-              <div className="absolute bottom-4 left-4 z-[400] bg-black/85 backdrop-blur-md border border-slate-800 p-3 rounded-xl text-[11px] space-y-1 shadow-xl">
-                <div className="font-bold text-white uppercase text-[10px] border-b border-slate-800 pb-1">GIS Map Legend</div>
-                <div className="flex items-center gap-2 text-amber-300">
+              <div className="absolute bottom-4 left-4 z-[400] bg-black/90 backdrop-blur-md border border-slate-800 p-3.5 rounded-2xl text-[11px] space-y-1.5 shadow-2xl">
+                <div className="font-bold text-white uppercase text-[10px] border-b border-slate-800 pb-1 flex justify-between items-center">
+                  <span>GIS Map Legend</span>
+                  <span className="text-amber-400 font-mono">7.5km Radius</span>
+                </div>
+                <div className="flex items-center gap-2 text-amber-300 font-bold">
                   <span>🚜</span>
-                  <span>Active Municipal Unit (On Work)</span>
+                  <span>Allotted Task Teams (On-Site)</span>
                 </div>
-                <div className="flex items-center gap-2 text-emerald-300">
-                  <span>🛠️</span>
-                  <span>Available Standby Unit (Base)</span>
+                <div className="flex items-center gap-2 text-cyan-300 font-bold">
+                  <span>🏢</span>
+                  <span>Defect Centers (Incharge & Fleet)</span>
                 </div>
-                <div className="flex items-center gap-2 text-red-400">
-                  <span className="w-2.5 h-2.5 rounded-full bg-red-500" />
-                  <span>Critical Defect Location</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Right Live Team Telemetry Feed */}
-            <div className="xl:col-span-4 bg-[#0B0F19] border border-slate-800 rounded-2xl p-5 shadow-xl flex flex-col justify-between space-y-4 max-h-[580px] overflow-y-auto">
-              
-              <div className="space-y-3">
-                <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-                  <h3 className="font-bold text-white text-sm uppercase flex items-center gap-1.5">
-                    <Truck className="w-4 h-4 text-amber-400" />
-                    <span>Active Team Telemetry Feed</span>
-                  </h3>
-                  <span className="text-[10px] text-amber-400 font-bold bg-amber-950 px-2 py-0.5 rounded">
-                    {teams.length} Units Tracked
-                  </span>
-                </div>
-
-                {/* List of Teams with Quick Details */}
-                <div className="space-y-3">
-                  {teams.map((team) => {
-                    const isOccupied = team.status === "occupied";
-                    const metrics = team.activeJob ? calculateJobTimeMetrics(team.activeJob) : null;
-                    const isSelected = selectedMapTeam?.id === team.id;
-
-                    return (
-                      <div
-                        key={team.id}
-                        onClick={() => setSelectedMapTeam(team)}
-                        className={`p-3.5 rounded-xl border text-xs transition cursor-pointer space-y-2 ${
-                          isSelected
-                            ? "bg-amber-950/70 border-amber-400 shadow-md shadow-amber-950/40"
-                            : isOccupied
-                            ? "bg-[#070A10] border-amber-500/40 hover:border-amber-400"
-                            : "bg-[#070A10] border-slate-800 hover:border-slate-700"
-                        }`}
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className="font-bold text-white font-sans truncate">{team.name}</span>
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                            isOccupied
-                              ? metrics?.isLate ? "bg-red-950 text-red-300 border border-red-500" : "bg-amber-950 text-amber-300 border border-amber-500"
-                              : "bg-emerald-950 text-emerald-300 border border-emerald-500"
-                          }`}>
-                            {isOccupied ? (metrics?.isLate ? `LATE +${metrics.formattedLate}` : "ON WORK") : "AVAILABLE"}
-                          </span>
-                        </div>
-
-                        {team.activeJob ? (
-                          <div className="space-y-1 text-[11px]">
-                            <div className="text-amber-300 font-bold">
-                              ⚠️ Solving: {team.activeJob.taskTitle || team.activeJob.category}
-                            </div>
-                            <div className="text-slate-400 flex items-center justify-between">
-                              <span>Elapsed: <strong className="text-white">{metrics?.formattedElapsed}</strong></span>
-                              <span>Allotted: <strong className="text-amber-300">{team.activeJob.allottedHours}h</strong></span>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="text-[10px] text-slate-500 font-sans">
-                            Standby at depot ({team.ward})
-                          </div>
-                        )}
-
-                        <div className="text-[10px] text-slate-400 flex items-center justify-between pt-1 border-t border-slate-800/80">
-                          <span>Lead: {team.leader}</span>
-                          <span className="text-slate-500">{team.members?.length || 4} Crew</span>
-                        </div>
-                      </div>
-                    );
-                  })}
+                <div className="flex items-center gap-2 text-slate-400 text-[10px] pt-0.5">
+                  <span className="w-3 h-3 rounded-full border border-cyan-400 bg-cyan-500/20" />
+                  <span>7.5 km Coverage Radius Circle</span>
                 </div>
               </div>
-
             </div>
 
           </div>

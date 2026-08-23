@@ -212,12 +212,12 @@ export default function CitySyncReportView({
   };
 
   return (
-    <div className="min-h-screen bg-[#07090E] text-slate-100 flex justify-center py-8 px-4 w-full">
+    <div className="w-full min-h-screen bg-[#070A10] text-slate-100 flex justify-center py-6 sm:py-10 px-3 sm:px-6 lg:px-8 font-sans pb-24">
       <div
-        className={`w-full ${
+        className={`w-full h-fit ${
           isPhoneFrame
-            ? "max-w-md bg-[#0D121D] border border-slate-800 rounded-2xl p-6"
-            : "max-w-4xl bg-[#0D121D] border border-slate-800 rounded-2xl p-8 shadow-2xl"
+            ? "max-w-md bg-[#0B0F19] border border-slate-800 rounded-3xl p-5 sm:p-6 shadow-2xl space-y-6"
+            : "max-w-5xl bg-[#0B0F19] border border-slate-800/90 rounded-3xl p-6 sm:p-8 lg:p-10 shadow-[0_0_60px_rgba(0,0,0,0.7)] space-y-7"
         }`}
       >
         {/* Header */}

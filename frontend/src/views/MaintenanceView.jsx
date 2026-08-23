@@ -36,18 +36,9 @@ export default function MaintenanceView({
   setActivePage
 }) {
   const isOfficer = user?.role === "officer";
+  const isAdmin = user?.role === "admin";
 
-  if (isOfficer) {
-    return (
-      <div className="flex-1 bg-[#070A10] text-slate-100 p-6 space-y-6 font-sans overflow-y-auto">
-        <MunicipalOfficerIncidentLogs
-          user={user}
-          setActivePage={setActivePage}
-          onOpenWorkOrderModal={onOpenWorkOrderModal}
-        />
-      </div>
-    );
-  }
+  // Declare all React hooks unconditionally at the top of the component
   const [activeSubpage, setActiveSubpage] = useState("requests"); // requests | ai_verification | in_progress | resolved | pipeline
   const [incidents, setIncidents] = useState([]);
   const [selectedIncident, setSelectedIncident] = useState(null);
@@ -108,6 +99,20 @@ export default function MaintenanceView({
     };
   }, []);
 
+  // 1. MUNICIPAL OFFICER DEDICATED INCIDENT LOGS
+  if (isOfficer) {
+    return (
+      <div className="flex-1 bg-[#070A10] text-slate-100 p-6 space-y-6 font-sans overflow-y-auto">
+        <MunicipalOfficerIncidentLogs
+          user={user}
+          setActivePage={setActivePage}
+          onOpenWorkOrderModal={onOpenWorkOrderModal}
+        />
+      </div>
+    );
+  }
+
+  // 2. ADMIN INCIDENT OPERATIONS & MULTI-SUBPAGE PIPELINE
   const handleAdvanceStatus = async (incident, targetStatus) => {
     setActionLoading(incident.id);
     const result = await updateComplaintStatus(incident.id, targetStatus);
@@ -150,7 +155,7 @@ export default function MaintenanceView({
           <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight font-heading flex items-center gap-2.5">
             <span>Incident Operations & Pipeline Lifecycle</span>
             <span className="px-2.5 py-0.5 rounded-full bg-cyan-950 border border-cyan-500 text-cyan-300 text-xs font-mono-tech uppercase font-bold">
-              Multi-Subpage Architecture
+              Command Administration
             </span>
           </h1>
           <p className="text-slate-400 text-xs sm:text-sm font-mono-tech mt-1">
@@ -160,7 +165,6 @@ export default function MaintenanceView({
 
         {/* Global Disaster Early Warning & Emergency Actions */}
         <div className="flex flex-wrap items-center gap-3 font-mono-tech text-xs">
-          {/* Level 5 Disaster Warning SMS Broadcast Button */}
           <button
             onClick={() => setIsDisasterModalOpen(true)}
             className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-red-600 via-rose-600 to-red-600 hover:from-red-500 text-white font-extrabold flex items-center gap-2 shadow-[0_0_20px_rgba(239,68,68,0.45)] uppercase cursor-pointer active:scale-95 transition"
@@ -237,18 +241,18 @@ export default function MaintenanceView({
           </span>
         </button>
 
-        {/* 4. Resolved */}
+        {/* 4. Resolved Subpage */}
         <button
           onClick={() => setActiveSubpage("resolved")}
           className={`p-3.5 rounded-xl border flex items-center justify-between transition cursor-pointer ${
             activeSubpage === "resolved"
-              ? "bg-[#0E1814] border-emerald-400 text-emerald-300 cyan-glow-sm"
+              ? "bg-[#081512] border-emerald-400 text-emerald-300 cyan-glow-sm"
               : "bg-[#0C101A] border-slate-800 text-slate-400 hover:text-white"
           }`}
         >
           <div className="flex items-center gap-2.5">
             <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-            <span className="font-bold text-xs uppercase">4. Resolved Audit</span>
+            <span className="font-bold text-xs uppercase">4. Resolved Audits</span>
           </div>
           <span className="px-2 py-0.5 rounded-full bg-emerald-950 border border-emerald-500 font-extrabold text-emerald-300 text-[10px]">
             {resolvedCount}
@@ -257,78 +261,61 @@ export default function MaintenanceView({
 
       </div>
 
-      {/* Render Active Subpage */}
-      <div className="pt-2">
+      {/* Subpage Content Rendering */}
+      <div className="space-y-6">
         {activeSubpage === "requests" && (
           <RequestsHubSubpage
-            incidents={incidents}
-            onSelectIncident={setSelectedIncident}
-            selectedIncident={selectedIncident}
+            incidents={incidents.filter((i) => !i.status || i.status === "Reported" || i.status === "Submitted")}
             onAdvanceStatus={handleAdvanceStatus}
+            onOpenDispatchModal={onOpenDispatchModal}
             actionLoading={actionLoading}
           />
         )}
 
         {activeSubpage === "ai_verification" && (
           <AutoAIVerificationSubpage
-            incidents={incidents}
-            onSelectIncident={setSelectedIncident}
-            selectedIncident={selectedIncident}
+            incidents={incidents.filter((i) => i.status === "AI Verified" || i.status === "Verified" || i.aiVerified)}
             onAdvanceStatus={handleAdvanceStatus}
+            onOpenDispatchModal={onOpenDispatchModal}
+            onOpenTriageModal={() => setIsAITriageModalOpen(true)}
             actionLoading={actionLoading}
           />
         )}
 
         {activeSubpage === "in_progress" && (
           <InProgressSubpage
-            incidents={incidents}
-            onSelectIncident={setSelectedIncident}
-            selectedIncident={selectedIncident}
+            incidents={incidents.filter((i) => i.status === "In Progress" || i.status === "Dispatched")}
             onAdvanceStatus={handleAdvanceStatus}
-            onOpenWorkOrderModal={onOpenWorkOrderModal}
-            onOpenDispatchModal={onOpenDispatchModal}
             actionLoading={actionLoading}
           />
         )}
 
         {activeSubpage === "resolved" && (
           <ResolvedSubpage
-            incidents={incidents}
-            onSelectIncident={setSelectedIncident}
-            selectedIncident={selectedIncident}
-            onDeleteIncident={(id) => {
-              setIncidents((prev) => prev.filter((i) => i.id !== id));
-              if (selectedIncident && selectedIncident.id === id) {
-                setSelectedIncident(null);
-              }
-            }}
+            incidents={incidents.filter((i) => i.status === "Resolved" || i.status === "Closed")}
+            onReopenIncident={(inc) => handleAdvanceStatus(inc, "In Progress")}
+            actionLoading={actionLoading}
           />
         )}
       </div>
 
-      {/* Level 5 Disaster Early Warning Broadcast Modal */}
-      {isDisasterModalOpen && (
-        <DisasterBroadcastModal
-          key="maint-disaster-modal"
-          isOpen={isDisasterModalOpen}
-          onClose={() => setIsDisasterModalOpen(false)}
-          initialIncident={selectedIncident}
-          user={user}
-        />
-      )}
+      {/* Modals */}
+      <DisasterBroadcastModal
+        isOpen={isDisasterModalOpen}
+        onClose={() => setIsDisasterModalOpen(false)}
+        initialIncident={selectedIncident}
+        user={user}
+      />
 
-      {/* AI Vision Triage Modal */}
-      {selectedIncident && (
-        <AIVisionTriageModal
-          isOpen={isAITriageModalOpen}
-          onClose={() => setIsAITriageModalOpen(false)}
-          imageUrl={selectedIncident.imageUrl}
-          category={selectedIncident.category}
-          onApplyTriage={(triage) => {
-            handleAdvanceStatus(selectedIncident, "AI Verified");
-          }}
-        />
-      )}
+      <AIVisionTriageModal
+        isOpen={isAITriageModalOpen}
+        onClose={() => setIsAITriageModalOpen(false)}
+        onTriageCompleted={(triagedItems) => {
+          if (Array.isArray(triagedItems)) {
+            setIncidents((prev) => [...triagedItems, ...prev]);
+          }
+        }}
+      />
 
     </div>
   );

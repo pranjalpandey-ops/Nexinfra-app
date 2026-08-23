@@ -1,4 +1,27 @@
 ﻿import React, { useState } from "react";
+
+// Helper function to format detected time & elapsed duration
+function formatDetectedTiming(isoDate) {
+  if (!isoDate) return { exactTime: "Just now", elapsed: "Just now", isRecent: true };
+  try {
+    const d = new Date(isoDate);
+    const exactTime = `${d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })} at ${d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}`;
+    const diffMs = Date.now() - d.getTime();
+    const diffMins = Math.floor(diffMs / (1000 * 60));
+    let elapsed = "Just now";
+    if (diffMins < 1) elapsed = "Just now";
+    else if (diffMins < 60) elapsed = `${diffMins}m ago`;
+    else {
+      const diffHours = Math.floor(diffMins / 60);
+      if (diffHours < 24) elapsed = `${diffHours}h ${diffMins % 60}m ago`;
+      else elapsed = `${Math.floor(diffHours / 24)}d ago`;
+    }
+    return { exactTime, elapsed, isRecent: diffMins < 120 };
+  } catch (e) {
+    return { exactTime: "Just now", elapsed: "Just now", isRecent: true };
+  }
+}
+
 import {
   Clock,
   MapPin,

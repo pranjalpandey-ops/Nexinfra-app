@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Radio, Sparkles, MapPin, Settings, ShieldCheck, UserCheck, Sun, Moon, Bell, ShieldAlert, Building, LogOut } from 'lucide-react';
+import { Radio, Sparkles, MapPin, Settings, Camera, ShieldCheck, UserCheck, Sun, Moon, Bell, ShieldAlert, Building, LogOut } from 'lucide-react';
 import { subscribeToLiveAlerts } from '../services/alertService';
 import Logo from './Logo';
 
@@ -75,84 +75,63 @@ export default function Navbar({
             Platform
           </button>
           
-          {/* MUNICIPAL OFFICER NAVIGATION TABS (DEDICATED INDEPENDENT MODULES) */}
+          {/* MUNICIPAL OFFICER NAVIGATION TABS (DASHBOARD, LIVE MAP, TEAM ALLOTMENT) */}
           {isOfficerContext && (
             <>
               <button
-                onClick={() => setActivePage('officer-map')}
-                className={`px-3 py-1.5 rounded transition-colors cursor-pointer font-mono text-xs flex items-center gap-1 ${
-                  activePage === 'officer-map' || activePage === 'municipal-dashboard'
+                onClick={() => setActivePage('municipal-dashboard')}
+                className={`px-3 py-1.5 rounded transition-colors cursor-pointer font-mono text-xs whitespace-nowrap ${
+                  activePage === 'municipal-dashboard'
                     ? 'text-amber-300 bg-amber-950/60 border-b-2 border-amber-400 font-bold'
                     : 'text-slate-300 hover:text-white hover:bg-slate-800/40'
                 }`}
               >
-                🗺️ Live Team Map
+                Dashboard
               </button>
 
               <button
-                onClick={() => setActivePage('teams-laid-to-work')}
-                className={`px-3 py-1.5 rounded transition-colors cursor-pointer font-mono text-xs flex items-center gap-1 ${
-                  activePage === 'teams-laid-to-work'
+                onClick={() => setActivePage('officer-map')}
+                className={`px-3 py-1.5 rounded transition-colors cursor-pointer font-mono text-xs whitespace-nowrap ${
+                  activePage === 'officer-map'
                     ? 'text-amber-300 bg-amber-950/60 border-b-2 border-amber-400 font-bold'
                     : 'text-slate-300 hover:text-white hover:bg-slate-800/40'
                 }`}
               >
-                ⚡ Teams Laid to Work
+                Live Map
               </button>
 
               <button
                 onClick={() => setActivePage('task-allotment')}
-                className={`px-3 py-1.5 rounded transition-colors cursor-pointer font-mono text-xs flex items-center gap-1 ${
-                  activePage === 'task-allotment'
+                className={`px-3 py-1.5 rounded transition-colors cursor-pointer font-mono text-xs whitespace-nowrap ${
+                  activePage === 'task-allotment' || activePage === 'teams-laid-to-work' || activePage === 'team-details' || activePage === 'add-member'
                     ? 'text-amber-300 bg-amber-950/60 border-b-2 border-amber-400 font-bold'
                     : 'text-slate-300 hover:text-white hover:bg-slate-800/40'
                 }`}
               >
-                📋 Task Allotment
+                Team Allotment
               </button>
 
               <button
-                onClick={() => setActivePage('team-details')}
-                className={`px-3 py-1.5 rounded transition-colors cursor-pointer font-mono text-xs flex items-center gap-1 ${
-                  activePage === 'team-details'
+                onClick={() => setActivePage('team-analytics')}
+                className={`px-3 py-1.5 rounded transition-colors cursor-pointer font-mono text-xs whitespace-nowrap ${
+                  activePage === 'team-analytics' || activePage === 'analytics'
                     ? 'text-amber-300 bg-amber-950/60 border-b-2 border-amber-400 font-bold'
                     : 'text-slate-300 hover:text-white hover:bg-slate-800/40'
                 }`}
               >
-                👥 Team Rosters
+                Analysis
               </button>
 
               <button
-                onClick={() => setActivePage('add-member')}
-                className={`px-3 py-1.5 rounded transition-colors cursor-pointer font-mono text-xs flex items-center gap-1 ${
-                  activePage === 'add-member'
+                onClick={() => setActivePage('report-issue')}
+                className={`px-3 py-1.5 rounded transition-colors flex items-center gap-1.5 cursor-pointer font-mono text-xs whitespace-nowrap ${
+                  activePage === 'report-issue'
                     ? 'text-amber-300 bg-amber-950/60 border-b-2 border-amber-400 font-bold'
                     : 'text-slate-300 hover:text-white hover:bg-slate-800/40'
                 }`}
               >
-                ➕ Add Member
-              </button>
-
-              <button
-                onClick={() => setActivePage('maintenance')}
-                className={`px-3 py-1.5 rounded transition-colors cursor-pointer font-mono text-xs flex items-center gap-1 ${
-                  activePage === 'maintenance'
-                    ? 'text-amber-300 bg-amber-950/60 border-b-2 border-amber-400 font-bold'
-                    : 'text-slate-300 hover:text-white hover:bg-slate-800/40'
-                }`}
-              >
-                📄 Incident Logs
-              </button>
-
-              <button
-                onClick={() => setActivePage('cctv')}
-                className={`px-3 py-1.5 rounded transition-colors cursor-pointer font-mono text-xs flex items-center gap-1 ${
-                  activePage === 'cctv'
-                    ? 'text-amber-300 bg-amber-950/60 border-b-2 border-amber-400 font-bold'
-                    : 'text-slate-300 hover:text-white hover:bg-slate-800/40'
-                }`}
-              >
-                📹 CCTV Monitor
+                <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                <span>Report Issue</span>
               </button>
             </>
           )}
@@ -206,6 +185,18 @@ export default function Navbar({
                 }`}
               >
                 {isAdminContext ? "Incident Inspector" : "Track Incident"}
+              </button>
+
+              <button
+                onClick={() => setActivePage('cctv')}
+                className={`px-3.5 py-2 rounded transition-colors flex items-center gap-1.5 cursor-pointer ${
+                  activePage === 'cctv'
+                    ? 'text-cyan-400 bg-cyan-950/40 border-b-2 border-cyan-400 font-bold'
+                    : 'text-slate-300 hover:text-white hover:bg-slate-800/40'
+                }`}
+              >
+                <Camera className="w-4 h-4 text-cyan-400" />
+                <span>CCTV Monitor</span>
               </button>
             </>
           )}
