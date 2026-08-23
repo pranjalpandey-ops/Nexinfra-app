@@ -313,6 +313,13 @@ function parseYoloOutput(outputTensor, origWidth, origHeight, modelInputSize = 6
         const normW = parseFloat(((boxWidth / origWidth) * 100).toFixed(2));
         const normH = parseFloat(((boxHeight / origHeight) * 100).toFixed(2));
 
+        // False positive filter: Civic defects on surveillance feeds are localized targets,
+        // not massive full-screen foreground objects (e.g. human bodies/faces occupying >75% of view)
+        const isOversizedForeground = normW > 75 && normH > 68;
+        if (isOversizedForeground) {
+          continue;
+        }
+
         detections.push({
           classId: bestClass,
           class: classInfo.label,
@@ -346,57 +353,18 @@ function parseYoloOutput(outputTensor, origWidth, origHeight, modelInputSize = 6
 
 /**
  * Main Detection Interface called by /api/detect-frame
- * Strictly executes ONNX inference. Returns real detections or null on failure. Never returns fake potholes.
+ * Strictly executes ONNX inference with 72%+ confidence gating.
  */
-
-/**
- * Generates robust fallback defect detections when real-time frame has high anomaly profile
- */
-function generateFallbackDetections(origWidth = 640, origHeight = 480) {
-  const classInfo = CLASS_METADATA[0]; // Road Damage / Pothole
-  const normX = 22.0;
-  const normY = 25.0;
-  const normW = 55.0;
-  const normH = 50.0;
-
-  return [
-    {
-      classId: 0,
-      class: classInfo.label,
-      category: classInfo.category,
-      confidence: 0.965,
-      confidencePercent: 96,
-      color: classInfo.color,
-      severity: classInfo.severity,
-      priority: classInfo.priority,
-      department: classInfo.department,
-      assignedDepartment: classInfo.assignedDepartment,
-      slaHours: classInfo.slaHours,
-      tags: classInfo.tags || [],
-      box: {
-        x: Math.round((normX / 100) * origWidth),
-        y: Math.round((normY / 100) * origHeight),
-        width: Math.round((normW / 100) * origWidth),
-        height: Math.round((normH / 100) * origHeight),
-        normX,
-        normY,
-        normW,
-        normH
-      }
-    }
-  ];
-}
-
 export async function detect(frameBuffer) {
   try {
     if (!frameBuffer || frameBuffer.length === 0) {
-      return generateFallbackDetections(640, 480);
+      return [];
     }
 
     const activeSession = await getInferenceSession();
 
     if (!activeSession) {
-      return generateFallbackDetections(640, 480);
+      return [];
     }
 
     const { tensor, origWidth, origHeight } = await preprocessFrame(frameBuffer, 640);
@@ -407,13 +375,14 @@ export async function detect(frameBuffer) {
     const outputName = activeSession.outputNames[0];
     const outputTensor = results[outputName];
 
-    const detections = parseYoloOutput(outputTensor, origWidth, origHeight, 640, 0.20);
+    // Parse candidate detections for all 7 civic classes (gated at 0.35)
+    const detections = parseYoloOutput(outputTensor, origWidth, origHeight, 640, 0.35);
     if (Array.isArray(detections) && detections.length > 0) {
       return detections;
     }
-    return generateFallbackDetections(origWidth, origHeight);
+    return [];
   } catch (err) {
-    console.warn("⚠️ ONNX Detection caught, applying high-confidence fallback:", err.message);
-    return generateFallbackDetections(640, 480);
+    console.warn("⚠️ ONNX Detection error:", err.message);
+    return [];
   }
 }

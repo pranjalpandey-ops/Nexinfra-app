@@ -187,17 +187,19 @@ export default function Navbar({
                 {isAdminContext ? "Incident Inspector" : "Track Incident"}
               </button>
 
-              <button
-                onClick={() => setActivePage('cctv')}
-                className={`px-3.5 py-2 rounded transition-colors flex items-center gap-1.5 cursor-pointer ${
-                  activePage === 'cctv'
-                    ? 'text-cyan-400 bg-cyan-950/40 border-b-2 border-cyan-400 font-bold'
-                    : 'text-slate-300 hover:text-white hover:bg-slate-800/40'
-                }`}
-              >
-                <Camera className="w-4 h-4 text-cyan-400" />
-                <span>CCTV Monitor</span>
-              </button>
+              {isAdminContext && (
+                <button
+                  onClick={() => setActivePage('cctv')}
+                  className={`px-3.5 py-2 rounded transition-colors flex items-center gap-1.5 cursor-pointer ${
+                    activePage === 'cctv'
+                      ? 'text-cyan-400 bg-cyan-950/40 border-b-2 border-cyan-400 font-bold'
+                      : 'text-slate-300 hover:text-white hover:bg-slate-800/40'
+                  }`}
+                >
+                  <Camera className="w-4 h-4 text-cyan-400" />
+                  <span>CCTV Monitor</span>
+                </button>
+              )}
             </>
           )}
         </nav>

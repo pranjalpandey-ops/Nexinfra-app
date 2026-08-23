@@ -1,0 +1,13 @@
+path: /content/cctv_ai_training/dataset  # On Colab (or relative './dataset' locally)
+train: images/train
+val: images/val
+
+nc: 7
+names:
+  0: pothole_road_defect
+  1: water_drainage_burst
+  2: garbage_waste_overflow
+  3: electrical_hazard
+  4: structural_bridge_crack
+  5: tree_greenery_hazard
+  6: fire_smoke_hazard

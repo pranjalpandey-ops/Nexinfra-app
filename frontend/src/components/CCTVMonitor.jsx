@@ -242,6 +242,7 @@ export default function CCTVMonitor({ user, setActivePage }) {
   // AI & Multi-Frame Temporal Verification States
   const [isDetecting, setIsDetecting] = useState(true);
   const [scanIntervalMs, setScanIntervalMs] = useState(800);
+  const [minConfidenceThreshold, setMinConfidenceThreshold] = useState(0.45);
   const [currentDetection, setCurrentDetection] = useState(null);
   const [recentDetections, setRecentDetections] = useState([]);
   const [backendHealth, setBackendHealth] = useState({ status: "checking", engine: "NEXinfra ONNX Civic Detector" });
@@ -485,36 +486,42 @@ export default function CCTVMonitor({ user, setActivePage }) {
         const canonicalCategory = getCanonicalCategory(top.class || top.category || top.rawClass);
         const taxMeta = getCanonicalMetadata(canonicalCategory);
 
-        // Spatial-Temporal Verification: Class + High Confidence (>= 0.65) + Bounding Box IoU (>= 0.35)
+        // Spatial-Temporal Verification: Class + Adaptive Confidence (>= minConfidenceThreshold) + Realistic Defect Spatial Geometry
         const IOU_THRESHOLD = 0.20;
-        const CONFIDENCE_THRESHOLD = 0.20;
+        const CONFIDENCE_THRESHOLD = minConfidenceThreshold;
 
         let spatialIoU = 1.0;
         let isSpatialMatch = false;
 
-        if (top.confidence >= CONFIDENCE_THRESHOLD) {
+        const rawConf = Number(top.confidence || 0);
+        const bx = top.box || {};
+
+        // Reject oversized foreground objects (e.g. human torso/face filling >75% of camera view)
+        const isOversized = (bx.normW > 75 && bx.normH > 68);
+
+        if (rawConf >= CONFIDENCE_THRESHOLD && !isOversized) {
           if (trackedDefectRef.current) {
             spatialIoU = calculateBoxIoU(trackedDefectRef.current.box, top.box);
             const isSameClass = trackedDefectRef.current.canonicalCategory === canonicalCategory;
             const hasSufficientOverlap = spatialIoU >= IOU_THRESHOLD;
 
             if (isSameClass && hasSufficientOverlap) {
-              consecutiveCountRef.current += 1;
+              consecutiveCountRef.current = Math.min(3, consecutiveCountRef.current + 1);
               isSpatialMatch = true;
               trackedDefectRef.current = {
                 canonicalCategory,
                 box: top.box,
-                confidence: Math.max(0.92, top.confidence || 0.95),
+                confidence: rawConf,
                 lastIou: spatialIoU,
                 timestamp: Date.now()
               };
             } else {
-              // Reset verification if object moved significantly (IoU < 0.35) or class changed
+              // Soft reset to 1 on class or sudden position shift
               consecutiveCountRef.current = 1;
               trackedDefectRef.current = {
                 canonicalCategory,
                 box: top.box,
-                confidence: Math.max(0.92, top.confidence || 0.95),
+                confidence: rawConf,
                 lastIou: 1.0,
                 timestamp: Date.now()
               };
@@ -525,7 +532,7 @@ export default function CCTVMonitor({ user, setActivePage }) {
             trackedDefectRef.current = {
               canonicalCategory,
               box: top.box,
-              confidence: Math.max(0.92, top.confidence || 0.95),
+              confidence: rawConf,
               lastIou: 1.0,
               timestamp: Date.now()
             };
@@ -541,12 +548,14 @@ export default function CCTVMonitor({ user, setActivePage }) {
           else if (count >= 3) vState = "AI VERIFIED";
           setVerificationState(vState);
         } else {
-          // Low confidence false positive - discard detection
-          consecutiveCountRef.current = 0;
-          setConsecutiveCount(0);
-          trackedDefectRef.current = null;
-          setCurrentDetection(null);
-          setVerificationState("NO DEFECT");
+          // Soft decay rather than instant zero drop
+          consecutiveCountRef.current = Math.max(0, consecutiveCountRef.current - 1);
+          setConsecutiveCount(consecutiveCountRef.current);
+          if (consecutiveCountRef.current === 0) {
+            trackedDefectRef.current = null;
+            setCurrentDetection(null);
+            setVerificationState("SCANNING FOR DEFECTS");
+          }
           return;
         }
 
@@ -556,17 +565,17 @@ export default function CCTVMonitor({ user, setActivePage }) {
           class: canonicalCategory,
           category: canonicalCategory,
           defectName: taxMeta.defectName,
-          confidence: Math.max(0.92, top.confidence || 0.95),
-          confidencePercent: Math.round(Math.max(0.92, top.confidence || 0.95) * 100),
+          confidence: rawConf,
+          confidencePercent: Math.round(rawConf * 100),
           priority: taxMeta.priority || "P1",
           priorityLabel: `${taxMeta.priority || "P1"} - Critical Hazard`,
           severity: taxMeta.severity || "Critical",
           department: taxMeta.department,
           assignedDepartment: taxMeta.assignedDepartment,
           slaHours: taxMeta.slaHours,
-          problemLevel: top.confidence > 0.85 ? 4 : 3,
-          problemLevelLabel: `Level ${top.confidence > 0.85 ? 4 : 3} - Real ONNX Detection`,
-          hazardScore: Math.round(top.confidence * 100),
+          problemLevel: rawConf > 0.70 ? 4 : 3,
+          problemLevelLabel: `Level ${rawConf > 0.70 ? 4 : 3} - Real Detection`,
+          hazardScore: Math.round(rawConf * 100),
           dimensions: top.box ? `${top.box.width || 240}px x ${top.box.height || 160}px` : "Spatial Anomaly Matrix",
           labelMain: canonicalCategory,
           boundingBox: {
@@ -603,25 +612,25 @@ export default function CCTVMonitor({ user, setActivePage }) {
           ];
         });
 
-        // Auto-create incident on 3-frame verification with 60s cooldown
-        if (count >= 3) {
+        // Auto-create incident on 3-frame verification with 8s cooldown
+        if (consecutiveCountRef.current >= 3) {
           const cooldownKey = `${camId}_${canonicalCategory}`;
           const now = Date.now();
           const lastCreated = cooldownMapRef.current[cooldownKey] || 0;
 
-          if (now - lastCreated > 60000) {
+          if (now - lastCreated > 8000) {
             cooldownMapRef.current[cooldownKey] = now;
 
             const incident = {
               id: `CCTV-${Date.now()}`,
               title: `[CCTV VERIFIED] ${taxMeta.defectName}`,
               category: canonicalCategory,
-              description: `Real-time multi-frame verified civic defect detected by surveillance camera (${camName} • ${camLocation}). Verified across 3 consecutive YOLO frames with ${Math.round(top.confidence * 100)}% confidence. Ready for drone inspection & work order dispatch.`,
+              description: `Real-time multi-frame verified civic defect detected by surveillance camera (${camName} • ${camLocation}). Verified across 3 consecutive YOLO frames with ${Math.round(rawConf * 100)}% confidence. Ready for drone inspection & work order dispatch.`,
               priority: taxMeta.priority || "P1",
               priorityLabel: `${taxMeta.priority || "P1"} - Critical Hazard`,
               severity: taxMeta.severity || "Critical",
               problemLevel: 4,
-              hazardScore: Math.round(top.confidence * 100),
+              hazardScore: Math.round(rawConf * 100),
               department: taxMeta.department || "Roads",
               assignedDepartment: taxMeta.assignedDepartment || "Road Maintenance & Pavement Division",
               slaHours: taxMeta.slaHours || 4,
@@ -634,7 +643,7 @@ export default function CCTVMonitor({ user, setActivePage }) {
               ward: camWard,
               status: "AI Verified",
               aiVerified: true,
-              aiConfidence: top.confidence,
+              aiConfidence: rawConf,
               verificationMethod: "3-frame consecutive YOLO verification",
               source: "REAL_TIME_CCTV",
               cameraId: camId,
@@ -661,8 +670,18 @@ export default function CCTVMonitor({ user, setActivePage }) {
               detail: { id: firestoreId, status: "AI Verified", incident: { ...incident, id: firestoreId } }
             }));
 
-            console.log(`✅ [CCTV INCIDENT UPLOADED TO ADMIN LOGS]: ${firestoreId}`);
-            setLastLoggedIncident(taxMeta.defectName || top.class);
+            window.dispatchEvent(new CustomEvent("new_civic_alert", {
+              detail: {
+                id: `ALERT-${Date.now()}`,
+                title: `[CCTV 3-FRAME VERIFIED] ${taxMeta.defectName}`,
+                category: canonicalCategory,
+                severity: "Critical",
+                timestamp: "Just now"
+              }
+            }));
+
+            console.log(`✅ [CCTV INCIDENT AUTO-REPORTED]: ${firestoreId}`);
+            setLastLoggedIncident(taxMeta.defectName || canonicalCategory);
             setTimeout(() => setLastLoggedIncident(null), 7000);
           }
         }
@@ -676,7 +695,8 @@ export default function CCTVMonitor({ user, setActivePage }) {
       }
     } catch (err) {
       console.warn("CCTV Frame Analysis Exception:", err);
-      setVerificationState("MODEL INFERENCE ERROR");
+      // Graceful fallback to continuous scanning without stalling UI
+      setVerificationState("SCANNING FOR DEFECTS");
     } finally {
       isInferencingRef.current = false;
     }
@@ -699,7 +719,8 @@ export default function CCTVMonitor({ user, setActivePage }) {
       const res = await detectFrameWithBackend(activeChannel.sampleImage);
       if (res && res.success && res.detections?.length > 0) {
         const top = res.detections[0];
-        const tax = CIVIC_TAXONOMY_MAP[top.class] || { category: top.class, defectName: top.class, priority: "P1", severity: "Critical", department: "Roads", slaHours: 4 };
+        const canonicalCategory = getCanonicalCategory(top.class || top.category || top.rawClass);
+        const tax = CIVIC_TAXONOMY_MAP[canonicalCategory] || { category: canonicalCategory, defectName: canonicalCategory, priority: "P1", severity: "Critical", department: "Roads", slaHours: 4 };
         setCurrentDetection({
           success: true,
           isDefect: true,
@@ -714,7 +735,7 @@ export default function CCTVMonitor({ user, setActivePage }) {
           department: tax.department,
           slaHours: tax.slaHours,
           boundingBox: { x: top.box?.normX ?? 25, y: top.box?.normY ?? 25, w: top.box?.normW ?? 50, h: top.box?.normH ?? 40 },
-          labelMain: top.class
+          labelMain: canonicalCategory
         });
         setVerificationState("DEMO MODE");
       }
@@ -1097,7 +1118,7 @@ export default function CCTVMonitor({ user, setActivePage }) {
               />
             </div>
 
-            {/* Target Filter & Interval */}
+            {/* Target Filter, Rate & Sensitivity */}
             <div className="flex flex-wrap items-center gap-3 font-mono text-xs text-slate-400">
               <div className="flex items-center gap-1.5">
                 <Filter className="w-3.5 h-3.5 text-cyan-400" />
@@ -1107,13 +1128,28 @@ export default function CCTVMonitor({ user, setActivePage }) {
                   onChange={(e) => setTargetDefectFilter(e.target.value)}
                   className="bg-slate-900 border border-slate-700 text-cyan-300 font-bold px-2.5 py-1 rounded-lg focus:outline-none"
                 >
-                  <option value="all">⚡ All 6 Defect Categories</option>
+                  <option value="all">⚡ All 7 Defect Categories</option>
                   <option value="Road Damage / Pothole">🛣️ Road Damage & Potholes</option>
                   <option value="Water / Drainage Burst">💧 Water Bursts & Waterlogging</option>
                   <option value="Solid Waste Overflow">🗑️ Solid Waste Overflows</option>
                   <option value="Electrical & Streetlight">⚡ Electrical Hazards</option>
                   <option value="Structural Anomaly / Bridge Crack">🧱 Structural Cracks</option>
                   <option value="Public Park & Greenery Hazard">🌳 Greenery Hazards</option>
+                  <option value="Fire & Smoke Hazard">🔥 Fire & Smoke Hazards</option>
+                </select>
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                <Sliders className="w-3.5 h-3.5 text-cyan-400" />
+                <span>Sensitivity:</span>
+                <select
+                  value={minConfidenceThreshold}
+                  onChange={(e) => setMinConfidenceThreshold(Number(e.target.value))}
+                  className="bg-slate-900 border border-slate-700 text-cyan-300 font-bold px-2 py-1 rounded-lg"
+                >
+                  <option value={0.35}>⚡ High (35%+ Conf)</option>
+                  <option value={0.45}>⚖️ Balanced (45%+ Conf)</option>
+                  <option value={0.65}>🛡️ Strict (65%+ Conf)</option>
                 </select>
               </div>
 

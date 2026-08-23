@@ -67,7 +67,6 @@ export default function Sidebar({
     { id: 'dashboard', label: 'Citizen Dashboard', icon: LayoutDashboard },
     { id: 'citysync-map', label: 'CitySync AI Map', icon: MapPin },
     { id: 'report-issue', label: 'Report Issue', icon: Sparkles },
-    { id: 'cctv', label: 'CCTV Monitor', icon: Camera },
     { id: 'analytics', label: 'Civic Analytics', icon: BarChart3 },
     { id: 'incident-detail', label: 'Track Complaint', icon: AlertCircle },
   ];

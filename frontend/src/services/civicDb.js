@@ -254,7 +254,7 @@ export async function addCivicIssue(issue) {
   }
 
   const lastWrittenTime = writtenCooldownKeys.get(cooldownKey) || 0;
-  if (now - lastWrittenTime < 60000) {
+  if (now - lastWrittenTime < 8000) {
     console.log(`🛡️ [COOLDOWN ACTIVE] Incident for ${cooldownKey} created ${Math.round((now - lastWrittenTime) / 1000)}s ago.`);
     return { success: true, id: rawId, cached: true };
   }

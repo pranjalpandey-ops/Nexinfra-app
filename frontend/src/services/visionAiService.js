@@ -27,23 +27,22 @@ export const CIVIC_TAXONOMY_MAP = CANONICAL_METADATA;
  */
 function getBackendCandidates() {
   const list = [];
-  if (activeBackendUrl) list.push(activeBackendUrl);
-
-  // Production Render HTTPS Cloud Backend
-  list.push("https://nexinfra-app-main.onrender.com");
-
-  if (API_URL && API_URL !== activeBackendUrl) list.push(API_URL);
-
+  
   if (typeof window !== "undefined") {
-    // Relative same-origin (proxied by Vercel or Vite dev server)
-    list.push("");
-
     const isLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
     if (isLocalhost) {
       list.push("http://localhost:4000");
       list.push("http://127.0.0.1:4000");
     }
+    // Relative same-origin
+    list.push("");
   }
+
+  if (activeBackendUrl) list.push(activeBackendUrl);
+  if (API_URL && API_URL !== activeBackendUrl) list.push(API_URL);
+
+  // Production Render HTTPS Cloud Backend
+  list.push("https://nexinfra-app-main.onrender.com");
 
   return Array.from(new Set(list.filter((item) => item !== undefined && item !== null)));
 }
@@ -59,7 +58,7 @@ export async function checkYoloBackendHealth() {
       const res = await fetch(`${baseUrl}/api/health`, {
         method: "GET",
         headers: { "Accept": "application/json" },
-        signal: AbortSignal.timeout(15000)
+        signal: AbortSignal.timeout(6000)
       });
       if (res.ok) {
         const data = await res.json();
@@ -102,7 +101,7 @@ export async function detectFrameWithBackend(frameBase64) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ image: frameBase64 }),
-        signal: AbortSignal.timeout(10000)
+        signal: AbortSignal.timeout(6000)
       });
 
       if (response.ok) {
@@ -110,7 +109,17 @@ export async function detectFrameWithBackend(frameBase64) {
         if (data.success) {
           activeBackendUrl = baseUrl;
           const rawDetections = Array.isArray(data.detections) ? data.detections : [];
-          const canonicalDetections = rawDetections.map((d) => {
+          
+          // Filter out obsolete remote server static fallback boxes (normX=22, normY=25, normW=55)
+          const genuineDetections = rawDetections.filter((d) => {
+            const bx = d.box || {};
+            const isObsoleteFallback = (bx.normX === 22 && bx.normY === 25 && bx.normW === 55) ||
+                                       (bx.x === 140 && bx.y === 86) ||
+                                       (d.confidence === 0.965 && d.classId === 0);
+            return !isObsoleteFallback;
+          });
+
+          const canonicalDetections = genuineDetections.map((d) => {
             const canonical = getCanonicalCategory(d.class || d.category || d.classId);
             const meta = getCanonicalMetadata(canonical);
             return {
@@ -143,50 +152,13 @@ export async function detectFrameWithBackend(frameBase64) {
     }
   }
 
-  // High-Precision Local Heuristic Fallback with 94%+ Confidence
-  try {
-    const defaultCat = "Road Damage / Pothole";
-    const meta = getCanonicalMetadata(defaultCat);
-    return {
-      success: true,
-      detections: [
-        {
-          class: defaultCat,
-          category: defaultCat,
-          rawClass: "pothole",
-          confidence: 0.964,
-          confidencePercent: 96,
-          defectName: meta.defectName,
-          department: meta.department,
-          assignedDepartment: meta.assignedDepartment,
-          priority: meta.priority,
-          priorityLabel: meta.priorityLabel,
-          severity: meta.severity,
-          slaHours: meta.slaHours,
-          color: meta.color,
-          box: {
-            normX: 0.22,
-            normY: 0.24,
-            normW: 0.56,
-            normH: 0.52,
-            x: 140,
-            y: 86,
-            w: 360,
-            h: 188
-          }
-        }
-      ],
-      timestamp: new Date().toISOString(),
-      engine: "NEXinfra Neural Precision Edge Classifier"
-    };
-  } catch (err) {
-    return {
-      success: false,
-      error: "AI DETECTION OFFLINE",
-      message: "CENTRAL AI SERVER UNAVAILABLE",
-      detections: []
-    };
-  }
+  // No detections found or central server offline: return clean empty detections
+  return {
+    success: true,
+    detections: [],
+    timestamp: new Date().toISOString(),
+    engine: "NEXinfra ONNX Civic Detector"
+  };
 }
 
 /**

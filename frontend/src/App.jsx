@@ -67,8 +67,7 @@ export const ROLE_PAGES = {
     "citysync-map",
     "report-issue",
     "incident-detail",
-    "analytics",
-    "cctv"
+    "analytics"
   ]
 };
 
