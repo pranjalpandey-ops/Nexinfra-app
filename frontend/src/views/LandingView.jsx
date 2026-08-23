@@ -18,7 +18,8 @@ import {
   Compass,
   CheckCircle2,
   ExternalLink,
-  Droplets
+  Droplets,
+  Mail
 } from 'lucide-react';
 
 import FluidCanvas from '../components/effects/FluidCanvas';
@@ -123,20 +124,23 @@ export default function LandingView({ setActivePage }) {
               onSubmit={handleWaitlistSubmit}
               className="w-full max-w-xl"
             >
-              <div className="landing-input-bar flex items-center h-14 sm:h-16 rounded-full border border-white/16 bg-white/8 backdrop-blur-xl shadow-lg pl-5 pr-2 transition-all focus-within:border-cyan-400/80 focus-within:ring-2 focus-within:ring-cyan-400/20">
+              <div className="landing-input-bar flex items-center h-14 sm:h-16 rounded-full border border-cyan-500/40 bg-[#090E1A]/90 backdrop-blur-xl shadow-[0_0_25px_rgba(0,240,255,0.15)] pl-4 pr-1.5 transition-all duration-300 focus-within:border-cyan-400 focus-within:shadow-[0_0_35px_rgba(0,240,255,0.35)] overflow-hidden">
+                <Mail className="w-5 h-5 text-cyan-400 shrink-0 mr-2.5 opacity-80" />
+                
                 <input
                   type="email"
                   required
+                  autoComplete="email"
                   value={emailInput}
                   onChange={(e) => setEmailInput(e.target.value)}
                   placeholder="Enter email for daily updates & urgent alerts..."
-                  className="landing-input flex-1 min-w-0 h-full bg-transparent border-none text-[#eef0f6] text-xs sm:text-sm md:text-base placeholder:text-[#b9becf] focus:outline-none"
+                  className="landing-input flex-1 min-w-0 h-full bg-transparent border-none text-[#F8FAFC] text-xs sm:text-sm md:text-base placeholder:text-slate-400 focus:outline-none focus:ring-0"
                 />
                 
                 <MagneticButton
                   strength={12}
                   type="submit"
-                  className="landing-submit-btn h-10 sm:h-12 px-5 sm:px-7 rounded-full bg-white hover:bg-white/85 text-[#2f2f33] font-medium text-xs sm:text-sm tracking-wide shadow-md transition-all whitespace-nowrap"
+                  className="landing-submit-btn h-10 sm:h-12 px-5 sm:px-7 rounded-full bg-gradient-to-r from-cyan-400 to-teal-300 hover:from-cyan-300 hover:to-teal-200 text-black font-extrabold text-xs sm:text-sm tracking-wide shadow-md transition-all whitespace-nowrap active:scale-95 cursor-pointer uppercase font-mono-tech shrink-0"
                 >
                   <span>{submittedEmail ? "✓ Subscribed!" : "Subscribe"}</span>
                 </MagneticButton>

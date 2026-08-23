@@ -297,10 +297,10 @@ export default function CitySyncReportView({
               </div>
 
               <div className="sm:col-span-4 flex flex-col justify-between space-y-2">
-                <div className="grid grid-cols-1 gap-2">
-                  <label className="w-full py-2.5 px-3 rounded-xl border border-cyan-500/50 bg-cyan-950/50 hover:bg-cyan-900/60 text-cyan-300 font-bold flex items-center justify-center gap-2 cursor-pointer transition text-xs shadow-sm">
+                <div className="grid grid-cols-1 gap-2.5">
+                  <label className="w-full py-3 px-4 rounded-xl border border-cyan-500/50 bg-cyan-950/50 hover:bg-cyan-900/60 text-cyan-300 font-bold flex items-center justify-center gap-2 cursor-pointer transition text-xs shadow-sm active:scale-98">
                     <Camera className="w-4 h-4 text-cyan-400" />
-                    <span>📸 Take Photo (Back Camera)</span>
+                    <span>📸 Take Photo (Camera)</span>
                     <input
                       type="file"
                       accept="image/*"
@@ -310,8 +310,8 @@ export default function CitySyncReportView({
                     />
                   </label>
 
-                  <label className="w-full py-2 px-3 rounded-xl border border-slate-700 bg-slate-900/60 hover:bg-slate-800 text-slate-300 font-medium flex items-center justify-center gap-2 cursor-pointer transition text-xs">
-                    <span>📁 Choose from Gallery</span>
+                  <label className="w-full py-2.5 px-4 rounded-xl border border-slate-700 bg-slate-900/60 hover:bg-slate-800 text-slate-300 font-medium flex items-center justify-center gap-2 cursor-pointer transition text-xs active:scale-98">
+                    <span>📁 Upload from Device / Gallery</span>
                     <input
                       type="file"
                       accept="image/*"
@@ -319,24 +319,6 @@ export default function CitySyncReportView({
                       className="hidden"
                     />
                   </label>
-                </div>
-
-                <div className="text-[11px] text-slate-400 font-bold pt-1">
-                  Or Test with Sample Data:
-                </div>
-
-                <div className="space-y-1.5">
-                  {sampleImages.map((s, idx) => (
-                    <button
-                      key={idx}
-                      type="button"
-                      onClick={() => handleSelectSample(s)}
-                      className="w-full text-left p-2 rounded-lg bg-[#070A10] hover:bg-slate-800/60 border border-slate-800 text-[11px] text-slate-300 flex items-center justify-between cursor-pointer"
-                    >
-                      <span>{s.label}</span>
-                      <span className="text-cyan-400 font-bold">AI Scan ›</span>
-                    </button>
-                  ))}
                 </div>
               </div>
             </div>

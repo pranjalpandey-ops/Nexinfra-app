@@ -896,3 +896,23 @@ button, input, select, textarea {
   background-clip: text;
   animation: shimmerSweep 6s linear infinite;
 }
+
+/* Chrome / Safari / Edge Autofill Dark Cyber Theme Override */
+input:-webkit-autofill,
+input:-webkit-autofill:hover, 
+input:-webkit-autofill:focus, 
+input:-webkit-autofill:active,
+textarea:-webkit-autofill,
+textarea:-webkit-autofill:hover,
+textarea:-webkit-autofill:focus,
+select:-webkit-autofill,
+select:-webkit-autofill:hover,
+select:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 1000px #090e1a inset !important;
+  box-shadow: 0 0 0 1000px #090e1a inset !important;
+  -webkit-text-fill-color: #F8FAFC !important;
+  caret-color: #00F0FF !important;
+  transition: background-color 5000s ease-in-out 0s;
+  border-radius: inherit;
+}
+
