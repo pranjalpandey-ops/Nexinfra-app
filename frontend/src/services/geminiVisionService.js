@@ -162,8 +162,8 @@ Schema:
       },
     };
 
-    // Candidate Gemini model endpoints (tries 3.6-flash, 3.7-flash)
-    const models = ["gemini-3.6-flash", "gemini-3.7-flash"];
+    // Candidate Gemini model endpoints (valid production Google Gemini models)
+    const models = ["gemini-3.6-flash", "gemini-3.7-flash", "gemini-3.5-flash", "gemini-flash-latest"];
     let data = null;
 
     for (const modelName of models) {
@@ -228,19 +228,19 @@ Schema:
       slaHours: parsed.slaHours || 4,
       labelMain: category,
       suggestedTitle: parsed.suggestedTitle || defectName,
-      boundingBox: parsed.boundingBox || { x: 20, y: 22, w: 60, h: 54 },
-      boundingBoxes: parsed.boundingBox ? [
+      boundingBox: parsed.boundingBox || { x: 2, y: 2, w: 96, h: 96 },
+      boundingBoxes: [
         {
           id: 1,
           label: `${category} (${Math.round(confidence * 100)}%)`,
-          x: parsed.boundingBox.x ?? 20,
-          y: parsed.boundingBox.y ?? 22,
-          w: parsed.boundingBox.w ?? 60,
-          h: parsed.boundingBox.h ?? 54,
+          x: parsed.boundingBox?.x ?? 2,
+          y: parsed.boundingBox?.y ?? 2,
+          w: parsed.boundingBox?.w ?? 96,
+          h: parsed.boundingBox?.h ?? 96,
           score: confidence,
-          severity: parsed.severity || "Critical"
+          color: "#00F0FF"
         }
-      ] : []
+      ]
     };
 
   } catch (error) {

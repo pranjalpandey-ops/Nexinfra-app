@@ -51,17 +51,17 @@ function buildTriagePayload(categoryName, baseResult = {}) {
     urgencyLevel: `Critical Action Required (${meta.slaHours} Hours SLA)`,
     assignedDepartment: meta.assignedDepartment,
     slaHours: meta.slaHours,
-    dimensions: meta.priority === "P1" ? "Cavity Breach: 1.9m x 1.4m" : "Estimated Anomaly Zone: ~14.5m²",
+    dimensions: meta.priority === "P1" ? "Full-Scene Critical Anomaly: ~18.5m²" : "Full-Scene Hazard Zone: ~14.5m²",
     defectTags: meta.tags,
     boundingBoxes: [
       {
         id: 1,
         label: `${canonical} (${Math.round((baseResult.confidence || 0.96) * 100)}%)`,
         score: baseResult.confidence || 0.96,
-        x: baseResult.boundingBox?.x || baseResult.boundingBoxes?.[0]?.x || 20,
-        y: baseResult.boundingBox?.y || baseResult.boundingBoxes?.[0]?.y || 22,
-        w: baseResult.boundingBox?.w || baseResult.boundingBoxes?.[0]?.w || 60,
-        h: baseResult.boundingBox?.h || baseResult.boundingBoxes?.[0]?.h || 54,
+        x: baseResult.boundingBox?.x !== undefined ? baseResult.boundingBox.x : (baseResult.boundingBoxes?.[0]?.x ?? 2),
+        y: baseResult.boundingBox?.y !== undefined ? baseResult.boundingBox.y : (baseResult.boundingBoxes?.[0]?.y ?? 2),
+        w: baseResult.boundingBox?.w !== undefined ? baseResult.boundingBox.w : (baseResult.boundingBoxes?.[0]?.w ?? 96),
+        h: baseResult.boundingBox?.h !== undefined ? baseResult.boundingBox.h : (baseResult.boundingBoxes?.[0]?.h ?? 96),
         color: boxColor
       }
     ],
@@ -353,21 +353,27 @@ export default function AIVisionTriageModal({
                   <svg className="absolute inset-0 w-full h-full pointer-events-none">
                     {activeResult.boundingBoxes?.map((box, idx) => {
                       const isActive = activeBoxIndex === idx;
+                      const bx = box.x ?? 2;
+                      const by = box.y ?? 2;
+                      const bw = box.w ?? 96;
+                      const bh = box.h ?? 96;
+                      const color = box.color || "#00F0FF";
                       return (
                         <g key={box.id || idx}>
                           <rect
-                            x={`${box.x}%`}
-                            y={`${box.y}%`}
-                            width={`${box.w}%`}
-                            height={`${box.h}%`}
-                            fill={isActive ? "rgba(245, 158, 11, 0.15)" : "rgba(239, 68, 68, 0.12)"}
-                            stroke={box.color || "#F59E0B"}
-                            strokeWidth={isActive ? "3" : "2"}
+                            x={`${bx}%`}
+                            y={`${by}%`}
+                            width={`${bw}%`}
+                            height={`${bh}%`}
+                            fill={isActive ? "rgba(0, 240, 255, 0.08)" : "rgba(239, 68, 68, 0.08)"}
+                            stroke={color}
+                            strokeWidth={isActive ? "2.5" : "2"}
+                            rx="10"
                           />
-                          <circle cx={`${box.x}%`} cy={`${box.y}%`} r="4" fill={box.color || "#F59E0B"} />
-                          <circle cx={`${box.x + box.w}%`} cy={`${box.y}%`} r="4" fill={box.color || "#F59E0B"} />
-                          <circle cx={`${box.x}%`} cy={`${box.y + box.h}%`} r="4" fill={box.color || "#F59E0B"} />
-                          <circle cx={`${box.x + box.w}%`} cy={`${box.y + box.h}%`} r="4" fill={box.color || "#F59E0B"} />
+                          <circle cx={`${bx}%`} cy={`${by}%`} r="5" fill={color} />
+                          <circle cx={`${bx + bw}%`} cy={`${by}%`} r="5" fill={color} />
+                          <circle cx={`${bx}%`} cy={`${by + bh}%`} r="5" fill={color} />
+                          <circle cx={`${bx + bw}%`} cy={`${by + bh}%`} r="5" fill={color} />
                         </g>
                       );
                     })}

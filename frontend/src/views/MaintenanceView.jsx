@@ -20,6 +20,7 @@ import {
 import { subscribeToComplaints } from "../services/getComplaints";
 import { updateComplaintStatus } from "../services/updateComplaintStatus";
 import { getLocalCivicIssues } from "../services/civicDb";
+import { deleteComplaint } from "../services/deleteComplaint";
 
 import RequestsHubSubpage from "./incident-subpages/RequestsHubSubpage";
 import AutoAIVerificationSubpage from "./incident-subpages/AutoAIVerificationSubpage";
@@ -27,6 +28,7 @@ import InProgressSubpage from "./incident-subpages/InProgressSubpage";
 import ResolvedSubpage from "./incident-subpages/ResolvedSubpage";
 import DisasterBroadcastModal from "../components/DisasterBroadcastModal";
 import AIVisionTriageModal from "../components/AIVisionTriageModal";
+import DeleteIncidentModal from "../components/DeleteIncidentModal";
 import MunicipalOfficerIncidentLogs from "../components/MunicipalOfficerIncidentLogs";
 
 export default function MaintenanceView({
@@ -44,9 +46,10 @@ export default function MaintenanceView({
   const [selectedIncident, setSelectedIncident] = useState(null);
   const [actionLoading, setActionLoading] = useState(null);
 
-  // Disaster Broadcast Modal State
+  // Modals State
   const [isDisasterModalOpen, setIsDisasterModalOpen] = useState(false);
   const [isAITriageModalOpen, setIsAITriageModalOpen] = useState(false);
+  const [deleteTargetIncident, setDeleteTargetIncident] = useState(null);
 
   useEffect(() => {
     // 1. Initial baseline local issues
@@ -128,6 +131,18 @@ export default function MaintenanceView({
       alert(`Update note: ${result.error}`);
     }
     setActionLoading(null);
+  };
+
+  const handleDeleteIncident = async (incident) => {
+    if (!incident || !incident.id) return;
+    const targetId = incident.id;
+    
+    // 1. Immediately remove from React state
+    setIncidents((prev) => prev.filter((item) => item.id !== targetId));
+    setSelectedIncident((prev) => (prev && prev.id === targetId ? null : prev));
+
+    // 2. Delete from persistence (localStorage & Firestore)
+    await deleteComplaint(targetId);
   };
 
   const requestsCount = incidents.filter(
@@ -268,6 +283,7 @@ export default function MaintenanceView({
             incidents={incidents.filter((i) => !i.status || i.status === "Reported" || i.status === "Submitted")}
             onAdvanceStatus={handleAdvanceStatus}
             onOpenDispatchModal={onOpenDispatchModal}
+            onDeleteIncident={handleDeleteIncident}
             actionLoading={actionLoading}
           />
         )}
@@ -278,6 +294,7 @@ export default function MaintenanceView({
             onAdvanceStatus={handleAdvanceStatus}
             onOpenDispatchModal={onOpenDispatchModal}
             onOpenTriageModal={() => setIsAITriageModalOpen(true)}
+            onDeleteIncident={handleDeleteIncident}
             actionLoading={actionLoading}
           />
         )}
@@ -286,6 +303,7 @@ export default function MaintenanceView({
           <InProgressSubpage
             incidents={incidents.filter((i) => i.status === "In Progress" || i.status === "Dispatched")}
             onAdvanceStatus={handleAdvanceStatus}
+            onDeleteIncident={handleDeleteIncident}
             actionLoading={actionLoading}
           />
         )}
@@ -294,6 +312,7 @@ export default function MaintenanceView({
           <ResolvedSubpage
             incidents={incidents.filter((i) => i.status === "Resolved" || i.status === "Closed")}
             onReopenIncident={(inc) => handleAdvanceStatus(inc, "In Progress")}
+            onDeleteIncident={handleDeleteIncident}
             actionLoading={actionLoading}
           />
         )}
@@ -314,6 +333,18 @@ export default function MaintenanceView({
           if (Array.isArray(triagedItems)) {
             setIncidents((prev) => [...triagedItems, ...prev]);
           }
+        }}
+      />
+
+      {/* Dedicated Delete Incident Confirmation Modal */}
+      <DeleteIncidentModal
+        isOpen={Boolean(deleteTargetIncident)}
+        onClose={() => setDeleteTargetIncident(null)}
+        incident={deleteTargetIncident}
+        user={user}
+        onDeleted={(deletedId) => {
+          setIncidents((prev) => prev.filter((item) => item.id !== deletedId));
+          setDeleteTargetIncident(null);
         }}
       />
 

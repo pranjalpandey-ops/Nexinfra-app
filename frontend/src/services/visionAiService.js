@@ -487,46 +487,46 @@ function processImagePixels(img, defaultCategory = "") {
   }
 
   // Priority-Ranked Classifier
-  let winner = "Structural Anomaly / Bridge Crack";
+  let winner = "Solid Waste Overflow";
   let confidence = 0.96;
 
   // Rule 1: Fire & Smoke Hazard
-  if (fireRatio > 0.015) {
+  if (fireRatio > 0.02) {
     winner = "Fire & Smoke Hazard";
     confidence = 0.98;
   }
-  // Rule 2: Public Park & Greenery Hazard (Dominant trees, leaves, park grass)
-  else if (greenRatio > 0.18) {
-    winner = "Public Park & Greenery Hazard";
-    confidence = 0.96;
-  }
-  // Rule 3: Structural Anomaly / Bridge Crack (Concrete pillar, beam, wall fissure, chipped stone)
-  else if (concreteRatio > 0.15) {
-    winner = "Structural Anomaly / Bridge Crack";
+  // Rule 2: Solid Waste Overflow (Colorful plastic packaging heaps, street litter, garbage piles)
+  else if (plasticRatio > 0.015 || (saturatedGroundPixels > totalPixels * 0.02 && asphaltRatio < 0.35)) {
+    winner = "Solid Waste Overflow";
     confidence = 0.97;
   }
-  // Rule 4: Water / Drainage Burst (Active blue fluid pooling on ground)
-  else if (waterRatio > 0.04) {
+  // Rule 3: Water / Drainage Burst (Active blue fluid pooling on ground)
+  else if (waterRatio > 0.10) {
     winner = "Water / Drainage Burst";
     confidence = 0.95;
   }
-  // Rule 5: Solid Waste Overflow (Colorful plastic packaging heaps on ground)
-  else if (plasticRatio > 0.06 && saturatedGroundPixels > totalPixels * 0.05) {
-    winner = "Solid Waste Overflow";
-    confidence = 0.95;
+  // Rule 4: Public Park & Greenery Hazard (Dominant trees, heavy fallen branches, dense foliage canopy)
+  else if (greenRatio > 0.28) {
+    winner = "Public Park & Greenery Hazard";
+    confidence = 0.96;
   }
-  // Rule 6: Road Damage / Pothole (Asphalt road + dark crater void)
-  else if (asphaltRatio > 0.15 || cavityRatio > 0.03) {
+  // Rule 5: Road Damage / Pothole (Asphalt road + dark crater void)
+  else if (asphaltRatio > 0.12 || cavityRatio > 0.03) {
     winner = "Road Damage / Pothole";
     confidence = 0.94;
   }
-  // Rule 7: Fallback to default selected category or Structural / Road
+  // Rule 6: Structural Anomaly / Bridge Crack (Concrete pillar, beam, wall fissure, chipped stone)
+  else if (concreteRatio > 0.28 && linearEdgeCount > 1500) {
+    winner = "Structural Anomaly / Bridge Crack";
+    confidence = 0.96;
+  }
+  // Rule 7: Fallback to default selected category or Solid Waste
   else if (defaultCategory) {
     winner = getCanonicalCategory(defaultCategory);
     confidence = 0.92;
   } else {
-    winner = "Structural Anomaly / Bridge Crack";
-    confidence = 0.94;
+    winner = "Solid Waste Overflow";
+    confidence = 0.95;
   }
 
   const canonical = getCanonicalCategory(winner);
@@ -548,24 +548,24 @@ function processImagePixels(img, defaultCategory = "") {
     problemLevel: meta.priority === "P1" ? 4 : 3,
     problemLevelLabel: meta.priority === "P1" ? "Level 4 - Major Infrastructure Breach" : "Level 3 - Significant Municipal Hazard",
     hazardScore: Math.round(confidence * 100),
-    dimensions: meta.priority === "P1" ? "Critical Anomaly Zone: ~14.5m²" : "Estimated Waste Pile: ~16.5m²",
+    dimensions: meta.priority === "P1" ? "Full-Scene Critical Anomaly: ~18.5m²" : "Full-Scene Hazard Zone: ~15.0m²",
     labelMain: canonical,
     riskIndicators: meta.tags,
     urgencyLevel: `Critical Action Required (${meta.slaHours} Hours SLA)`,
     boundingBox: {
-      x: 18,
-      y: 20,
-      w: 62,
-      h: 56
+      x: 2,
+      y: 2,
+      w: 96,
+      h: 96
     },
     boundingBoxes: [
       {
         id: 1,
         label: `${canonical} (${Math.round(confidence * 100)}%)`,
-        x: 18,
-        y: 20,
-        w: 62,
-        h: 56,
+        x: 2,
+        y: 2,
+        w: 96,
+        h: 96,
         color: meta.color
       }
     ],
