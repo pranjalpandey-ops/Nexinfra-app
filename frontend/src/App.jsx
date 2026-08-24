@@ -102,6 +102,14 @@ export default function App() {
 
   useEffect(() => {
     localStorage.setItem("nexinfra-theme", theme);
+    document.documentElement.setAttribute("data-theme", theme);
+    document.documentElement.classList.remove("dark", "light");
+    document.documentElement.classList.add(theme);
+    if (document.body) {
+      document.body.setAttribute("data-theme", theme);
+      document.body.classList.remove("dark", "light");
+      document.body.classList.add(theme);
+    }
   }, [theme]);
 
   // Firebase Authentication State & Firestore Role Synchronization
@@ -224,7 +232,7 @@ export default function App() {
   // 1. PUBLIC UN-AUTHENTICATED LANDING & AUTH PAGES
   if (activePage === "landing") {
     return (
-      <div className="min-h-screen flex flex-col bg-[#04050c] text-slate-100">
+      <div className="min-h-screen flex flex-col bg-[#070A10] text-slate-100 font-sans" data-theme={theme}>
         <Navbar
           activePage={activePage}
           setActivePage={handleNavigate}
@@ -252,7 +260,7 @@ export default function App() {
 
   if (activePage === "login") {
     return (
-      <div className="min-h-screen flex flex-col bg-[#070A10] text-slate-100">
+      <div className="min-h-screen flex flex-col bg-[#070A10] text-slate-100 font-sans" data-theme={theme}>
         <Navbar
           activePage={activePage}
           setActivePage={handleNavigate}
@@ -261,6 +269,7 @@ export default function App() {
           theme={theme}
           setTheme={setTheme}
           onLogout={handleLogout}
+          onOpenSettings={() => setIsSettingsOpen(true)}
         />
         <div className="flex-1">
           <LoginView
@@ -274,7 +283,7 @@ export default function App() {
 
   if (activePage === "signup") {
     return (
-      <div className="min-h-screen flex flex-col bg-[#070A10] text-slate-100">
+      <div className="min-h-screen flex flex-col bg-[#070A10] text-slate-100 font-sans" data-theme={theme}>
         <Navbar
           activePage={activePage}
           setActivePage={handleNavigate}
@@ -283,6 +292,7 @@ export default function App() {
           theme={theme}
           setTheme={setTheme}
           onLogout={handleLogout}
+          onOpenSettings={() => setIsSettingsOpen(true)}
         />
         <div className="flex-1">
           <SignUpView
@@ -302,7 +312,7 @@ export default function App() {
 
   if (isCitizenOnlyView) {
     return (
-      <div className="flex flex-col h-screen w-screen overflow-hidden bg-[#070A10] text-slate-100 font-sans">
+      <div className="flex flex-col h-screen w-screen overflow-hidden bg-[#070A10] text-slate-100 font-sans" data-theme={theme}>
         <Navbar
           activePage={activePage}
           setActivePage={handleNavigate}
@@ -343,7 +353,7 @@ export default function App() {
 
   // 3. MAIN CONSOLE INTERFACE (ADMIN & MUNICIPAL OFFICER PORTALS)
   return (
-    <div className="flex flex-col h-screen w-screen overflow-hidden bg-[#070A10] text-slate-100 font-sans">
+    <div className="flex flex-col h-screen w-screen overflow-hidden bg-[#070A10] text-slate-100 font-sans" data-theme={theme}>
       <Navbar
         activePage={activePage}
         setActivePage={handleNavigate}
@@ -590,6 +600,10 @@ export default function App() {
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
         user={user}
+        theme={theme}
+        setTheme={setTheme}
+        viewMode={viewMode}
+        setViewMode={setViewMode}
       />
 
       <AlertsDrawerModal
