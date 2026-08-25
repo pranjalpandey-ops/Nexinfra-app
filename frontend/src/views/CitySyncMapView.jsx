@@ -180,6 +180,7 @@ export default function CitySyncMapView({ setActivePage, viewMode = "auto", user
   const [selectedStatus, setSelectedStatus] = useState("ALL");
   const [showHeatmap, setShowHeatmap] = useState(false);
   const [showUavTrails, setShowUavTrails] = useState(true);
+  const [showSeverityLegend, setShowSeverityLegend] = useState(true);
   const [showFilterPanel, setShowFilterPanel] = useState(false);
   const [tileMode, setTileMode] = useState("dark"); // dark | light | satellite
   const [isDisasterModalOpen, setIsDisasterModalOpen] = useState(false);
@@ -431,6 +432,20 @@ export default function CitySyncMapView({ setActivePage, viewMode = "auto", user
               </button>
             )}
 
+            {/* GIS Severity Pins Toggle Button Option */}
+            <button
+              onClick={() => setShowSeverityLegend(!showSeverityLegend)}
+              className={`px-3 py-1.5 rounded-xl border flex items-center gap-1.5 transition cursor-pointer font-bold text-xs ${
+                showSeverityLegend
+                  ? "bg-cyan-950/80 border-cyan-400 text-cyan-300 cyan-glow-sm shadow-md"
+                  : "bg-[#070A10] border-slate-800 text-slate-400 hover:text-white"
+              }`}
+              title="Toggle GIS Severity Pins Legend & Tier Filters"
+            >
+              <MapPin className="w-3.5 h-3.5 text-cyan-400" />
+              <span>Severity Pins</span>
+            </button>
+
             {/* Level 5 Early Warning Broadcast Trigger - Only for Admin & Officers */}
             {isPrivileged && (
               <button
@@ -642,28 +657,99 @@ export default function CitySyncMapView({ setActivePage, viewMode = "auto", user
             }}
           />
 
-          {/* Floating Map Legend */}
-          <div className="absolute top-4 right-4 z-[400] bg-[#070A12]/90 backdrop-blur-md border border-slate-700 rounded-xl p-3 text-xs space-y-1.5 font-mono-tech shadow-2xl hidden md:block">
-            <div className="text-slate-300 font-bold mb-1 border-b border-slate-800 pb-1">
-              GIS Severity Pins
+          {/* Floating Map Legend & Interactive Filter Button Panel */}
+          {showSeverityLegend && (
+            <div className="absolute top-4 right-4 z-[400] bg-[#070A12]/92 backdrop-blur-md border border-slate-700/90 rounded-2xl p-3.5 text-xs space-y-2 font-mono-tech shadow-[0_8px_32px_rgba(0,0,0,0.6)] min-w-[240px] animate-hero-entrance select-none hidden md:block">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                <div className="flex items-center gap-2 text-slate-200 font-bold">
+                  <MapPin className="w-3.5 h-3.5 text-cyan-400" />
+                  <span>GIS Severity Pins</span>
+                </div>
+                <button
+                  onClick={() => setShowSeverityLegend(false)}
+                  className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
+                  title="Hide Severity Pins"
+                >
+                  <Minimize2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+
+              {/* Interactive Filter Button Options */}
+              <div className="space-y-1 pt-0.5">
+                <button
+                  onClick={() => setSelectedPriority(selectedPriority === "P1" ? "ALL" : "P1")}
+                  className={`w-full px-2.5 py-1.5 rounded-lg flex items-center justify-between gap-2 text-left transition cursor-pointer ${
+                    selectedPriority === "P1"
+                      ? "bg-red-950/80 border border-red-500 text-red-300 font-extrabold shadow-sm"
+                      : "hover:bg-slate-800/60 text-red-400 border border-transparent"
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-ping shrink-0" />
+                    <span>🔴 P1: Critical Safety Hazard</span>
+                  </div>
+                  {selectedPriority === "P1" && <Check className="w-3.5 h-3.5 text-red-400 shrink-0" />}
+                </button>
+
+                <button
+                  onClick={() => setSelectedPriority(selectedPriority === "P2" ? "ALL" : "P2")}
+                  className={`w-full px-2.5 py-1.5 rounded-lg flex items-center justify-between gap-2 text-left transition cursor-pointer ${
+                    selectedPriority === "P2"
+                      ? "bg-orange-950/80 border border-orange-500 text-orange-300 font-extrabold shadow-sm"
+                      : "hover:bg-slate-800/60 text-orange-400 border border-transparent"
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-orange-500 shrink-0" />
+                    <span>🟠 P2: High Priority</span>
+                  </div>
+                  {selectedPriority === "P2" && <Check className="w-3.5 h-3.5 text-orange-400 shrink-0" />}
+                </button>
+
+                <button
+                  onClick={() => setSelectedPriority(selectedPriority === "P3" ? "ALL" : "P3")}
+                  className={`w-full px-2.5 py-1.5 rounded-lg flex items-center justify-between gap-2 text-left transition cursor-pointer ${
+                    selectedPriority === "P3"
+                      ? "bg-yellow-950/80 border border-yellow-500 text-yellow-300 font-extrabold shadow-sm"
+                      : "hover:bg-slate-800/60 text-yellow-400 border border-transparent"
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-yellow-400 shrink-0" />
+                    <span>🟡 P3: Medium/Low</span>
+                  </div>
+                  {selectedPriority === "P3" && <Check className="w-3.5 h-3.5 text-yellow-400 shrink-0" />}
+                </button>
+
+                <button
+                  onClick={() => setSelectedStatus(selectedStatus === "Resolved" ? "ALL" : "Resolved")}
+                  className={`w-full px-2.5 py-1.5 rounded-lg flex items-center justify-between gap-2 text-left transition cursor-pointer ${
+                    selectedStatus === "Resolved"
+                      ? "bg-emerald-950/80 border border-emerald-500 text-emerald-300 font-extrabold shadow-sm"
+                      : "hover:bg-slate-800/60 text-emerald-400 border border-transparent"
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+                    <span>🟢 Resolved / Confirmed</span>
+                  </div>
+                  {selectedStatus === "Resolved" && <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />}
+                </button>
+              </div>
+
+              {(selectedPriority !== "ALL" || selectedStatus !== "ALL") && (
+                <button
+                  onClick={() => {
+                    setSelectedPriority("ALL");
+                    setSelectedStatus("ALL");
+                  }}
+                  className="w-full py-1 text-center text-[10px] text-cyan-400 hover:text-cyan-300 font-bold border-t border-slate-800/80 pt-1.5 cursor-pointer block"
+                >
+                  ↺ Reset (Show All Severity Pins)
+                </button>
+              )}
             </div>
-            <div className="flex items-center gap-2 text-red-400">
-              <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-ping" />
-              <span>🔴 P1: Critical Safety Hazard</span>
-            </div>
-            <div className="flex items-center gap-2 text-orange-400">
-              <span className="w-2 h-2 rounded-full bg-orange-500" />
-              <span>🟠 P2: High Priority</span>
-            </div>
-            <div className="flex items-center gap-2 text-yellow-400">
-              <span className="w-2 h-2 rounded-full bg-yellow-400" />
-              <span>🟡 P3: Medium/Low</span>
-            </div>
-            <div className="flex items-center gap-2 text-emerald-400">
-              <span className="w-2 h-2 rounded-full bg-emerald-500" />
-              <span>🟢 Resolved / Citizen Confirmed</span>
-            </div>
-          </div>
+          )}
         </div>
 
         {/* RIGHT COLUMN: Tactical Incident Telemetry HUD & Action Panel */}
