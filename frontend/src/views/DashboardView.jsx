@@ -134,7 +134,7 @@ export default function DashboardView({
   };
 
   return (
-    <div className="flex-1 bg-[#070A10] text-slate-100 p-6 space-y-6 overflow-y-auto">
+    <div className="flex-1 bg-[#070A10] text-slate-100 p-4 sm:p-6 space-y-6 overflow-y-auto min-w-0">
       {/* Header Bar */}
       <div className="flex flex-col sm:flex-row justify-between items-center gap-4 border-b border-slate-800 pb-4">
         <div className="relative w-full sm:w-96">
@@ -180,7 +180,7 @@ export default function DashboardView({
       </div>
 
       {/* Role Banner */}
-      <div className={`p-4 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+      <div className={`p-4 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 overflow-hidden ${
         isAdmin
           ? "bg-cyan-950/20 border-cyan-500/40"
           : "bg-emerald-950/20 border-emerald-500/40"
@@ -203,11 +203,11 @@ export default function DashboardView({
           </div>
         </div>
 
-        <div>
+        <div className="w-full sm:w-auto flex-shrink-0">
           {!isAdmin ? (
             <button
               onClick={() => setActivePage("report-issue")}
-              className="px-4 py-2 rounded-xl bg-gradient-to-r from-cyan-400 to-teal-300 text-black font-extrabold text-xs uppercase flex items-center gap-2 cyan-glow-sm hover:from-cyan-300 hover:to-cyan-200 cursor-pointer"
+              className="w-full sm:w-auto flex justify-center px-4 py-2 rounded-xl bg-gradient-to-r from-cyan-400 to-teal-300 text-black font-extrabold text-xs uppercase flex items-center gap-2 cyan-glow-sm hover:from-cyan-300 hover:to-cyan-200 cursor-pointer"
             >
               <Sparkles className="w-4 h-4" />
               <span>+ Report New Issue</span>
@@ -215,7 +215,7 @@ export default function DashboardView({
           ) : (
             <button
               onClick={onOpenDispatchModal}
-              className="px-4 py-2 rounded-xl bg-cyan-950/60 border border-cyan-500 text-cyan-300 hover:bg-cyan-900/60 font-bold text-xs uppercase cursor-pointer"
+              className="w-full sm:w-auto flex justify-center px-4 py-2 rounded-xl bg-cyan-950/60 border border-cyan-500 text-cyan-300 hover:bg-cyan-900/60 font-bold text-xs uppercase cursor-pointer"
             >
               ⚡ Tactical UAV Fleet
             </button>
@@ -259,14 +259,14 @@ export default function DashboardView({
         {/* Complaints Feed */}
         <div className="lg:col-span-8 bg-[#0C101A] border border-slate-800 rounded-2xl p-6">
           <div className="flex justify-between items-center border-b border-slate-800 pb-4 mb-5">
-            <h3 className="font-bold text-white flex items-center gap-2">
-              <span>{isAdmin ? "Live City Incident Feed" : "My Incident Tracker"}</span>
-              <span className="text-xs px-2 py-0.5 rounded bg-slate-800 text-slate-300 font-mono-tech">
+            <h3 className="font-bold text-white flex items-center gap-2 min-w-0">
+              <span className="truncate">{isAdmin ? "Live City Incident Feed" : "My Incident Tracker"}</span>
+              <span className="text-xs px-2 py-0.5 rounded bg-slate-800 text-slate-300 font-mono-tech flex-shrink-0">
                 {filteredFeed.length} records
               </span>
             </h3>
 
-            <span className="text-cyan-400 text-xs font-mono-tech">
+            <span className="text-cyan-400 text-xs font-mono-tech flex-shrink-0">
               {isAdmin ? "Global Authority View" : "Filtered to Your Account"}
             </span>
           </div>
@@ -293,24 +293,24 @@ export default function DashboardView({
                 <div
                   key={complaint.id}
                   onClick={() => openIncident(complaint)}
-                  className="bg-[#070A12] border border-slate-800 hover:border-cyan-500/80 rounded-xl p-4 flex gap-4 cursor-pointer transition"
+                  className="bg-[#070A12] border border-slate-800 hover:border-cyan-500/80 rounded-xl p-4 flex flex-col sm:flex-row gap-4 cursor-pointer transition min-w-0"
                 >
                   {complaint.imageUrl ? (
                     <img
                       src={complaint.imageUrl}
                       alt="Complaint"
-                      className="w-24 h-24 rounded-lg object-cover"
+                      className="w-full sm:w-24 h-48 sm:h-24 rounded-lg object-cover flex-shrink-0"
                     />
                   ) : (
-                    <div className="w-24 h-24 rounded-lg bg-slate-800 flex items-center justify-center text-slate-500 text-xs font-mono-tech">
+                    <div className="w-full sm:w-24 h-48 sm:h-24 rounded-lg bg-slate-800 flex items-center justify-center text-slate-500 text-xs font-mono-tech flex-shrink-0">
                       No Image
                     </div>
                   )}
 
-                  <div className="flex-1 space-y-2">
+                  <div className="flex-1 space-y-2 min-w-0">
                     <div className="flex justify-between items-start">
                       <div>
-                        <h4 className="font-bold text-white text-base hover:text-cyan-300 transition">
+                        <h4 className="font-bold text-white text-base hover:text-cyan-300 transition break-words whitespace-normal">
                           {complaint.title || complaint.category}
                         </h4>
                         <p className="text-xs text-slate-400">
@@ -337,13 +337,13 @@ export default function DashboardView({
                       </div>
                     </div>
 
-                    <p className="text-sm text-slate-400 line-clamp-2">
+                    <p className="text-sm text-slate-400 break-words whitespace-normal">
                       {complaint.description}
                     </p>
 
                     <p className="text-xs text-cyan-400 font-mono-tech flex items-center gap-1">
                       <MapPin className="w-3.5 h-3.5" />
-                      <span>{complaint.address || "Location Recorded"}</span>
+                      <span className="break-words whitespace-normal">{complaint.address || "Location Recorded"}</span>
                     </p>
                   </div>
                 </div>
@@ -427,12 +427,12 @@ export default function DashboardView({
 
 function MetricCard({ icon, title, value, color }) {
   return (
-    <div className="bg-[#0C101A] border border-slate-800 rounded-2xl p-6">
-      <div className="flex items-center gap-2 text-slate-300 text-sm font-medium">
+    <div className="bg-[#0C101A] border border-slate-800 rounded-2xl p-4 sm:p-6 min-w-0">
+      <div className="flex items-center gap-2 text-slate-300 text-sm sm:text-sm font-medium truncate">
         {icon}
-        <span>{title}</span>
+        <span className="truncate">{title}</span>
       </div>
-      <div className={`text-4xl font-bold mt-3 font-heading ${color}`}>
+      <div className={`text-3xl sm:text-4xl font-bold mt-3 font-heading ${color}`}>
         {value}
       </div>
     </div>

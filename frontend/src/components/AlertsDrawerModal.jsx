@@ -41,7 +41,7 @@ export default function AlertsDrawerModal({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-[#0B0F19] border border-red-500/50 rounded-2xl max-w-3xl w-full p-6 sm:p-8 cyan-glow-lg relative space-y-6 max-h-[90vh] flex flex-col">
+      <div className="bg-[#0B0F19] border border-red-500/50 rounded-2xl max-w-full sm:max-w-3xl mx-4 w-full p-6 sm:p-8 cyan-glow-lg relative space-y-6 max-h-[90vh] flex flex-col overflow-y-auto">
         
         {/* Close Button */}
         <button

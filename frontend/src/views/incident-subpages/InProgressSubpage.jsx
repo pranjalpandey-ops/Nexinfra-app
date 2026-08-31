@@ -208,29 +208,29 @@ export default function InProgressSubpage({
           <span className="text-slate-400">{workOrders.length} Logged Orders</span>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left">
+        <div className="overflow-x-auto sm:overflow-visible">
+          <table className="min-w-full text-left responsive-table table-fixed">
             <thead>
               <tr className="text-slate-400 border-b border-slate-800 text-[11px]">
-                <th className="pb-2.5">ORDER ID</th>
-                <th className="pb-2.5">DEPARTMENT UNIT</th>
-                <th className="pb-2.5">TASK SCOPE</th>
-                <th className="pb-2.5">SEVERITY</th>
-                <th className="pb-2.5">DISPATCH STATUS</th>
+                <th className="pb-2.5 align-middle whitespace-nowrap">ORDER ID</th>
+                <th className="pb-2.5 align-middle">DEPARTMENT UNIT</th>
+                <th className="pb-2.5 align-middle">TASK SCOPE</th>
+                <th className="pb-2.5 align-middle whitespace-nowrap">SEVERITY</th>
+                <th className="pb-2.5 align-middle">DISPATCH STATUS</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60">
               {workOrders.map((wo) => (
                 <tr key={wo.id} className="hover:bg-slate-800/30 transition">
-                  <td className="py-3 font-bold text-cyan-400">{wo.id}</td>
-                  <td className="py-3 text-slate-200 font-bold">{wo.dept}</td>
-                  <td className="py-3 text-slate-300 font-sans">{wo.desc}</td>
-                  <td className="py-3">
+                  <td className="py-3 font-bold text-cyan-400 align-middle" data-label="Order ID">{wo.id}</td>
+                  <td className="py-3 text-slate-200 font-bold align-middle" data-label="Department">{wo.dept}</td>
+                  <td className="py-3 text-slate-300 font-sans align-middle" data-label="Task">{wo.desc}</td>
+                  <td className="py-3 align-middle" data-label="Severity">
                     <span className="px-2 py-0.5 rounded bg-red-950 text-red-300 border border-red-800 text-[10px] font-bold">
                       {wo.priority}
                     </span>
                   </td>
-                  <td className="py-3">
+                  <td className="py-3 align-middle" data-label="Status">
                     <span className={`px-2.5 py-1 rounded text-[10px] font-bold border ${wo.statusBg}`}>
                       {wo.status}
                     </span>

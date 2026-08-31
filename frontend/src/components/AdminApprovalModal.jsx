@@ -96,7 +96,7 @@ export default function AdminApprovalModal({ isOpen, onClose, user }) {
 
   return (
     <div className="fixed inset-0 z-[9999] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-[#0B0F19] border border-cyan-500/40 rounded-2xl p-6 sm:p-8 max-w-4xl w-full cyan-glow-lg relative space-y-6 max-h-[90vh] flex flex-col">
+      <div className="bg-[#0B0F19] border border-cyan-500/40 rounded-2xl p-6 sm:p-8 max-w-full sm:max-w-4xl mx-4 w-full cyan-glow-lg relative space-y-6 max-h-[90vh] flex flex-col overflow-y-auto">
         
         {/* Close Button */}
         <button

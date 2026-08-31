@@ -165,13 +165,15 @@ export default function LeafletMap({
   zoom = 13,
   markers = [],
   showHeatmap = false,
-  containerStyle = { height: "100%", width: "100%" },
+  containerStyle = null,
   tileUrl = "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
   attribution = "&copy; OpenStreetMap contributors &copy; CARTO",
   onMarkerClick = null,
 }) {
+  const effectiveStyle = containerStyle && Object.keys(containerStyle).length ? containerStyle : { height: '60vh', width: '100%' };
+
   return (
-    <div style={containerStyle}>
+    <div style={effectiveStyle}>
       <MapContainer
         center={center}
         zoom={zoom}

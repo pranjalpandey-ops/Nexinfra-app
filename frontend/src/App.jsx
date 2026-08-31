@@ -90,6 +90,7 @@ export default function App() {
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [viewMode, setViewMode] = useState("auto");
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
   // Alert System States
   const [alerts, setAlerts] = useState([]);
@@ -364,6 +365,7 @@ export default function App() {
         onLogout={handleLogout}
         onOpenSettings={() => setIsSettingsOpen(true)}
         onOpenAlerts={() => setIsAlertsOpen(true)}
+        onToggleSidebar={() => setIsMobileSidebarOpen((v) => !v)}
       />
 
       {user ? (
@@ -377,6 +379,8 @@ export default function App() {
             onOpenDispatchModal={handleOpenDispatch}
             onOpenSettings={() => setIsSettingsOpen(true)}
             onOpenApprovalModal={handleOpenApproval}
+            mobileOpen={isMobileSidebarOpen}
+            onRequestClose={() => setIsMobileSidebarOpen(false)}
           />
 
           {/* Main Console Body */}

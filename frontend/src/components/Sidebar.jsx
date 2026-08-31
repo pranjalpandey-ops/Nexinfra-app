@@ -29,7 +29,9 @@ export default function Sidebar({
   theme,
   onOpenDispatchModal,
   onOpenSettings,
-  onOpenApprovalModal
+  onOpenApprovalModal,
+  mobileOpen,
+  onRequestClose
 }) {
   const isAdmin = user?.role === 'admin';
   const isOfficer = user?.role === 'officer';
@@ -90,8 +92,10 @@ export default function Sidebar({
   const menuToRender = showAdminControls ? adminMenuItems : isOfficerContext ? officerMenuItems : publicMenuItems;
 
   return (
-    <aside className="w-64 bg-[#0B0F19] border-r border-slate-800/80 flex flex-col justify-between shrink-0 h-full text-slate-300 font-mono-tech select-none overflow-y-auto">
-      <div>
+    <>
+      {/* Desktop Sidebar */}
+      <aside className="hidden md:flex w-64 bg-[#0B0F19] border-r border-slate-800/80 flex-col justify-between shrink-0 h-full text-slate-300 font-mono-tech select-none overflow-y-auto">
+        <div>
         {/* Top Sidebar Header with Custom Theme Logo */}
         <div className="p-6 border-b border-slate-800/60 flex flex-col items-start gap-2">
           <div className="flex items-center gap-3">
@@ -210,10 +214,10 @@ export default function Sidebar({
             })}
           </nav>
         )}
-      </div>
+        </div>
 
-      {/* Settings & Support */}
-      <div className="p-4 border-t border-slate-800/60 space-y-1 text-xs text-slate-300">
+        {/* Settings & Support */}
+        <div className="p-4 border-t border-slate-800/60 space-y-1 text-xs text-slate-300">
         <button 
           onClick={onOpenSettings}
           className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-slate-800/50 hover:text-cyan-400 transition-colors cursor-pointer font-medium text-sm"
@@ -237,7 +241,86 @@ export default function Sidebar({
           </span>
           <span>v4.2.11</span>
         </div>
+        </div>
+      </aside>
+
+      {/* Mobile Drawer */}
+      <div className={`md:hidden fixed inset-0 z-40 ${mobileOpen ? '' : 'pointer-events-none'}`} aria-hidden={!mobileOpen}>
+        <div className={`absolute inset-0 bg-black/50 transition-opacity ${mobileOpen ? 'opacity-60' : 'opacity-0'}`} onClick={() => onRequestClose && onRequestClose()} />
+
+        <div className={`absolute left-0 top-0 bottom-0 w-64 bg-[#0B0F19] border-r border-slate-800/80 transform transition-transform ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+          <div className="h-full flex flex-col justify-between overflow-y-auto">
+            {/* reuse the same content by duplicating minimal structure */}
+            <div>
+              <div className="p-6 border-b border-slate-800/60 flex flex-col items-start gap-2">
+                <div className="flex items-center gap-3">
+                  <Logo size="sm" theme={theme} />
+                  <div>
+                    <h2 className="text-xl font-extrabold text-white tracking-wide font-sans">Nexinfra</h2>
+                    <p className={`text-[11px] font-mono-tech tracking-widest uppercase ${isOfficerContext ? "text-amber-400" : showAdminControls ? "text-cyan-400" : "text-emerald-400"}`}>
+                      {isOfficerContext ? "Municipal Officer" : showAdminControls ? "Admin Authority" : "Citizen Portal"}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <nav className="px-3 py-2 space-y-1">
+                <div className="px-3 py-1.5 text-xs text-slate-400 font-bold uppercase tracking-widest">
+                  {isOfficerContext ? "Municipal Operations" : showAdminControls ? "Command Center" : "Citizen Services"}
+                </div>
+
+                {menuToRender.map((item) => {
+                  const Icon = item.icon;
+                  const isActive = activePage === item.id;
+
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => { setActivePage(item.id); onRequestClose && onRequestClose(); }}
+                      className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-xs tracking-wider transition-all cursor-pointer ${
+                        isActive
+                          ? isOfficerContext
+                            ? 'bg-amber-950/40 text-amber-300 border-r-2 border-amber-400 font-bold'
+                            : 'bg-slate-800/80 text-cyan-400 border-r-2 border-cyan-400 font-bold'
+                          : 'text-slate-300 hover:text-white hover:bg-slate-800/40'
+                      }`}
+                    >
+                      {Icon && <Icon className={`w-4 h-4 ${isActive ? 'text-cyan-400' : 'text-slate-400'}`} />}
+                      <span className="font-medium text-sm">{item.label}</span>
+                    </button>
+                  );
+                })}
+              </nav>
+            </div>
+
+            <div className="p-4 border-t border-slate-800/60 space-y-1 text-xs text-slate-300">
+              <button 
+                onClick={onOpenSettings}
+                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-slate-800/50 hover:text-cyan-400 transition-colors cursor-pointer font-medium text-sm"
+              >
+                <Settings className="w-4 h-4 text-cyan-400" />
+                <span>Profile & Settings</span>
+              </button>
+
+              <button 
+                onClick={() => alert(`Nexinfra ${user?.role === 'admin' ? "Command Support: operator@nexinfra.gov" : "Citizen Helpdesk: help@nexinfra.gov"}`)}
+                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-slate-800/50 hover:text-slate-200 transition-colors cursor-pointer font-medium text-sm"
+              >
+                <HelpCircle className="w-4 h-4 text-slate-400" />
+                <span>Support & Helpdesk</span>
+              </button>
+
+              <div className="pt-3 border-t border-slate-800/40 px-3 flex items-center justify-between text-xs text-slate-400 font-mono-tech">
+                <span className="flex items-center gap-1.5 text-emerald-400 font-bold">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+                  SYS ONLINE
+                </span>
+                <span>v4.2.11</span>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
-    </aside>
+    </>
   );
 }

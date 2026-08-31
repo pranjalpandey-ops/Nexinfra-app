@@ -29,7 +29,7 @@ export default function DispatchDroneModal({ isOpen, onClose }) {
 
   return (
     <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-[#0B0F19] border border-cyan-500/40 rounded-xl p-6 max-w-lg w-full cyan-glow-lg relative space-y-5">
+      <div className="bg-[#0B0F19] border border-cyan-500/40 rounded-xl p-6 max-w-full sm:max-w-lg mx-4 w-full cyan-glow-lg relative space-y-5 max-h-[92vh] overflow-y-auto">
         
         {/* Close Button */}
         <button

@@ -224,14 +224,14 @@ export default function CitySyncReportView({
         <div className="flex items-center justify-between border-b border-slate-800 pb-5 mb-6">
           <button
             onClick={() => setActivePage("citysync-map")}
-            className="flex items-center gap-2 text-slate-400 hover:text-cyan-400 font-mono-tech text-xs uppercase cursor-pointer transition"
+            className="flex items-center gap-2 text-slate-400 hover:text-cyan-400 font-mono-tech text-xs sm:text-sm uppercase cursor-pointer transition"
           >
             <ArrowLeft className="w-4 h-4" />
             <span>Back to Map</span>
           </button>
 
           <div className="flex items-center gap-2">
-            <span className="px-3 py-1 rounded-full bg-cyan-950 border border-cyan-500 text-cyan-300 font-mono-tech text-xs font-bold flex items-center gap-1.5">
+            <span className="px-3 py-1 rounded-full bg-cyan-950 border border-cyan-500 text-cyan-300 font-mono-tech text-xs sm:text-sm font-bold flex items-center gap-1.5">
               <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
               <span>AI Neural Triage Active</span>
             </span>
@@ -239,18 +239,18 @@ export default function CitySyncReportView({
         </div>
 
         <div className="mb-6">
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-white font-heading">
+          <h1 className="text-lg sm:text-2xl md:text-3xl font-extrabold text-white font-heading break-words whitespace-normal">
             Report Civic Issue & Infrastructure Defect
           </h1>
-          <p className="text-xs text-slate-400 font-mono-tech mt-1">
+          <p className="text-xs sm:text-sm md:text-base text-slate-400 font-mono-tech mt-1">
             Real-time Spatial Geo-tagging • Neural Bounding Verification • Automated Department SLA
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-6 text-xs sm:text-sm md:text-base">
           
           {/* Section 1: Visual Telemetry / Photo Upload */}
-          <div className="space-y-3 font-mono-tech text-xs">
+          <div className="space-y-3 font-mono-tech text-xs sm:text-sm">
             <div className="flex items-center justify-between">
               <label className="block text-slate-200 font-bold uppercase tracking-wider">
                 Defect Visual Evidence
@@ -298,7 +298,7 @@ export default function CitySyncReportView({
 
               <div className="sm:col-span-4 flex flex-col justify-between space-y-2">
                 <div className="grid grid-cols-1 gap-2.5">
-                  <label className="w-full py-3 px-4 rounded-xl border border-cyan-500/50 bg-cyan-950/50 hover:bg-cyan-900/60 text-cyan-300 font-bold flex items-center justify-center gap-2 cursor-pointer transition text-xs shadow-sm active:scale-98">
+                  <label className="w-full py-3 px-4 rounded-xl border border-cyan-500/50 bg-cyan-950/50 hover:bg-cyan-900/60 text-cyan-300 font-bold flex items-center justify-center gap-2 cursor-pointer transition text-xs sm:text-sm shadow-sm active:scale-98">
                     <Camera className="w-4 h-4 text-cyan-400" />
                     <span>📸 Take Photo (Camera)</span>
                     <input
@@ -310,7 +310,7 @@ export default function CitySyncReportView({
                     />
                   </label>
 
-                  <label className="w-full py-2.5 px-4 rounded-xl border border-slate-700 bg-slate-900/60 hover:bg-slate-800 text-slate-300 font-medium flex items-center justify-center gap-2 cursor-pointer transition text-xs active:scale-98">
+                  <label className="w-full py-2.5 px-4 rounded-xl border border-slate-700 bg-slate-900/60 hover:bg-slate-800 text-slate-300 font-medium flex items-center justify-center gap-2 cursor-pointer transition text-xs sm:text-sm active:scale-98">
                     <span>📁 Upload from Device / Gallery</span>
                     <input
                       type="file"
@@ -326,7 +326,7 @@ export default function CitySyncReportView({
 
           {/* AI Triage Banner if verified */}
           {aiTriageData && (
-            <div className="p-4 rounded-xl bg-cyan-950/30 border border-cyan-500/50 text-xs font-mono-tech flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="p-4 rounded-xl bg-cyan-950/30 border border-cyan-500/50 text-xs sm:text-sm font-mono-tech flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="space-y-1">
                 <div className="flex items-center gap-2 text-cyan-300 font-bold">
                   <CheckCircle2 className="w-4 h-4 text-cyan-400" />
@@ -340,7 +340,7 @@ export default function CitySyncReportView({
               <button
                 type="button"
                 onClick={() => setIsTriageModalOpen(true)}
-                className="px-3 py-1.5 rounded-lg bg-cyan-400 text-black font-extrabold text-xs uppercase cursor-pointer shrink-0"
+                className="px-3 py-1.5 rounded-lg bg-cyan-400 text-black font-extrabold text-xs sm:text-sm uppercase cursor-pointer shrink-0"
               >
                 View Bounding Box
               </button>
@@ -356,7 +356,7 @@ export default function CitySyncReportView({
           />
 
           {/* Location & Ward Text Meta */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 font-mono-tech text-xs">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 font-mono-tech text-xs sm:text-sm">
             <div>
               <label className="block mb-1.5 text-slate-300 font-bold">
                 Incident Address / Locality
@@ -394,7 +394,7 @@ export default function CitySyncReportView({
           </div>
 
           {/* Section 3: Category, Priority, and Description */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 font-mono-tech text-xs">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 font-mono-tech text-xs sm:text-sm">
             <div>
               <label className="block mb-1.5 text-slate-300 font-bold">
                 Defect Category
@@ -429,7 +429,7 @@ export default function CitySyncReportView({
             </div>
           </div>
 
-          <div className="font-mono-tech text-xs">
+          <div className="font-mono-tech text-xs sm:text-sm">
             <label className="block mb-1.5 text-slate-300 font-bold">
               Defect Description & Incident Context
             </label>
@@ -439,7 +439,7 @@ export default function CitySyncReportView({
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Provide specific notes regarding hazard scope, traffic impact, or exact physical landmarks..."
-              className="w-full bg-[#070A10] border border-slate-800 rounded-xl p-3 text-white focus:outline-none focus:border-cyan-400 resize-none text-xs sm:text-sm font-sans"
+              className="w-full bg-[#070A10] border border-slate-800 rounded-xl p-3 text-white focus:outline-none focus:border-cyan-400 resize-none text-sm sm:text-base font-sans"
             />
           </div>
 

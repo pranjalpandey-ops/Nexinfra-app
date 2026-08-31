@@ -1007,7 +1007,7 @@ export default function CCTVMonitor({ user, setActivePage }) {
       {/* RTSP GATEWAY CONFIG MODAL */}
       {showRtspConfigModal && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[#0B0F19] border border-cyan-500/40 rounded-xl p-6 max-w-lg w-full space-y-4 font-mono text-xs text-slate-200 shadow-2xl">
+          <div className="bg-[#0B0F19] border border-cyan-500/40 rounded-xl p-6 max-w-full sm:max-w-lg mx-4 w-full space-y-4 font-mono text-xs text-slate-200 shadow-2xl max-h-[92vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <div className="flex items-center gap-2 text-cyan-400 font-bold text-sm">
                 <Settings className="w-4 h-4" />
@@ -1169,7 +1169,7 @@ export default function CCTVMonitor({ user, setActivePage }) {
           </div>
 
           {/* VIDEO FEED CONTAINER WITH REAL-TIME HUD OVERLAYS */}
-          <div className="relative rounded-2xl overflow-hidden bg-black border-2 border-slate-800 shadow-2xl aspect-video flex items-center justify-center group">
+          <div className="relative rounded-2xl overflow-hidden bg-black border-2 border-slate-800 shadow-2xl aspect-[16/9] sm:aspect-video w-full max-h-[60vh] sm:max-h-[80vh] flex items-center justify-center group">
             {/* Live Media Playback */}
             {selectedSourceType === "file" && isMediaTypeImage ? (
               <div className="relative w-full h-full flex flex-col items-center justify-center">
@@ -1249,14 +1249,14 @@ export default function CCTVMonitor({ user, setActivePage }) {
                 <div className="px-2.5 py-1 rounded bg-black/80 backdrop-blur-md border border-slate-700 text-cyan-300 font-bold">
                   {currentCamId}
                 </div>
-                <div className="px-2.5 py-1 rounded bg-black/80 backdrop-blur-md border border-slate-700 text-slate-300">
+                <div className="px-2.5 py-1 rounded bg-black/80 backdrop-blur-md border border-slate-700 text-slate-300 hidden sm:block">
                   {selectedSourceType === "channel"
                     ? `GPS: ${activeChannel.latitude.toFixed(4)}°N, ${activeChannel.longitude.toFixed(4)}°E`
                     : "GPS: 28.6139°N, 77.2090°E"}
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 font-mono text-xs">
+              <div className="hidden sm:flex items-center gap-2 font-mono text-xs">
                 <div className="px-2.5 py-1 rounded bg-black/80 backdrop-blur-md border border-slate-700 text-slate-400">
                   LATENCY: <span className="text-cyan-400 font-bold">{inferenceLatencyMs}ms</span>
                 </div>
@@ -1334,7 +1334,7 @@ export default function CCTVMonitor({ user, setActivePage }) {
                   className="px-3 py-1.5 rounded-lg bg-black/80 hover:bg-slate-900 border border-slate-700 text-slate-200 text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
                 >
                   <Link className="w-3.5 h-3.5 text-cyan-400" />
-                  <span>RTSP Config</span>
+                  <span className="hidden sm:inline">RTSP Config</span>
                 </button>
               </div>
             </div>

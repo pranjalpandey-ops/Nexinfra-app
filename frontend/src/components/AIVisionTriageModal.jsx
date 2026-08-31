@@ -164,7 +164,7 @@ export default function AIVisionTriageModal({
 
   return (
     <div className="fixed inset-0 z-[9999] bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
-      <div className="bg-[#0B0F19] border border-cyan-500/50 rounded-2xl max-w-4xl w-full p-6 sm:p-8 cyan-glow-lg relative flex flex-col max-h-[92vh] overflow-y-auto space-y-6">
+      <div className="bg-[#0B0F19] border border-cyan-500/50 rounded-2xl max-w-full sm:max-w-4xl mx-4 w-full p-6 sm:p-8 cyan-glow-lg relative flex flex-col max-h-[92vh] overflow-y-auto space-y-6">
         
         {/* Close button */}
         <button
@@ -197,7 +197,7 @@ export default function AIVisionTriageModal({
         {/* SCANNING STATE */}
         {scanStep === "scanning" ? (
           <div className="py-10 space-y-6 text-center">
-            <div className="relative max-w-md mx-auto aspect-4/3 rounded-2xl overflow-hidden border border-cyan-500/50 bg-black">
+            <div className="relative max-w-full sm:max-w-md mx-auto aspect-4/3 rounded-2xl overflow-hidden border border-cyan-500/50 bg-black">
               {imageUrl && (
                 <img
                   src={imageUrl}
@@ -211,7 +211,7 @@ export default function AIVisionTriageModal({
               </div>
             </div>
 
-            <div className="space-y-2 max-w-lg mx-auto">
+            <div className="space-y-2 max-w-full sm:max-w-lg mx-auto">
               <div className="flex items-center justify-center gap-2 text-cyan-400 font-mono-tech text-sm font-bold">
                 <Sparkles className="w-4 h-4 animate-spin" />
                 <span>EXECUTING HIGH-RESOLUTION AI NEURAL SCAN...</span>

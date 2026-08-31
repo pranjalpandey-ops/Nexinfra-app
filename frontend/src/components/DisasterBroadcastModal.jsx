@@ -112,7 +112,7 @@ export default function DisasterBroadcastModal({
 
   return (
     <div className="fixed inset-0 z-[9999] bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
-      <div className="bg-[#0B0F19] border border-red-500/60 rounded-2xl max-w-4xl w-full p-6 sm:p-8 cyan-glow-lg relative space-y-6 max-h-[92vh] flex flex-col">
+      <div className="bg-[#0B0F19] border border-red-500/60 rounded-2xl max-w-full sm:max-w-4xl mx-4 w-full p-6 sm:p-8 cyan-glow-lg relative space-y-6 max-h-[92vh] flex flex-col overflow-y-auto">
         
         {/* Close Button */}
         <button

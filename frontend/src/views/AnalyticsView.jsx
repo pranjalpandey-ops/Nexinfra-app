@@ -688,16 +688,16 @@ export default function AnalyticsView({ setActivePage }) {
         </div>
 
         {/* Table View */}
-        <div className="overflow-x-auto font-mono-tech text-xs">
-          <table className="w-full text-left border-collapse">
+        <div className="overflow-x-auto sm:overflow-visible font-mono-tech text-xs">
+          <table className="min-w-full text-left border-collapse responsive-table table-fixed">
             <thead>
               <tr className="border-b border-slate-800 text-slate-400 text-[11px] uppercase">
-                <th className="py-2.5 px-3">Ticket ID</th>
-                <th className="py-2.5 px-3">Problem Defect</th>
-                <th className="py-2.5 px-3">Location / Ward</th>
-                <th className="py-2.5 px-3">Priority</th>
-                <th className="py-2.5 px-3">Completion Status</th>
-                <th className="py-2.5 px-3">Reported / Turnaround</th>
+                <th className="py-2.5 px-3 align-middle whitespace-nowrap">Ticket ID</th>
+                <th className="py-2.5 px-3 align-middle">Problem Defect</th>
+                <th className="py-2.5 px-3 align-middle">Location / Ward</th>
+                <th className="py-2.5 px-3 align-middle whitespace-nowrap">Priority</th>
+                <th className="py-2.5 px-3 align-middle">Completion Status</th>
+                <th className="py-2.5 px-3 align-middle whitespace-nowrap">Reported / Turnaround</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60">
@@ -710,20 +710,20 @@ export default function AnalyticsView({ setActivePage }) {
 
                 return (
                   <tr key={item.id} className="hover:bg-slate-900/40 transition">
-                    <td className="py-3 px-3 font-bold text-cyan-400">{item.id}</td>
-                    <td className="py-3 px-3">
+                    <td className="py-3 px-3 font-bold text-cyan-400 align-middle" data-label="Ticket ID">{item.id}</td>
+                    <td className="py-3 px-3 align-middle" data-label="Problem">
                       <div className="font-bold text-white line-clamp-1">{item.title || item.category}</div>
                       <div className="text-[10px] text-slate-500">{item.assignedDepartment || "Public Works"}</div>
                     </td>
-                    <td className="py-3 px-3 text-slate-300">{item.ward || item.address || "Central Ward"}</td>
-                    <td className="py-3 px-3">
+                    <td className="py-3 px-3 text-slate-300 align-middle" data-label="Location">{item.ward || item.address || "Central Ward"}</td>
+                    <td className="py-3 px-3 align-middle" data-label="Priority">
                       <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
                         item.priority === "P1" ? "bg-red-950 text-red-300 border border-red-500/50" : "bg-cyan-950 text-cyan-300 border border-cyan-500/50"
                       }`}>
                         {item.priority || "P1"}
                       </span>
                     </td>
-                    <td className="py-3 px-3">
+                    <td className="py-3 px-3 align-middle" data-label="Status">
                       <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold flex items-center gap-1 w-fit ${
                         isResolved
                           ? "bg-emerald-950 text-emerald-300 border border-emerald-500/60"
@@ -735,7 +735,7 @@ export default function AnalyticsView({ setActivePage }) {
                         {item.status || "Pending"}
                       </span>
                     </td>
-                    <td className="py-3 px-3">
+                    <td className="py-3 px-3 align-middle" data-label="Reported">
                       <div className="text-slate-300">
                         {item.createdAt && !isNaN(new Date(item.createdAt).getTime()) ? new Date(item.createdAt).toLocaleDateString() : "Aug 23, 2026"}
                       </div>
